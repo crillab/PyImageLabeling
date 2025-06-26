@@ -183,7 +183,7 @@ class ImageViewer(QMainWindow):
         
         button_row.addStretch(1)
         image_layout.addLayout(button_row)
-        
+        #========================================++>
         # Image display with dynamic sizing
         self.image_label = ZoomableGraphicsView()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
