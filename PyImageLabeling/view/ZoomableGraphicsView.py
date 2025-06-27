@@ -13,19 +13,20 @@ import gc
 import math
 import traceback
 
-from models.LabeledRectangle import LabeledRectangle
-from models.PointItem import PointItem
-from models.ProcessWorker import ProcessWorker
-from models.OverlayOpacityDialog import OverlayOpacityDialog
-from models.tools.PaintTool import PaintTool
-from models.tools.EraserTool import EraserTool
-from models.tools.MagicPenTool import MagicPenTool
-from models.tools.OverlayTool import OverlayTool
-from models.tools.RectangleTool import RectangleTool, LabelPropertiesManager, LabelRectanglePropertiesDialog
-from models.tools.ContourTool import ContourTool
-from models.tools.PolygonTool import PolygonTool, LabelPolygonPropertiesDialog
+#from models.LabeledRectangle import LabeledRectangle
+#from models.PointItem import PointItem
+#from models.ProcessWorker import ProcessWorker
+#from models.OverlayOpacityDialog import OverlayOpacityDialog
+#from models.tools.PaintTool import PaintTool
+#from models.tools.EraserTool import EraserTool
+#from models.tools.MagicPenTool import MagicPenTool
+#from models.tools.OverlayTool import OverlayTool
+#from models.tools.RectangleTool import RectangleTool, LabelPropertiesManager, LabelRectanglePropertiesDialog
+#from models.tools.ContourTool import ContourTool
+#from models.tools.PolygonTool import PolygonTool, LabelPolygonPropertiesDialog
 
-class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, OverlayTool, RectangleTool, ContourTool, PolygonTool):
+#class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, OverlayTool, RectangleTool, ContourTool, PolygonTool):
+class ZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         
@@ -107,7 +108,7 @@ class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, O
         self.labeled_rectangles = []
         self.last_used_label = None 
         self.label_thickness = {}
-        self.label_properties_manager = LabelPropertiesManager()
+        #self.label_properties_manager = LabelPropertiesManager()
         
         self.default_polygon_color = QColor(255, 0, 0)  # Green
         self.default_polygon_thickness = 2

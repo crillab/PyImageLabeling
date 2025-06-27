@@ -10,13 +10,15 @@ from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSiz
 import os
 
 class View(QMainWindow):
-    def __init__(self):
+    def __init__(self, config):
         
         super().__init__()
-        
+        self.config = config
+
         self.builder = Builder(self)
         self.manager_events = ManagerEvents()
-        
+        self.buttons = dict()
+
         self.initialize()
         self.builder.build()
         

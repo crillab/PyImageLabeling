@@ -2,7 +2,7 @@
 
 
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QLabel, QGroupBox, QLayout
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize
 from PyImageLabeling.model.Utils import Utils
@@ -22,77 +22,69 @@ class Builder:
 
         # Central widget
         self.view.central_widget = QWidget()
-        self.view.setCentralWidget(self.view.central_widget)
+        
+        #self.view.setCentralWidget(self.view.central_widget)
         
         # Main layout with dynamic stretch factors
         self.view.main_layout = QHBoxLayout(self.view.central_widget)
-
-        self.view.main_layout.setContentsMargins(self.view.layout_spacing, self.view.layout_spacing, 
-                                      self.view.layout_spacing, self.view.layout_spacing)
-        self.view.main_layout.setSpacing(self.view.layout_spacing)
+        #self.view.main_layout.setContentsMargins(self.view.layout_spacing, self.view.layout_spacing, 
+        #                              self.view.layout_spacing, self.view.layout_spacing)
+        #self.view.main_layout.setSpacing(self.view.layout_spacing)
+        
 
         self.build_left_layout()
-        self.build_right_layout()
+        #self.build_right_layout()
 
     def build_left_layout(self):
         
         # Left side - image area
         left_layout_container = QWidget()
-        left_layout = QVBoxLayout(left_layout_container)
+    
+        #left_layout_container.setMinimumWidth(self.view.control_panel_width)
+        #left_layout_container.setMaximumWidth(max(200, int(self.view.window_width * 0.15)))
         
-        # Top buttons row
-        button_row = QHBoxLayout()
-        
-        # Load button with dynamic height
-        self.view.load_button = QPushButton("Load Image")
-        self.view.load_button.setFixedHeight(self.view.button_height)
-        self.view.load_button.setMinimumWidth(self.view.button_min_width)
-        #self.view.load_button.clicked.connect(self.view.load_image)
-        self.view.load_button.setToolTip("Click to load an image into the viewer. This will allow you to select an image file from your system to display.")  # Detailed tooltip
-        button_row.addWidget(self.view.load_button)
-        
-        # Load Layer button with dynamic height
-        self.view.load_layer_button = QPushButton("Load Layer")
-        self.view.load_layer_button.setFixedHeight(self.view.button_height)
-        self.view.load_layer_button.setMinimumWidth(self.view.button_min_width)
-        #self.view.load_layer_button.clicked.connect(self.view.load_layer)
-        self.view.load_layer_button.setToolTip("Click to load a new layer on top of the existing image. This allows you to add additional content or annotations to the image.")  # Detailed tooltip
-        button_row.addWidget(self.view.load_layer_button)
-        
-        # Unload Layer button with dynamic height
-        self.view.unload_layer_button = QPushButton("Unload Layer")
-        self.view.unload_layer_button.setFixedHeight(self.view.button_height)
-        self.view.unload_layer_button.setMinimumWidth(self.view.button_min_width)
-        #self.view.unload_layer_button.clicked.connect(self.view.toggle_layer)
-        self.view.unload_layer_button.setToolTip("Click to remove the currently selected layer from the image. This will leave only the base image or other layers you wish to keep.")  # Detailed tooltip
-        button_row.addWidget(self.view.unload_layer_button)
-        
-        # Save button with dynamic height
-        self.view.save_button = QPushButton("Save Layer")
-        self.view.save_button.setFixedHeight(self.view.button_height)
-        self.view.save_button.setMinimumWidth(self.view.button_min_width)
-        #self.view.save_button.clicked.connect(self.view.save_image)
-        self.view.save_button.setToolTip("Click to save the current layer to a file. This will store the layer as a separate image file on your system.")  # Detailed tooltip
-        button_row.addWidget(self.view.save_button)
 
-        self.view.shortcut_button = QPushButton("Shortcut")
-        self.view.shortcut_button.setFixedHeight(self.view.button_height)
-        self.view.shortcut_button.setMinimumWidth(self.view.button_min_width)
-        #self.view.shortcut_button.clicked.connect(self.view.toggle_shortcuts)
-        self.view.shortcut_button.setToolTip("Click to hide/show all label property dialogs or select specific ones.")
-        button_row.addWidget(self.view.shortcut_button)
+        left_layout = QVBoxLayout(left_layout_container)
+        left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
-        button_row.addStretch(1)
-        left_layout.addLayout(button_row)
+        #print("coucou:", self.view.config)
+        for category in self.view.config["buttons"]:
+            category_name = tuple(category.keys())[0]
+            frame = QGroupBox()
+            frame.setTitle(category_name)
+            buttons_layout = QVBoxLayout(frame)
+            
+
+            for button in category[category_name]:
+                button_name = button["name"]
+                self.view.buttons[button_name] = QPushButton(button["name_view"])
+                self.view.buttons[button_name].setFixedHeight(20)
+                self.view.buttons[button_name].setMinimumWidth(self.view.button_min_width)
+                #self.view.buttons[button_name].clicked.connect(self.load_image)
+
+                self.view.buttons[button_name].setToolTip(button["tooltip"]) # Detailed tooltip
+                
+                icon_path = Utils.get_icon_path(button["icon"])
+                if os.path.exists(icon_path):
+                    self.view.buttons[button_name].setIcon(QIcon(icon_path))
+                    self.view.buttons[button_name].setIconSize(QSize(15, 15))
+                self.view.buttons[button_name].setStyleSheet(Utils.get_style_css())
+
+                
+                buttons_layout.addWidget(self.view.buttons[button_name])
+                
+            left_layout.addWidget(frame)
+
+        
         
         # Image display with dynamic sizing
-        self.zoomable_graphics_view = ZoomableGraphicsView()
-        self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.zoomable_graphics_view.setStyleSheet("background-color: #ccc; border: 1px solid #000;")
-        self.zoomable_graphics_view.setMinimumSize(self.view.image_container_width, self.view.image_container_height)
-        left_layout.addWidget(self.zoomable_graphics_view, 1)  # Give it stretch priority
+        #self.zoomable_graphics_view = ZoomableGraphicsView()
+        #self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        #self.zoomable_graphics_view.setStyleSheet("background-color: #ccc; border: 1px solid #000;")
+        #self.zoomable_graphics_view.setMinimumSize(self.view.image_container_width, self.view.image_container_height)
+        #left_layout.addWidget(self.zoomable_graphics_view, 1)  # Give it stretch priority
         
-        self.view.main_layout.addWidget(left_layout_container, 4)  # Set stretch factor for image area
+        self.view.main_layout.addWidget(left_layout_container)  # Set stretch factor for image area
 
     
         
@@ -100,8 +92,6 @@ class Builder:
     def build_right_layout(self):
         
         self.right_layout_container = QWidget()
-        self.right_layout_container.setMinimumWidth(self.view.control_panel_width)
-        self.right_layout_container.setMaximumWidth(max(200, int(self.view.window_width * 0.15)))
         
         self.right_layout = QVBoxLayout(self.right_layout_container)
         self.right_layout.setSpacing(max(8, int(self.view.button_height * 0.2)))  # Fixed spacing for buttons
