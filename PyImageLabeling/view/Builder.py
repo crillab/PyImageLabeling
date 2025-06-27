@@ -5,7 +5,7 @@
 from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QLabel, QGroupBox, QLayout
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
 
@@ -23,7 +23,7 @@ class Builder:
         # Central widget
         self.view.central_widget = QWidget()
         
-        #self.view.setCentralWidget(self.view.central_widget)
+        self.view.setCentralWidget(self.view.central_widget)
         
         # Main layout with dynamic stretch factors
         self.view.main_layout = QHBoxLayout(self.view.central_widget)
@@ -84,7 +84,8 @@ class Builder:
         #self.zoomable_graphics_view.setMinimumSize(self.view.image_container_width, self.view.image_container_height)
         #left_layout.addWidget(self.zoomable_graphics_view, 1)  # Give it stretch priority
         
-        self.view.main_layout.addWidget(left_layout_container)  # Set stretch factor for image area
+        self.view.main_layout.addWidget(left_layout_container, 0, Qt.AlignmentFlag.AlignTop)  # Set stretch factor for image area
+        self.view.main_layout.addStretch(1)
 
     
         
