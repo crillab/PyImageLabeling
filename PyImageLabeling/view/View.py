@@ -49,10 +49,11 @@ class View(QMainWindow):
         self.setWindowIcon(QIcon(Utils.get_icon_path("maia2")))
 
         # Font scaling with better minimum
-        self.base_font_size = max(9, int(self.window_width / 180))
-        self.app_font = QFont()
-        self.app_font.setPointSize(self.base_font_size)
-        QApplication.setFont(self.app_font)
-
+        #self.base_font_size = max(9, int(self.window_width / 180))
+        #self.app_font = QFont()
+        #self.app_font.setPointSize(self.base_font_size)
+        #QApplication.setFont(self.app_font)
+        self.setStyleSheet(Utils.get_style_css())
+        
         
     

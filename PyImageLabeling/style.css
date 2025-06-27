@@ -1,16 +1,66 @@
+QWidget {
+    background-color: #4d4d4d;
+    border: 2px solid #808080;
+}
+
 QPushButton {
     border: 1px solid #bbb;
-    background-color: #f0f0f0;
+    background-color: #cccccc;
     color: black;
     text-align: left;
+    padding-left: 10px;
+    min-height: 20px;
+    max-height: 20px;
+    min-width: 125px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+
+
 }
+
 QPushButton:hover {
-    background-color: #e0e0e0;
+    background-color: #8ba1ff;
 }
 QPushButton:pressed {
-    background-color: #d0d0d0;
+    background-color: #6380ff;
+    border: 1px solid #424242;
 }
+
 QPushButton:checked {
     background-color: #c0c0c0;
+    border: 2px solid #424242;
+}
+
+QGroupBox {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
     border: 2px solid #808080;
+    margin-top: 30%;
+    font-weight: bold;
+    font-size: 14pt;
+}
+
+QGroupBox::title {
+    /*subcontrol-origin: margin;*/
+    position: fixed;
+    left: 10%;
+    bottom: 15%;
+    margin-left: 5%;
+    margin-right: 5%;
+    
+    
+    /*subcontrol-origin: margin;
+    subcontrol-position: top center;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    padding: 5px 150px;
+    background-color: #FF17365D;
+    color: rgb(255, 255, 255);*/
+}
+
+ZoomableGraphicsView {
+    background-color: #ccc; 
+    border: 1px solid #000;
 }
