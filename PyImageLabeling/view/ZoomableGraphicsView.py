@@ -26,7 +26,55 @@ import traceback
 #from models.tools.PolygonTool import PolygonTool, LabelPolygonPropertiesDialog
 
 #class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, OverlayTool, RectangleTool, ContourTool, PolygonTool):
+
 class ZoomableGraphicsView(QGraphicsView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        # Create scene
+        self.scene = QGraphicsScene(self)
+        self.setScene(self.scene)
+        
+        # Setup view properties for best performance
+        self.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        self.setOptimizationFlag(QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing, True)
+        self.setOptimizationFlag(QGraphicsView.OptimizationFlag.DontSavePainterState, True)
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        
+        # Basic properties
+        self.zoom_factor = 1.0
+        self.base_pixmap = None
+        self.pixmap_item = None
+        self.base_pixmap_item = None
+        self.overlay_pixmap_item = None
+        self.raw_image = None
+        self.is_moving = False
+        self.last_mouse_pos = None
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        
+        # Drawing properties
+        self.points = []  # List of PointItem objects
+        self.paint_mode = False
+        self.erase_mode = False
+        self.magic_pen_mode = False
+        self.point_radius = 3
+        self.point_color = QColor(255, 0, 0)
+        self.point_opacity = 100
+        self.point_label = ""
+        self.eraser_size = 10
+        self.absolute_erase_mode = False
+        self.magic_pen_tolerance = 20
+        self.max_points_limite = 100000
+        self.shape_fill_mode = False
+
+
+
+class OldZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         

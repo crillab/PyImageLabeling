@@ -13,7 +13,7 @@ class Utils():
         return os.path.join(icon_dir, f"{icon_name}.png")
     
     def get_style_css():
-        return open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"style.css").read()
+        return open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"combinear.qss").read()
     
     def get_config():
         with open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"config.json", 'r', encoding='utf-8') as file:

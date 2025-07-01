@@ -21,39 +21,33 @@ class View(QMainWindow):
 
         self.initialize()
         self.builder.build()
+        self.show()
         
     
-
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
         self.label_properties_dialogs = []
         # Get screen information
         self.screen = QApplication.primaryScreen()
+
         self.screen_geometry = self.screen.availableGeometry()
+        
         self.screen_width = self.screen_geometry.width()
         self.screen_height = self.screen_geometry.height()
         
         # Calculate dynamic window size based on screen dimensions
-        self.window_width = int(self.screen_width * 0.85)  # Use 85% of screen width
-        self.window_height = int(self.screen_height * 0.85)  # Use 85% of screen height
+        self.window_width = int(self.screen_width * 0.80)  # Use 85% of screen width
+        self.window_height = int(self.screen_height * 0.80)  # Use 85% of screen height
         
-        # Set window position and size
-        self.setGeometry(
-            (self.screen_width - self.window_width) // 2,  # Center horizontally
-            (self.screen_height - self.window_height) // 2,  # Center vertically
-            self.window_width,
-            self.window_height
-        )
+        self.left_panel_width = int(self.window_width * 0.075)
+        self.left_panel_height = int(self.window_height * 0.075)
         
-        # Icon
-        self.setWindowIcon(QIcon(Utils.get_icon_path("maia2")))
+        self.right_panel_width = int(self.window_width * 0.90)
+        self.right_panel_height = int(self.window_height * 0.90)
+        
+        self.setWindowIcon(QIcon(Utils.get_icon_path("maia_icon")))
 
-        # Font scaling with better minimum
-        #self.base_font_size = max(9, int(self.window_width / 180))
-        #self.app_font = QFont()
-        #self.app_font.setPointSize(self.base_font_size)
-        #QApplication.setFont(self.app_font)
         self.setStyleSheet(Utils.get_style_css())
         
         
-    
+   

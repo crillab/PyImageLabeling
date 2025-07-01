@@ -12,7 +12,7 @@ def __main__():
     view = View(config)
     model = Model(config)
     controller = Controller(model, view, config)
-    view.show()
+    
     sys.exit(app.exec())
 
 __main__()

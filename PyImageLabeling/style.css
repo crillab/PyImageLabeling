@@ -16,8 +16,6 @@ QPushButton {
     border-bottom-right-radius: 5px;
     border-top-left-radius: 5px;
     border-top-right-radius: 5px;
-
-
 }
 
 QPushButton:hover {
@@ -43,21 +41,11 @@ QGroupBox {
 }
 
 QGroupBox::title {
-    /*subcontrol-origin: margin;*/
     position: fixed;
     left: 10%;
     bottom: 15%;
     margin-left: 5%;
     margin-right: 5%;
-    
-    
-    /*subcontrol-origin: margin;
-    subcontrol-position: top center;
-    border-top-left-radius: 15px;
-    border-top-right-radius: 15px;
-    padding: 5px 150px;
-    background-color: #FF17365D;
-    color: rgb(255, 255, 255);*/
 }
 
 ZoomableGraphicsView {
