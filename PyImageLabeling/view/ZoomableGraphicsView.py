@@ -72,6 +72,9 @@ class ZoomableGraphicsView(QGraphicsView):
         self.max_points_limite = 100000
         self.shape_fill_mode = False
 
+    def clear(self):
+        pass
+
 
 
 class OldZoomableGraphicsView(QGraphicsView):

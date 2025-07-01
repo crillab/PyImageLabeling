@@ -7,6 +7,9 @@ class Events:
 
     def set_view(self, view):
         self.view = view
+    
+    def set_model(self, model):
+        self.model = model
 
     def all_events(self, event_name):
         self.view.desactivate_buttons(event_name)
