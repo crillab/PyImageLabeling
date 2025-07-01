@@ -3,14 +3,14 @@
         [
             {"File":[
                 {
-                    "name": "load",
+                    "name": "load_image",
                     "name_view": "Load Image",
                     "icon": null,
                     "checkable": false,
                     "tooltip": "Click to load an image into the viewer. This will allow you to select an image file from your system to display."
                 },
                 {
-                    "name": "save",
+                    "name": "save_image",
                     "name_view": "Save Image",
                     "icon": null,
                     "checkable": false,
@@ -35,14 +35,14 @@
 
             {"Tools":[
                 {
-                    "name": "move",
+                    "name": "move_image",
                     "icon": "move",
                     "checkable": true,
                     "name_view": "Move",
                     "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
                 },
                 {
-                    "name": "reset_move_zoom",
+                    "name": "reset_move_zoom_image",
                     "icon": "reset",
                     "checkable": false,
                     "name_view": "Move/Zoom Reset",
@@ -91,7 +91,7 @@
                 {
                     "name": "undo",
                     "name_view": "Undo",
-                    "checkable": true,
+                    "checkable": false,
                     "icon": "back",
                     "tooltip": "Click to undo the last drawing action or modification."
                 },
@@ -119,7 +119,7 @@
                 {
                     "name": "opacity",
                     "name_view": "Opacity",
-                    "checkable": true,
+                    "checkable": false,
                     "icon": "opacity",
                     "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers."
                 }

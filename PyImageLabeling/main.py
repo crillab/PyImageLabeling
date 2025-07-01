@@ -9,9 +9,10 @@ import sys
 def __main__():
     config = Utils.get_config()
     app = QApplication(sys.argv)
-    view = View(config)
+    controller = Controller(config)
+    view = View(controller, config)
     model = Model(config)
-    controller = Controller(model, view, config)
+    #controller = Controller(model, view, config)
     
     sys.exit(app.exec())
 

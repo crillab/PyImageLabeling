@@ -1,6 +1,5 @@
 
 from PyImageLabeling.view.Builder import Builder
-from PyImageLabeling.view.events.ManagerEvents import ManagerEvents
 from PyImageLabeling.model.Utils import Utils
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
@@ -10,20 +9,36 @@ from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSiz
 import os
 
 class View(QMainWindow):
-    def __init__(self, config):
+    def __init__(self, controller, config):
         
         super().__init__()
+        # Parameters
+        self.controller = controller
+        self.controller.set_view(self) 
         self.config = config
 
-        self.builder = Builder(self)
-        self.manager_events = ManagerEvents()
+        #Components of the view 
         self.buttons = dict()
-
-        self.initialize()
-        self.builder.build()
-        self.show()
+        self.zoomable_graphics_view = None
         
-    
+        # Set the main properties of the view
+        self.initialize()
+
+        # Build the components of the view
+        self.builder = Builder(self)
+        self.builder.build()
+
+        # Display
+        self.show()
+
+    def desactivate_buttons(self, clicked):
+        for button in self.buttons.keys():
+            # The button have not to be the same that clicked
+            # The button have to be checked 
+            # The clicked button have to be checkable 
+            if button != clicked and self.buttons[button].isChecked() is True and self.buttons[clicked].isCheckable():
+                self.buttons[button].setChecked(False)
+
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
         self.label_properties_dialogs = []
@@ -46,7 +61,6 @@ class View(QMainWindow):
         self.right_panel_height = int(self.window_height * 0.90)
         
         self.setWindowIcon(QIcon(Utils.get_icon_path("maia_icon")))
-
         self.setStyleSheet(Utils.get_style_css())
         
         

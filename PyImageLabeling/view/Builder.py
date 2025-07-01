@@ -20,16 +20,9 @@ class Builder:
 
         # Central widget
         self.view.central_widget = QWidget()
-        
         self.view.setCentralWidget(self.view.central_widget)
-        
-        # Main layout with dynamic stretch factors
         self.view.main_layout = QHBoxLayout(self.view.central_widget)
-        #self.view.main_layout.setContentsMargins(self.view.layout_spacing, self.view.layout_spacing, 
-        #                              self.view.layout_spacing, self.view.layout_spacing)
-        #self.view.main_layout.setSpacing(self.view.layout_spacing)
         
-
         self.build_left_layout()
         self.build_right_layout()
 
@@ -53,7 +46,12 @@ class Builder:
                 icon_path = Utils.get_icon_path(button["icon"])
                 if os.path.exists(icon_path):
                     self.view.buttons[button_name].setIcon(QIcon(icon_path))
+                
+                self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
+                self.view.buttons[button_name].setCheckable(button["checkable"])
+                
                 buttons_layout.addWidget(self.view.buttons[button_name])
+
 
             frame.setMinimumWidth(self.view.left_panel_width)    
             left_layout.addWidget(frame)
@@ -67,9 +65,9 @@ class Builder:
         self.right_layout_container = QWidget()
         self.right_layout = QStackedLayout(self.right_layout_container)
         
-        self.zoomable_graphics_view = ZoomableGraphicsView()
-        self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.right_layout.addWidget(self.zoomable_graphics_view)  # Give it stretch priority
+        self.view.zoomable_graphics_view = ZoomableGraphicsView()
+        self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.right_layout.addWidget(self.view.zoomable_graphics_view)  # Give it stretch priority
 
         self.view.main_layout.addWidget(self.right_layout_container)  
         self.right_layout_container.setMinimumSize(self.view.right_panel_width, self.view.right_panel_height)
