@@ -8,6 +8,8 @@ from PyQt6.QtCore import Qt, QSize, QRect
 from model.Utils import Utils
 
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
+from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
+
 from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
 import os
 
@@ -156,8 +158,12 @@ class Builder:
 
         self.view.main_layout.addWidget(self.image_layout_container, 1, 0)
         
+    def build_label_setting_dialog(self):
+        qlabelsettingdialog = QLabelSettingForm(self.view, self)
+        qlabelsettingdialog.open()
+        
 
-    def build_new_layer(self):
+    def build_new_layer_bottom_bar(self, name, color):
         print("build_new_layer")
         
         new_layer_layout_container = QWidget()
@@ -169,7 +175,10 @@ class Builder:
         new_layer_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
 
-        new_layer_activation = QPushButton("Layer 1")
+        new_layer_activation = QPushButton(name)
+        color_style = f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
+        new_layer_activation.setStyleSheet(color_style)
+
         new_layer_activation.setObjectName("activation")
         new_layer_activation.setCheckable(True)
         new_layer_activation.setChecked(True)

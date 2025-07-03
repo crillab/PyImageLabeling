@@ -59,7 +59,8 @@ class View(QMainWindow):
         
         self.resize(self.window_width, self.window_height)
         
-    def new_layer(self):
-        self.builder.build_new_layer()
+
+    def build_label_setting_dialog(self): self.builder.build_label_setting_dialog()
+    def build_new_layer_bottom_bar(self): self.builder.build_new_layer_bottom_bar()
         
    

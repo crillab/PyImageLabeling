@@ -1,9 +1,8 @@
 
 from PyImageLabeling.controller.Events import Events
 
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QDialog
 from PyQt6.QtGui import QPixmap, QImage
-
 
 class LayerEvents(Events):
     def __init__(self):
@@ -13,13 +12,20 @@ class LayerEvents(Events):
     def new_layer(self):
         self.all_events(self.new_layer.__name__)
         
+        self.view.build_label_setting_dialog()
+
         self.model.new_layer()
-        self.view.new_layer()
+        #self.view.build_new_layer_bottom_bar()
+        
         print("load_layer")
         
     def load_layer(self):
         self.all_events(self.load_layer.__name__)
 
         print("load_layer")
+
+
+
+
 
         
