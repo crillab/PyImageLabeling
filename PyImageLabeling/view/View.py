@@ -54,14 +54,12 @@ class View(QMainWindow):
         self.window_width = int(self.screen_width * 0.80)  # Use 85% of screen width
         self.window_height = int(self.screen_height * 0.80)  # Use 85% of screen height
         
-        self.left_panel_width = int(self.window_width * 0.075)
-        self.left_panel_height = int(self.window_height * 0.075)
-        
-        self.right_panel_width = int(self.window_width * 0.90)
-        self.right_panel_height = int(self.window_height * 0.90)
-        
         self.setWindowIcon(QIcon(Utils.get_icon_path("maia_icon")))
         self.setStyleSheet(Utils.get_style_css())
         
+        self.resize(self.window_width, self.window_height)
+        
+    def new_layer(self):
+        self.builder.build_new_layer()
         
    

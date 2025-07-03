@@ -27,19 +27,9 @@ class FileEvents(Events):
         if image.isNull(): self.error_message("Load Image", "Could not load the image.")
 
         self.model.load_image(image)
-            
         
-    def save_image(self):
-        self.all_events(self.save_image.__name__)
-        print("save_image")
-
-    def load_layer(self):
-        self.all_events(self.load_layer.__name__)
-        print("load_layer")
-
-    def unload_layer(self):
-        self.all_events(self.unload_layer.__name__)
-        print("unload_layer")
-
+    def save_layers(self):
+        self.all_events(self.save_layers.__name__)
+        print("save_layers")
 
         

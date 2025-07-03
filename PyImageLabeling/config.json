@@ -1,39 +1,20 @@
 {
-    "buttons": 
-        [
-            {"File":[
+    "image_bar":
+            [
                 {
-                    "name": "load_image",
-                    "name_view": "Load Image",
-                    "icon": null,
-                    "checkable": false,
-                    "tooltip": "Click to load an image into the viewer. This will allow you to select an image file from your system to display."
+                    "name": "zoom_plus",
+                    "name_view": "Zoom Plus",
+                    "icon": "zoom_plus",
+                    "checkable": true,
+                    "tooltip": "Zoom Plus."
                 },
                 {
-                    "name": "save_image",
-                    "name_view": "Save Image",
-                    "icon": null,
-                    "checkable": false,
-                    "tooltip": "Click to save the current layer to a file. This will store the layer as a separate image file on your system."
+                    "name": "zoom_minus",
+                    "name_view": "Zoom Minus",
+                    "icon": "zoom_minus",
+                    "checkable": true,
+                    "tooltip": "zoom_minus."
                 },
-                {
-                    "name": "load_layer",
-                    "name_view": "Load Layer",
-                    "icon": null,
-                    "checkable": false,
-                    "tooltip": "Click to load a new layer on top of the existing image. This allows you to add additional content or annotations to the image."
-                },
-                {
-                    "name": "unload_layer",
-                    "name_view": "Unload Layer",
-                    "icon": null,
-                    "checkable": false,
-                    "tooltip": "Click to remove the currently selected layer from the image. This will leave only the base image or other layers you wish to keep."
-                }
-                
-            ]},
-
-            {"Tools":[
                 {
                     "name": "move_image",
                     "icon": "move",
@@ -48,7 +29,65 @@
                     "name_view": "Move/Zoom Reset",
                     "tooltip": "Click to reset the image's position and zoom level to the default view."
                 }
+            ]
+        ,
+    "status_bar":
+            {"permanent":[
+                {
+                    "name": "new_layer",
+                    "name_view": "New Layer",
+                    "icon": "plus",
+                    "checkable": false,
+                    "tooltip": "Add a new empty layer."
+                },
+                {
+                    "name": "load_layer",
+                    "name_view": "Load Layer",
+                    "icon": "open_layer",
+                    "checkable": false,
+                    "tooltip": "Load a layer from a file."
+                }
+            ],
+            "layer":[
+                {
+                    "name": "setting",
+                    "name_view": "Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of the layer/label."
+                },
+                {
+                    "name": "unload_layer",
+                    "name_view": "Unload Layer",
+                    "icon": "close",
+                    "checkable": false,
+                    "tooltip": "Unload the layer (without save)"
+                }
+                
+            ]}
+        ,
+    "buttons": 
+        [
+            {"File":[
+                {
+                    "name": "load_image",
+                    "name_view": "Load Image",
+                    "icon": "open_image",
+                    "checkable": false,
+                    "tooltip": "Click to load an image into the viewer. This will allow you to select an image file from your system to display."
+                },
+                {
+                    "name": "save_layers",
+                    "name_view": "Save Layers",
+                    "icon": "save",
+                    "checkable": false,
+                    "tooltip": "Click to save the current layer to a file. This will store the layer as a separate image file on your system."
+                }
+                
+                
             ]},
+
+            
 
             {"Labeling":[
                 {
@@ -108,13 +147,6 @@
                     "checkable": false,
                     "icon": "cleaner",
                     "tooltip": "Click to clear all layers and reset the image to its original state."
-                },
-                {
-                    "name": "hide_show_label_shortcut",
-                    "name_view": "Hide/Show Shortcut",
-                    "icon": null,
-                    "checkable": false,
-                    "tooltip": "Click to hide/show all label property dialogs or select specific ones."
                 },
                 {
                     "name": "opacity",

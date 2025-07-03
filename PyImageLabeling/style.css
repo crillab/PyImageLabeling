@@ -1,6 +1,6 @@
 QWidget {
     background-color: #4d4d4d;
-    /* border: 2px solid #808080;*/
+    /*border: 1px solid #000000;*/
 }
 
 QFrame{
@@ -10,6 +10,54 @@ QFrame{
 QMessageBox {
     color: white; 
     font-size: 14px;
+}
+
+QScrollArea {
+    border: 0px solid #808080;
+    
+}
+
+QWidget#bottom_bar {
+    border: 2px solid #808080;
+    border-bottom: 0px solid #808080;
+
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    margin-right:0px;
+    margin-left:0px;
+    
+}
+
+QWidget#image_bar {
+    border: 2px solid #808080;
+    border-right: 0px solid #808080;
+
+    border-bottom-left-radius: 20px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 0px;
+    margin-right:0px;
+    
+}
+
+
+QBlanckWidget1 {
+    max-height: 1px;
+    min-width: 25px;
+}
+
+QSeparator1 {
+    border: 2px solid #808080;
+    min-height: 30px;
+    max-height: 30px;
+    min-width: 1px;
+    max-width: 1px;
+    padding: 0%;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
 }
 
 QPushButton {
@@ -27,17 +75,144 @@ QPushButton {
     border-top-right-radius: 5px;
 }
 
+QPushButton#activation {
+    background-color: #cccccc;
+    min-height: 30px;
+    max-height: 30px;
+    min-width: 100px;
+    max-width: 100px;
+    padding: 0px;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    margin-right: 0px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 0px;
+}
+
+QPushButton#activation:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#activation:pressed {
+    background-color: #6380ff;
+    border: 1px solid #bbb;
+}
+
+QPushButton#activation:checked {
+    background-color: #6380ff;
+    border: 1px inset #bbb;
+}
+
+
+QPushButton#permanent:checked {
+    background-color: #6380ff;
+    /*border: 2px solid #424242;*/
+}
+
+
+QPushButton#unload_layer {
+    background-color: #cccccc;
+    min-height: 30px;
+    max-height: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    padding: 0%;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: 10px;
+}
+
+QPushButton#unload_layer:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#unload_layer:pressed {
+    background-color: #6380ff;
+    border: 1px solid #bbb;
+}
+
+QPushButton#unload_layer:checked {
+    background-color: #6380ff;
+    border: 1px inset #bbb;
+}
+
+QPushButton#setting {
+    background-color: #cccccc;
+    min-height: 30px;
+    max-height: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    padding: 0px;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    margin-left: 0px;
+
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
+QPushButton#setting:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#setting:pressed {
+    background-color: #6380ff;
+    border: 1px solid #bbb;
+}
+
+QPushButton#setting:checked {
+    background-color: #6380ff;
+    border: 1px inset #bbb;
+}
+
+QPushButton#permanent {
+    background-color: #cccccc;
+    min-height: 30px;
+    max-height: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    padding: 0%;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    
+}
+QPushButton#permanent:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#permanent:pressed {
+    background-color: #6380ff;
+    border: 1px solid #bbb;
+}
+
+QPushButton#permanent:checked {
+    background-color: #6380ff;
+    border: 1px inset #bbb;
+}
+
 QPushButton:hover {
     background-color: #8ba1ff;
 }
+
 QPushButton:pressed {
     background-color: #6380ff;
-    border: 1px solid #424242;
+    border: 1px solid #bbb;
 }
 
 QPushButton:checked {
     background-color: #6380ff;
-    border: 2px solid #424242;
+    border: 1px inset #bbb;
 }
 
 QGroupBox {
@@ -58,6 +233,7 @@ QGroupBox::title {
 }
 
 ZoomableGraphicsView {
-    background-color: #ccc; 
-    border: 1px solid #000;
+    background-color: #afafaf; 
+    border: 3px double #808080;
+    margin-bottom: 10px;
 }
