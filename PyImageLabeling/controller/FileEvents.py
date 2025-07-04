@@ -15,8 +15,9 @@ class FileEvents(Events):
     def set_model(self, model):
         super().set_model(model)
         
-    def load_image(self):
-        self.all_events(self.load_image.__name__)
+    def load_images(self):
+        self.all_events(self.load_images.__name__)
+        print("load_images")
         file_dialog = QFileDialog()
         file_path, _ = file_dialog.getOpenFileName(
             self.view, "Open Image", "", "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)"
@@ -28,8 +29,11 @@ class FileEvents(Events):
 
         self.model.load_image(image)
         
-    def save_layers(self):
-        self.all_events(self.save_layers.__name__)
-        print("save_layers")
-
-        
+   
+    def next_image(self):
+        self.all_events(self.next_image.__name__)
+        print("next_image")
+    
+    def previous_image(self):
+        self.all_events(self.previous_image.__name__)
+        print("previous_image")

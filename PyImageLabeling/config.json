@@ -1,4 +1,48 @@
 {
+    "window_size":{
+        "margin": 10,
+        "icon": [28, 28],
+        "graphics_view":{
+            "width":400
+        },
+        "labeling_bar":{
+            "width": 250
+        },
+        "image_bar":{
+            "height": 220,
+            "width": 65
+        },
+        "layer_bar":{
+            "height": 75
+        },
+        "file_bar":{
+            "width": 250
+        }
+    },
+    "file_bar":[
+        {
+            "name": "load_images",
+            "name_view": "Load Images",
+            "icon": "open_image",
+            "checkable": false,
+            "tooltip": "Load images."
+        },
+        {
+            "name": "next_image",
+            "name_view": "Next Image",
+            "icon": "down",
+            "checkable": false,
+            "tooltip": "Next image."
+        },
+        {
+            "name": "previous_image",
+            "name_view": "Previous Image",
+            "icon": "up",
+            "checkable": false,
+            "tooltip": "Previous image."
+        }
+    ],
+
     "image_bar":
             [
                 {
@@ -31,7 +75,7 @@
                 }
             ]
         ,
-    "status_bar":
+    "layer_bar":
             {"permanent":[
                 {
                     "name": "new_layer",
@@ -41,14 +85,35 @@
                     "tooltip": "Add a new empty layer."
                 },
                 {
-                    "name": "load_layer",
-                    "name_view": "Load Layer",
+                    "name": "load_layers",
+                    "name_view": "Load Layers",
                     "icon": "open_layer",
                     "checkable": false,
-                    "tooltip": "Load a layer from a file."
+                    "tooltip": "Load layers from specific files."
+                },
+                {
+                    "name": "save_layers",
+                    "name_view": "Save Layers",
+                    "icon": "save",
+                    "checkable": false,
+                    "tooltip": "Save all layers."
+                },
+                {
+                    "name": "opacity",
+                    "name_view": "Opacity",
+                    "checkable": false,
+                    "icon": "opacity",
+                    "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers."
                 }
             ],
             "layer":[
+                {
+                    "name": "color",
+                    "name_view": "Color",
+                    "icon": "",
+                    "checkable": false,
+                    "tooltip": "Color of the layer/label."
+                },
                 {
                     "name": "setting",
                     "name_view": "Setting",
@@ -66,30 +131,9 @@
                 
             ]}
         ,
-    "buttons": 
+    "labeling_bar": 
         [
-            {"File":[
-                {
-                    "name": "load_image",
-                    "name_view": "Load Image",
-                    "icon": "open_image",
-                    "checkable": false,
-                    "tooltip": "Click to load an image into the viewer. This will allow you to select an image file from your system to display."
-                },
-                {
-                    "name": "save_layers",
-                    "name_view": "Save Layers",
-                    "icon": "save",
-                    "checkable": false,
-                    "tooltip": "Click to save the current layer to a file. This will store the layer as a separate image file on your system."
-                }
-                
-                
-            ]},
-
-            
-
-            {"Labeling":[
+            {"Pixel Labeling":[
                 {
                     "name": "contour_filling",
                     "icon": "filling",
@@ -110,6 +154,15 @@
                     "checkable": true,
                     "icon": "magic",
                     "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                }
+            ]},
+            {"Geometric Labeling":[
+                {
+                    "name": "ellipse",
+                    "name_view": "Ellipse",
+                    "checkable": true,
+                    "icon": "ellipse",
+                    "tooltip": "."
                 },
                 {
                     "name": "rectangle",
@@ -147,13 +200,6 @@
                     "checkable": false,
                     "icon": "cleaner",
                     "tooltip": "Click to clear all layers and reset the image to its original state."
-                },
-                {
-                    "name": "opacity",
-                    "name_view": "Opacity",
-                    "checkable": false,
-                    "icon": "opacity",
-                    "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers."
                 }
             ]}
         ]

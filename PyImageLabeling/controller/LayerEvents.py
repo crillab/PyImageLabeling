@@ -12,17 +12,21 @@ class LayerEvents(Events):
     def new_layer(self):
         self.all_events(self.new_layer.__name__)
         
-        self.view.build_label_setting_dialog()
+        self.view.build_label_setting_form()
 
         self.model.new_layer()
         #self.view.build_new_layer_bottom_bar()
         
         print("load_layer")
         
-    def load_layer(self):
-        self.all_events(self.load_layer.__name__)
+    def load_layers(self):
+        self.all_events(self.load_layers.__name__)
 
-        print("load_layer")
+        print("load_layers")
+
+    def save_layers(self):
+        self.all_events(self.save_layers.__name__)
+        print("save_layers")
 
 
 

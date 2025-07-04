@@ -5,15 +5,12 @@ from PyQt6.QtCore import Qt
 
 class QLabelSettingForm(QDialog):
 
-
-    def __init__(self, parent, builder, name="", color=QColor(255, 0, 0), radius=3, opacity=255):
+    def __init__(self, parent, builder, name="", color=QColor(246, 97, 81)):
         print("HERE")
         super().__init__(parent)
         self.builder = builder
         self.name = name
         self.color = color
-        self.radius = radius
-        self.opacity = opacity
 
         self.setWindowTitle("Label Setting")
         
@@ -49,20 +46,6 @@ class QLabelSettingForm(QDialog):
         self.update_color(self.color)  
         layout.addRow("Color:", self.color_button)
         
-        # Radius slider
-        self.radius_slider = QSlider(Qt.Orientation.Horizontal)
-        self.radius_slider.setRange(1, 100)
-        self.radius_slider.setValue(self.radius)
-        self.radius_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.radius_slider.setTickInterval(10)
-        layout.addRow("Radius:", self.radius_slider)
-        
-        self.radius_spinbox = QSpinBox()
-        self.radius_spinbox.setRange(1, 100)
-        self.radius_spinbox.setValue(self.radius)
-        self.radius_spinbox.valueChanged.connect(self.radius_slider.setValue)
-        self.radius_slider.valueChanged.connect(self.radius_spinbox.setValue)
-        layout.addRow("", self.radius_spinbox)
         
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         #self.buttons.accepted.connect(self.accept)
@@ -91,7 +74,7 @@ class QLabelSettingForm(QDialog):
     
     def ok_event(self):
         self.accept()
-        self.builder.build_new_layer_bottom_bar(self.name, self.color)
+        self.builder.build_new_layer_layer_bar(self.name, self.color)
 
 
 

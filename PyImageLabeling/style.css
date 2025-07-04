@@ -1,11 +1,8 @@
 QWidget {
-    background-color: #4d4d4d;
+    background-color: #2e2e2e;
     /*border: 1px solid #000000;*/
 }
 
-QFrame{
-    min-width: 400px;
-}
 
 QMessageBox {
     color: white; 
@@ -14,10 +11,21 @@ QMessageBox {
 
 QScrollArea {
     border: 0px solid #808080;
-    
 }
 
-QWidget#bottom_bar {
+QScrollBar:horizontal {
+    background: #616161;
+}
+QScrollBar:vertical {
+    background: #616161;
+}
+
+QWidget#layer_bar_new {
+    background-color: #616161;
+}
+
+QWidget#layer_bar {
+    background-color: #616161;
     border: 2px solid #808080;
     border-bottom: 0px solid #808080;
 
@@ -30,7 +38,32 @@ QWidget#bottom_bar {
     
 }
 
+QWidget#file_bar {
+    background-color: #616161;
+    border: 2px solid #808080;
+    border-left: 0px solid #808080;
+    border-bottom: 0px solid #808080;
+
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: 20px;
+}
+
+QListWidget {
+    color:#000000;
+    background-color: #cccccc;
+    border: 2px solid #808080;
+    border-left: 0px solid #808080;
+
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: Opx;
+}
+
 QWidget#image_bar {
+    background-color: #616161;
     border: 2px solid #808080;
     border-right: 0px solid #808080;
 
@@ -49,9 +82,10 @@ QBlanckWidget1 {
 }
 
 QSeparator1 {
-    border: 2px solid #808080;
-    min-height: 30px;
-    max-height: 30px;
+    background-color: #cccccc;
+    border: 2px inset #808080;
+    min-height: 50px;
+    max-height: 50px;
     min-width: 1px;
     max-width: 1px;
     padding: 0%;
@@ -66,8 +100,8 @@ QPushButton {
     color: black;
     text-align: left;
     padding-left: 10px;
-    min-height: 20px;
-    max-height: 20px;
+    min-height: 40px;
+    max-height: 40px;
     min-width: 125px;
     border-bottom-left-radius: 5px;
     border-bottom-right-radius: 5px;
@@ -75,10 +109,24 @@ QPushButton {
     border-top-right-radius: 5px;
 }
 
+QPushButton:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton:checked {
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
+}
+
 QPushButton#activation {
     background-color: #cccccc;
-    min-height: 30px;
-    max-height: 30px;
+    min-height: 40px;
+    max-height: 40px;
     min-width: 100px;
     max-width: 100px;
     padding: 0px;
@@ -86,7 +134,7 @@ QPushButton#activation {
     margin-bottom:0px;
     margin-top:0px;
     margin-right: 0px;
-    border-bottom-left-radius: 0px;
+    border-bottom-left-radius: 10px;
     border-bottom-right-radius: 0px;
     border-top-left-radius: 10px;
     border-top-right-radius: 0px;
@@ -97,58 +145,41 @@ QPushButton#activation:hover {
 }
 
 QPushButton#activation:pressed {
-    background-color: #6380ff;
+    background-color: #fcfcfc;
     border: 1px solid #bbb;
 }
 
 QPushButton#activation:checked {
-    background-color: #6380ff;
-    border: 1px inset #bbb;
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
 }
 
-
-QPushButton#permanent:checked {
-    background-color: #6380ff;
-    /*border: 2px solid #424242;*/
-}
-
-
-QPushButton#unload_layer {
+QPushButton#color {
     background-color: #cccccc;
-    min-height: 30px;
-    max-height: 30px;
-    min-width: 30px;
-    max-width: 30px;
-    padding: 0%;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 10px;
+    max-width: 10px;
+    padding: 0px;
     text-align: center;
     margin-bottom:0px;
     margin-top:0px;
+    margin-left: 0px;
+
     border-bottom-left-radius: 0px;
     border-bottom-right-radius: 0px;
     border-top-left-radius: 0px;
-    border-top-right-radius: 10px;
+    border-top-right-radius: 0px;
 }
 
-QPushButton#unload_layer:hover {
-    background-color: #8ba1ff;
-}
 
-QPushButton#unload_layer:pressed {
-    background-color: #6380ff;
-    border: 1px solid #bbb;
-}
-
-QPushButton#unload_layer:checked {
-    background-color: #6380ff;
-    border: 1px inset #bbb;
-}
 
 QPushButton#setting {
     background-color: #cccccc;
-    min-height: 30px;
-    max-height: 30px;
-    min-width: 30px;
-    max-width: 30px;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    max-width: 40px;
     padding: 0px;
     text-align: center;
     margin-bottom:0px;
@@ -166,21 +197,53 @@ QPushButton#setting:hover {
 }
 
 QPushButton#setting:pressed {
-    background-color: #6380ff;
+    background-color: #fcfcfc;
     border: 1px solid #bbb;
 }
 
 QPushButton#setting:checked {
-    background-color: #6380ff;
+    background-color: #fcfcfc;
     border: 1px inset #bbb;
 }
 
+QPushButton#unload_layer {
+    background-color: #cccccc;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0%;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 10px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: 10px;
+}
+
+QPushButton#unload_layer:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#unload_layer:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton#unload_layer:checked {
+    background-color: #fcfcfc;
+    border: 1px inset #bbb;
+}
+
+
+
 QPushButton#permanent {
     background-color: #cccccc;
-    min-height: 30px;
-    max-height: 30px;
-    min-width: 30px;
-    max-width: 30px;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    max-width: 40px;
     padding: 0%;
     text-align: center;
     margin-bottom:0px;
@@ -192,42 +255,32 @@ QPushButton#permanent:hover {
 }
 
 QPushButton#permanent:pressed {
-    background-color: #6380ff;
+    background-color: #fcfcfc;
     border: 1px solid #bbb;
 }
 
 QPushButton#permanent:checked {
-    background-color: #6380ff;
-    border: 1px inset #bbb;
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
 }
 
-QPushButton:hover {
-    background-color: #8ba1ff;
-}
-
-QPushButton:pressed {
-    background-color: #6380ff;
-    border: 1px solid #bbb;
-}
-
-QPushButton:checked {
-    background-color: #6380ff;
-    border: 1px inset #bbb;
-}
 
 QGroupBox {
-    border-bottom-left-radius: 10px;
-    border-bottom-right-radius: 10px;
+    background-color: #616161;
     border: 2px solid #808080;
-    margin-top: 30%;
+    border-right: 0px solid #808080;
+    border-bottom-left-radius: 20px;
+    border-top-left-radius: 20px;
+    padding-top: 30px;
     font-weight: bold;
     font-size: 14pt;
 }
 
 QGroupBox::title {
     position: fixed;
-    left: 10%;
-    bottom: 15%;
+    left: 20%;
+    bottom: 0;
+    top:10;
     margin-left: 5%;
     margin-right: 5%;
 }

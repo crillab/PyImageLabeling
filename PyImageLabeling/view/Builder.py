@@ -2,7 +2,7 @@
 
 
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
 from model.Utils import Utils
@@ -25,20 +25,61 @@ class Builder:
         self.view.setCentralWidget(self.view.central_widget)
         self.view.main_layout = QGridLayout(self.view.central_widget)
         self.view.main_layout.setSpacing(0)
-        self.build_left_layout()
-        self.build_right_layout()
-        self.build_bottom_layout()
-        self.build_image_layout()
+        self.build_labeling_bar()
+        self.build_graphics_view()
+        self.build_layer_bar()
+        self.build_image_bar()
+        self.build_file_bar()
         
+    def build_file_bar(self):
+        self.file_bar_container = QWidget()
+        file_bar_layout = QVBoxLayout(self.file_bar_container)
+        self.file_bar_scroll = QScrollArea()
+        self.file_bar_button_container = QWidget()
+        self.file_bar_button_container.setObjectName("file_bar")
 
-    def build_left_layout(self):
-        # Left side - bottons area
-        self.left_layout_container = QWidget()
+        self.file_bar_button_layout = QHBoxLayout(self.file_bar_button_container)
+        
+        for button in self.view.config["file_bar"]:
+            button_name = button["name"]
+            self.view.buttons[button_name] = QPushButton()
+            self.view.buttons[button_name].setToolTip(button["tooltip"]) # Detailed tooltip
+            self.view.buttons[button_name].setObjectName("permanent")
+            icon_path = Utils.get_icon_path(button["icon"])
+            if os.path.exists(icon_path):
+                self.view.buttons[button_name].setIcon(QIcon(icon_path))
+                self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+            self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
+            self.view.buttons[button_name].setCheckable(button["checkable"])
+            
+            self.file_bar_button_layout.addWidget(self.view.buttons[button_name])
+        file_bar_layout.addWidget(self.file_bar_button_container)
+        self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.file_bar_list = QListWidget()
+        self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
+        for i in range(100):
+            self.file_bar_list.addItem("file_"+str(i)+".png")
+        
+        self.file_bar_list.setMinimumWidth(0)
+        
+        file_bar_layout.addWidget(self.file_bar_list)
+        file_bar_layout.setSpacing(0)
+        file_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
+
+        self.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
+        self.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
+        
+        self.view.main_layout.addWidget(self.file_bar_container, 0, 3, 2, 1)  
+        
+        
+    def build_labeling_bar(self):
+        self.labeling_bar_container = QWidget()
     
-        left_layout = QVBoxLayout(self.left_layout_container)
+        labeling_bar_layout = QVBoxLayout(self.labeling_bar_container)
         #left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
-        for category in self.view.config["buttons"]:
+        for category in self.view.config["labeling_bar"]:
             category_name = tuple(category.keys())[0]
             frame = QGroupBox()
             frame.setTitle(category_name)
@@ -51,89 +92,58 @@ class Builder:
                 icon_path = Utils.get_icon_path(button["icon"])
                 if os.path.exists(icon_path):
                     self.view.buttons[button_name].setIcon(QIcon(icon_path))
-                
+                    self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
                 self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
                 self.view.buttons[button_name].setCheckable(button["checkable"])
                 
                 buttons_layout.addWidget(self.view.buttons[button_name])
 
 
-            self.left_layout_container.setMinimumWidth(200)    
-            self.left_layout_container.setMaximumWidth(200)
-            left_layout.addWidget(frame)
+            
+            labeling_bar_layout.addWidget(frame)
+        self.labeling_bar_container.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
+        self.labeling_bar_container.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        labeling_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
+        labeling_bar_layout.setSpacing(self.view.config["window_size"]["margin"])
+        
 
-        left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.view.main_layout.addWidget(self.left_layout_container, 0, 0)  
-        #self.left_layout_container.setMinimumSize(self.view.left_panel_width+20, self.view.left_panel_height)
+        labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.view.main_layout.addWidget(self.labeling_bar_container, 0, 0)  
         
     
-    def build_right_layout(self):
-        # Right side - image area
-        self.right_layout_container = QWidget()
-        self.right_layout = QStackedLayout(self.right_layout_container)
+    def build_graphics_view(self):
+        self.graphics_view_container = QWidget()
+        self.graphics_view_layout = QStackedLayout(self.graphics_view_container)
         
 
         self.view.zoomable_graphics_view = ZoomableGraphicsView()
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.right_layout.addWidget(self.view.zoomable_graphics_view)  
+        self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)  
         
-        self.view.main_layout.addWidget(self.right_layout_container, 0, 1, 2, 2)  
+        self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 2, 2)
+        self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])    
+          
         #self.right_layout_container.setMinimumSize(self.view.right_panel_width, self.view.right_panel_height)
+    
+    def build_image_bar(self):
+        self.image_bar_container_1 = QWidget()
         
-    def build_bottom_layout(self):
-        self.bottom_layout_container = QWidget()
-        self.bottom_scroll = QScrollArea()
-        self.bottom_layout_container.setObjectName("bottom_bar")
-        self.view.bottom_layout = QHBoxLayout(self.bottom_layout_container)
+        self.image_bar_container_1.setMinimumHeight(self.view.config["window_size"]["image_bar"]["height"])
+        self.image_bar_container_1.setMaximumHeight(self.view.config["window_size"]["image_bar"]["height"])
         
-        self.view.bottom_layout.addWidget(QBlanckWidget1())
-        self.view.bottom_layout.addWidget(QSeparator1())
-        
-        for button in self.view.config["status_bar"]["permanent"]:
-            button_name = button["name"]
-            self.view.buttons[button_name] = QPushButton()
-            self.view.buttons[button_name].setObjectName("permanent")
-            self.view.buttons[button_name].setToolTip(button["tooltip"])
-            icon_path = Utils.get_icon_path(button["icon"])
-            if os.path.exists(icon_path):
-                self.view.buttons[button_name].setIcon(QIcon(icon_path))
-                self.view.buttons[button_name].setIconSize(QSize(25, 25)) 
-            self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
-            
-            self.view.bottom_layout.addWidget(self.view.buttons[button_name])
-        
-        self.view.bottom_layout.addWidget(QSeparator1())
-        self.view.bottom_layout.setContentsMargins(0,0,0,0)
-        self.view.bottom_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        #self.bottom_layout.addWidget(self.view.bottom_bar)  
-        self.bottom_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.bottom_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.bottom_scroll.setWidgetResizable(True)
-        self.bottom_scroll.setWidget(self.bottom_layout_container)
-        self.bottom_scroll.setMaximumHeight(60)    
-        
-        self.view.main_layout.addWidget(self.bottom_scroll, 2, 0, 1, 3) 
+        self.view.image_bar_layout_1 = QVBoxLayout(self.image_bar_container_1)
 
-    def build_image_layout(self):
-        self.image_layout_container = QWidget()
-        
-        self.image_layout_container.setMinimumHeight(200)
-        self.image_layout_container.setMaximumHeight(200)
-        
-        self.view.image_layout = QVBoxLayout(self.image_layout_container)
+        self.image_bar_container_2 = QWidget()
+        self.image_bar_container_2.setObjectName("image_bar")
+        self.view.image_bar_layout_1.addWidget(self.image_bar_container_2)
+        self.view.image_bar_layout_1.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
 
-        self.image_layout_container_tmp = QWidget()
-        self.image_layout_container_tmp.setObjectName("image_bar")
-        self.view.image_layout.addWidget(self.image_layout_container_tmp)
-        self.view.image_layout.setContentsMargins(0,0,0,10)
+        self.view.image_bar_layout_1.setAlignment(Qt.AlignmentFlag.AlignRight)        
 
-        self.view.image_layout.setAlignment(Qt.AlignmentFlag.AlignRight)        
-
-        self.view.image_layout_tmp = QVBoxLayout(self.image_layout_container_tmp)
+        self.view.image_bar_layout_2 = QVBoxLayout(self.image_bar_container_2)
         
-        self.image_layout_container_tmp.setMinimumWidth(50)
-        self.image_layout_container_tmp.setMaximumWidth(50)
+        self.image_bar_container_2.setMinimumWidth(self.view.config["window_size"]["image_bar"]["width"])
+        self.image_bar_container_2.setMaximumWidth(self.view.config["window_size"]["image_bar"]["width"])
 
         for button in self.view.config["image_bar"]:
             button_name = button["name"]
@@ -143,59 +153,91 @@ class Builder:
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
                 self.view.buttons[button_name].setIcon(QIcon(icon_path))
-                self.view.buttons[button_name].setIconSize(QSize(25, 25)) 
+                self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
             self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
             self.view.buttons[button_name].setCheckable(button["checkable"])
-            
-            #self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
-            
-            self.view.image_layout_tmp.addWidget(self.view.buttons[button_name])
+            self.view.image_bar_layout_2.addWidget(self.view.buttons[button_name])
 
-        #self.view.image_layout_tmp.addWidget(QSeparator1())
-        #self.view.image_layout_tmp.addWidget(QSeparator1())
+        self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)        
+        self.view.main_layout.addWidget(self.image_bar_container_1, 1, 0)
 
-        self.view.image_layout_tmp.setAlignment(Qt.AlignmentFlag.AlignRight)        
-
-        self.view.main_layout.addWidget(self.image_layout_container, 1, 0)
+    def build_layer_bar(self):
+        self.layer_bar_container = QWidget()
+        self.layer_bar_scroll = QScrollArea()
+        self.layer_bar_container.setObjectName("layer_bar")
+        self.view.layer_bar_layout = QHBoxLayout(self.layer_bar_container)
         
-    def build_label_setting_dialog(self):
-        qlabelsettingdialog = QLabelSettingForm(self.view, self)
-        qlabelsettingdialog.open()
+        self.view.layer_bar_layout.addWidget(QBlanckWidget1())
+        
+        for button in self.view.config["layer_bar"]["permanent"]:
+            button_name = button["name"]
+            self.view.buttons[button_name] = QPushButton()
+            self.view.buttons[button_name].setObjectName("permanent")
+            self.view.buttons[button_name].setToolTip(button["tooltip"])
+            icon_path = Utils.get_icon_path(button["icon"])
+            if os.path.exists(icon_path):
+                self.view.buttons[button_name].setIcon(QIcon(icon_path))
+                self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
+            self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
+            
+            self.view.layer_bar_layout.addWidget(self.view.buttons[button_name])
+        
+        self.view.layer_bar_layout.setContentsMargins(0,0,0,0)
+        self.view.layer_bar_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        
+        self.layer_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.layer_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.layer_bar_scroll.setWidgetResizable(True)
+        self.layer_bar_scroll.setWidget(self.layer_bar_container)
+        self.layer_bar_scroll.setMaximumHeight(self.view.config["window_size"]["layer_bar"]["height"])    
+        
         
 
-    def build_new_layer_bottom_bar(self, name, color):
+        self.view.main_layout.addWidget(self.layer_bar_scroll, 2, 0, 1, 4) 
+
+    
+        
+    def build_label_setting_form(self):
+        label_setting_form = QLabelSettingForm(self.view, self)
+        label_setting_form.open()
+        
+
+    def build_new_layer_layer_bar(self, name, color):
         print("build_new_layer")
         
-        new_layer_layout_container = QWidget()
-        
-        new_layer_layout = QHBoxLayout(new_layer_layout_container)
-        new_layer_layout.setContentsMargins(0,0,0,0)
-        #new_layer_layout_container.setContentsMargins(0,0,0,0)
-        new_layer_layout.setSpacing(0)
-        new_layer_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        new_layer_layer_bar_container = QWidget()
+        new_layer_layer_bar_container.setObjectName("layer_bar_new")
+        new_layer_layer_bar_layout = QHBoxLayout(new_layer_layer_bar_container)
+        new_layer_layer_bar_layout.setContentsMargins(0,0,0,0)
+        new_layer_layer_bar_layout.setSpacing(0)
+        new_layer_layer_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
 
-        new_layer_activation = QPushButton(name)
+        activation_button = QPushButton(name)
         color_style = f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
-        new_layer_activation.setStyleSheet(color_style)
-
-        new_layer_activation.setObjectName("activation")
-        new_layer_activation.setCheckable(True)
-        new_layer_activation.setChecked(True)
-        new_layer_layout.addWidget(new_layer_activation)
         
-        for button in self.view.config["status_bar"]["layer"]:
+        
+        activation_button.setObjectName("activation")
+        activation_button.setCheckable(True)
+        activation_button.setChecked(True)
+        new_layer_layer_bar_layout.addWidget(activation_button)
+        self.view.layer_bar_layout.addWidget(QSeparator1())
+        for button in self.view.config["layer_bar"]["layer"]:
+            
             button_name = button["name"]
             tmp_button = QPushButton()
             tmp_button.setObjectName(button_name)
             tmp_button.setToolTip(button["tooltip"])
+            if button_name == "color":
+                tmp_button.setStyleSheet(color_style)
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
                 tmp_button.setIcon(QIcon(icon_path))
-            new_layer_layout.addWidget(tmp_button)
+                tmp_button.setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
+            new_layer_layer_bar_layout.addWidget(tmp_button)
         
-        self.view.bottom_layout.addWidget(new_layer_layout_container)
-        self.view.bottom_layout.addWidget(QSeparator1())
+        self.view.layer_bar_layout.addWidget(new_layer_layer_bar_container)
+        
         
 
         

@@ -1,7 +1,7 @@
 from PyImageLabeling.controller.Events import Events
 
 
-class ToolsEvents(Events):
+class ImageEvents(Events):
     def __init__(self):
         super().__init__()
 

@@ -17,6 +17,10 @@ class LabelingEvents(Events):
         self.all_events(self.magic_pen.__name__)
         print("magic_pen")
 
+    def ellipse(self):
+        self.all_events(self.ellipse.__name__)
+        print("ellipse")
+
     def rectangle(self):
         self.all_events(self.rectangle.__name__)
         print("rectangle")
