@@ -61,6 +61,6 @@ class View(QMainWindow):
         
 
     def build_label_setting_form(self): self.builder.build_label_setting_form()
-    def build_new_layer_layer_bar(self): self.builder.build_new_layer_layer_bar()
+    def build_new_layer_label_bar(self): self.builder.build_new_layer_label_bar()
         
    

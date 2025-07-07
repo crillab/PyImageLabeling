@@ -5,7 +5,7 @@
 from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
-from model.Utils import Utils
+from PyImageLabeling.model.Utils import Utils
 
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
 from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
@@ -27,7 +27,7 @@ class Builder:
         self.view.main_layout.setSpacing(0)
         self.build_labeling_bar()
         self.build_graphics_view()
-        self.build_layer_bar()
+        self.build_label_bar()
         self.build_image_bar()
         self.build_file_bar()
         
@@ -161,15 +161,15 @@ class Builder:
         self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)        
         self.view.main_layout.addWidget(self.image_bar_container_1, 1, 0)
 
-    def build_layer_bar(self):
-        self.layer_bar_container = QWidget()
-        self.layer_bar_scroll = QScrollArea()
-        self.layer_bar_container.setObjectName("layer_bar")
-        self.view.layer_bar_layout = QHBoxLayout(self.layer_bar_container)
+    def build_label_bar(self):
+        self.label_bar_container = QWidget()
+        self.label_bar_scroll = QScrollArea()
+        self.label_bar_container.setObjectName("label_bar")
+        self.view.label_bar_layout = QHBoxLayout(self.label_bar_container)
         
-        self.view.layer_bar_layout.addWidget(QBlanckWidget1())
+        self.view.label_bar_layout.addWidget(QBlanckWidget1())
         
-        for button in self.view.config["layer_bar"]["permanent"]:
+        for button in self.view.config["label_bar"]["permanent"]:
             button_name = button["name"]
             self.view.buttons[button_name] = QPushButton()
             self.view.buttons[button_name].setObjectName("permanent")
@@ -180,20 +180,20 @@ class Builder:
                 self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
             self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
             
-            self.view.layer_bar_layout.addWidget(self.view.buttons[button_name])
+            self.view.label_bar_layout.addWidget(self.view.buttons[button_name])
         
-        self.view.layer_bar_layout.setContentsMargins(0,0,0,0)
-        self.view.layer_bar_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.view.label_bar_layout.setContentsMargins(0,0,0,0)
+        self.view.label_bar_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
         
-        self.layer_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.layer_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.layer_bar_scroll.setWidgetResizable(True)
-        self.layer_bar_scroll.setWidget(self.layer_bar_container)
-        self.layer_bar_scroll.setMaximumHeight(self.view.config["window_size"]["layer_bar"]["height"])    
+        self.label_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.label_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.label_bar_scroll.setWidgetResizable(True)
+        self.label_bar_scroll.setWidget(self.label_bar_container)
+        self.label_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
         
         
 
-        self.view.main_layout.addWidget(self.layer_bar_scroll, 2, 0, 1, 4) 
+        self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 1, 4) 
 
     
         
@@ -202,15 +202,15 @@ class Builder:
         label_setting_form.open()
         
 
-    def build_new_layer_layer_bar(self, name, color):
+    def build_new_layer_label_bar(self, name, color):
         print("build_new_layer")
         
-        new_layer_layer_bar_container = QWidget()
-        new_layer_layer_bar_container.setObjectName("layer_bar_new")
-        new_layer_layer_bar_layout = QHBoxLayout(new_layer_layer_bar_container)
-        new_layer_layer_bar_layout.setContentsMargins(0,0,0,0)
-        new_layer_layer_bar_layout.setSpacing(0)
-        new_layer_layer_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        new_layer_label_bar_container = QWidget()
+        new_layer_label_bar_container.setObjectName("label_bar_new")
+        new_layer_label_bar_layout = QHBoxLayout(new_layer_label_bar_container)
+        new_layer_label_bar_layout.setContentsMargins(0,0,0,0)
+        new_layer_label_bar_layout.setSpacing(0)
+        new_layer_label_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
 
         activation_button = QPushButton(name)
@@ -220,9 +220,9 @@ class Builder:
         activation_button.setObjectName("activation")
         activation_button.setCheckable(True)
         activation_button.setChecked(True)
-        new_layer_layer_bar_layout.addWidget(activation_button)
-        self.view.layer_bar_layout.addWidget(QSeparator1())
-        for button in self.view.config["layer_bar"]["layer"]:
+        new_layer_label_bar_layout.addWidget(activation_button)
+        self.view.label_bar_layout.addWidget(QSeparator1())
+        for button in self.view.config["label_bar"]["layer"]:
             
             button_name = button["name"]
             tmp_button = QPushButton()
@@ -234,9 +234,9 @@ class Builder:
             if os.path.exists(icon_path):
                 tmp_button.setIcon(QIcon(icon_path))
                 tmp_button.setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
-            new_layer_layer_bar_layout.addWidget(tmp_button)
+            new_layer_label_bar_layout.addWidget(tmp_button)
         
-        self.view.layer_bar_layout.addWidget(new_layer_layer_bar_container)
+        self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
         
         
 

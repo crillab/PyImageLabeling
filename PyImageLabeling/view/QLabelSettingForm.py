@@ -74,7 +74,7 @@ class QLabelSettingForm(QDialog):
     
     def ok_event(self):
         self.accept()
-        self.builder.build_new_layer_layer_bar(self.name, self.color)
+        self.builder.build_new_layer_label_bar(self.name, self.color)
 
 
 

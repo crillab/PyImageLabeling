@@ -12,7 +12,7 @@
             "height": 220,
             "width": 65
         },
-        "layer_bar":{
+        "label_bar":{
             "height": 75
         },
         "file_bar":{
@@ -75,28 +75,28 @@
                 }
             ]
         ,
-    "layer_bar":
+    "label_bar":
             {"permanent":[
                 {
-                    "name": "new_layer",
-                    "name_view": "New Layer",
+                    "name": "new_label",
+                    "name_view": "New Label",
                     "icon": "plus",
                     "checkable": false,
-                    "tooltip": "Add a new empty layer."
+                    "tooltip": "Add a new label."
                 },
                 {
-                    "name": "load_layers",
-                    "name_view": "Load Layers",
-                    "icon": "open_layer",
+                    "name": "load_labels",
+                    "name_view": "Load Labels",
+                    "icon": "open_label",
                     "checkable": false,
-                    "tooltip": "Load layers from specific files."
+                    "tooltip": "Load labels from specific files."
                 },
                 {
-                    "name": "save_layers",
-                    "name_view": "Save Layers",
+                    "name": "save_labels",
+                    "name_view": "Save labels",
                     "icon": "save",
                     "checkable": false,
-                    "tooltip": "Save all layers."
+                    "tooltip": "Save all labels."
                 },
                 {
                     "name": "opacity",

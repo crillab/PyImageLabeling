@@ -1,4 +1,4 @@
-from PyImageLabeling.controller.Events import Events
+from  controller.Events import Events
 
 
 class ImageEvents(Events):

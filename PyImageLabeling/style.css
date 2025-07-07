@@ -20,11 +20,11 @@ QScrollBar:vertical {
     background: #616161;
 }
 
-QWidget#layer_bar_new {
+QWidget#label_bar_new {
     background-color: #616161;
 }
 
-QWidget#layer_bar {
+QWidget#label_bar {
     background-color: #616161;
     border: 2px solid #808080;
     border-bottom: 0px solid #808080;
