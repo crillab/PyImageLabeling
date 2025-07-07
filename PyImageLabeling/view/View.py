@@ -20,7 +20,7 @@ class View(QMainWindow):
         #Components of the view 
         self.buttons = dict()
         self.zoomable_graphics_view = None
-        
+
         # Set the main properties of the view
         self.initialize()
 
@@ -37,7 +37,14 @@ class View(QMainWindow):
             # The button have to be checked 
             # The clicked button have to be checkable 
             if button != clicked and self.buttons[button].isChecked() is True and self.buttons[clicked].isCheckable():
-                self.buttons[button].setChecked(False)
+                if button.startswith('activation_') and clicked.startswith('activation_'):
+                        self.buttons[button].setChecked(False)
+                elif button.startswith('activation_') and not clicked.startswith('activation_'):
+                    continue 
+                elif not button.startswith('activation_') and clicked.startswith('activation_'):
+                    continue 
+                else:
+                    self.buttons[button].setChecked(False)
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")

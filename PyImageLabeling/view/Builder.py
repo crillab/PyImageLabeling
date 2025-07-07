@@ -201,18 +201,18 @@ class Builder:
         self.view.label_bar_layout = QHBoxLayout(self.label_bar_container)
         
         self.view.label_bar_layout.addWidget(QBlanckWidget1())
-        
+
         for button in self.view.config["label_bar"]["permanent"]:
             button_name = button["name"]
             self.view.buttons[button_name] = QPushButton()
             self.view.buttons[button_name].setObjectName("permanent")
             self.view.buttons[button_name].setToolTip(button["tooltip"])
+            self.view.buttons[button_name].setCheckable(button["checkable"])
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
                 self.view.buttons[button_name].setIcon(QIcon(icon_path))
                 self.view.buttons[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
             self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
-            
             self.view.label_bar_layout.addWidget(self.view.buttons[button_name])
         
         self.view.label_bar_layout.setContentsMargins(0,0,0,0)
@@ -237,31 +237,47 @@ class Builder:
 
     def build_new_layer_label_bar(self, name, color):
         print("build_new_layer")
-        
+
+        if not hasattr(self, '_layer_counter'):
+            self._layer_counter = 0
+        self._layer_counter += 1
+
+        container_name = f"label_bar_new_{self._layer_counter}"
+        activation_name = f"activation_{self._layer_counter}"
+    
         new_layer_label_bar_container = QWidget()
-        new_layer_label_bar_container.setObjectName("label_bar_new")
+        new_layer_label_bar_container.setObjectName(container_name)
+
         new_layer_label_bar_layout = QHBoxLayout(new_layer_label_bar_container)
         new_layer_label_bar_layout.setContentsMargins(0,0,0,0)
         new_layer_label_bar_layout.setSpacing(0)
         new_layer_label_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
-        
+        for button_name, button in self.view.buttons.items():
+            if button_name.startswith('activation_') and button.objectName() == 'activation':
+                button.setChecked(False)
 
         activation_button = QPushButton(name)
         color_style = f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
         
         
-        activation_button.setObjectName("activation")
+        activation_button.setObjectName('activation')
         activation_button.setCheckable(True)
         activation_button.setChecked(True)
-        new_layer_label_bar_layout.addWidget(activation_button)
+        activation_button.clicked.connect(lambda: self.view.controller.activation(activation_name))
+        self.view.buttons[activation_name] = activation_button
+        
+        new_layer_label_bar_layout.addWidget(self.view.buttons[activation_name])
+
         self.view.label_bar_layout.addWidget(QSeparator1())
+
         for button in self.view.config["label_bar"]["layer"]:
-            
+        
             button_name = button["name"]
             tmp_button = QPushButton()
             tmp_button.setObjectName(button_name)
             tmp_button.setToolTip(button["tooltip"])
             tmp_button.setCheckable(button["checkable"])
+            tmp_button.clicked.connect(getattr(self.view.controller, button["name"]))
             if button_name == "color":
                 tmp_button.setStyleSheet(color_style)
             icon_path = Utils.get_icon_path(button["icon"])

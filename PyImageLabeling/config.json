@@ -121,18 +121,18 @@
                     "tooltip": "Visibility of the label."
                 },
                 {
-                    "name": "setting",
-                    "name_view": "Setting",
+                    "name": "label_setting",
+                    "name_view": "Label Setting",
                     "icon": "setting",
                     "checkable": false,
                     "tooltip": "Parameters of the layer/label."
                 },
                 {
-                    "name": "unload_layer",
-                    "name_view": "Unload Layer",
+                    "name": "unload_label",
+                    "name_view": "Unload Label",
                     "icon": "close",
                     "checkable": false,
-                    "tooltip": "Unload the layer (without save)"
+                    "tooltip": "Unload the label (without save)"
                 }
                 
             ]},
