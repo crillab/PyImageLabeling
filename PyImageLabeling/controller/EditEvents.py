@@ -24,5 +24,9 @@ class EditEvents(Events):
     def opacity(self):
         self.all_events(self.opacity.__name__)
         print("opacity")
+    
+    def eraser_setting(self):
+        self.all_events(self.eraser_setting.__name__)
+        print("eraser_setting")
    
         

@@ -79,6 +79,15 @@ class Builder:
         labeling_bar_layout = QVBoxLayout(self.labeling_bar_container)
         #left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
+        setting_buttons = {}
+        for category in self.view.config["labeling_bar_setting"]:
+            category_name = tuple(category.keys())[0]
+            if "Setting" in category_name:
+                for button in category[category_name]:
+                    # Extract the base name (remove "_setting" suffix)
+                    base_name = button["name"].replace("_setting", "")
+                    setting_buttons[base_name] = button
+
         for category in self.view.config["labeling_bar"]:
             category_name = tuple(category.keys())[0]
             frame = QGroupBox()
@@ -96,10 +105,34 @@ class Builder:
                 self.view.buttons[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
                 self.view.buttons[button_name].setCheckable(button["checkable"])
                 
-                buttons_layout.addWidget(self.view.buttons[button_name])
+                if button_name in setting_buttons:
+                    setting_button_config = setting_buttons[button_name]
+                    
+                    # Create horizontal layout: tool button + setting button
+                    h_layout = QHBoxLayout()
+                    h_layout.addWidget(self.view.buttons[button_name])
+                    
+                    # Create setting button
+                    setting_button_name = setting_button_config["name"]
+                    self.view.buttons[setting_button_name] = QPushButton()
+                    self.view.buttons[setting_button_name].setObjectName("setting_button")
+                    self.view.buttons[setting_button_name].setToolTip(setting_button_config["tooltip"])
+                    
+                    setting_icon_path = Utils.get_icon_path(setting_button_config["icon"])
+                    if os.path.exists(setting_icon_path):
+                        self.view.buttons[setting_button_name].setIcon(QIcon(setting_icon_path))
+                        self.view.buttons[setting_button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+                    
+                    self.view.buttons[setting_button_name].clicked.connect(getattr(self.view.controller, setting_button_name))
+                    self.view.buttons[setting_button_name].setCheckable(setting_button_config["checkable"])
+                    
+                    h_layout.addWidget(self.view.buttons[setting_button_name])
+                    
+                    buttons_layout.addLayout(h_layout)
+                else:
+                    # No setting button, add main button directly
+                    buttons_layout.addWidget(self.view.buttons[button_name])
 
-
-            
             labeling_bar_layout.addWidget(frame)
         self.labeling_bar_container.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
         self.labeling_bar_container.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])

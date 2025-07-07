@@ -73,8 +73,7 @@
                     "name_view": "Move/Zoom Reset",
                     "tooltip": "Click to reset the image's position and zoom level to the default view."
                 }
-            ]
-        ,
+            ],
     "label_bar":
             {"permanent":[
                 {
@@ -86,8 +85,8 @@
                 },
                 {
                     "name": "load_labels",
-                    "name_view": "Load Labels",
-                    "icon": "open_label",
+                    "name_view": "Load Layer",
+                    "icon": "open_layer",
                     "checkable": false,
                     "tooltip": "Load labels from specific files."
                 },
@@ -129,8 +128,7 @@
                     "tooltip": "Unload the layer (without save)"
                 }
                 
-            ]}
-        ,
+            ]},
     "labeling_bar": 
         [
             {"Pixel Labeling":[
@@ -202,5 +200,63 @@
                     "tooltip": "Click to clear all layers and reset the image to its original state."
                 }
             ]}
-        ]
+        ],
+    "labeling_bar_setting": 
+    [
+            {"Edit Setting":[
+                {
+                    "name": "eraser_setting",
+                    "name_view": "Eraser Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of eraser."
+                }
+            ]},
+            {"Pixel Labeling Setting":[
+                {
+                    "name": "contour_filling_setting",
+                    "name_view": "Contour Filling Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of contour filling."
+                },
+                {
+                    "name": "paintbrush_setting",
+                    "name_view": "PaintBrush Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of paintbrush."
+                },
+                {
+                    "name": "magic_pen_setting",
+                    "name_view": "Magic Pen Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of magic pen."
+                }
+            ]},
+            {"Geometric Labeling Setting":[
+                {
+                    "name": "ellipse_setting",
+                    "name_view": "Ellipse Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of ellipse."
+                },
+                {
+                    "name": "rectangle_setting",
+                    "name_view": "Rectangle Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of rectangle."
+                },
+                {
+                    "name": "polygon_setting",
+                    "name_view": "Polygon Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of polygon."
+                }
+            ]}
+    ]
 }

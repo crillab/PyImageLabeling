@@ -75,6 +75,23 @@ QWidget#image_bar {
     
 }
 
+QPushButton#setting_button {
+    background-color: #cccccc;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0px;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    margin-right: 0px;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
 
 QBlanckWidget1 {
     max-height: 1px;
