@@ -261,6 +261,7 @@ class Builder:
             tmp_button = QPushButton()
             tmp_button.setObjectName(button_name)
             tmp_button.setToolTip(button["tooltip"])
+            tmp_button.setCheckable(button["checkable"])
             if button_name == "color":
                 tmp_button.setStyleSheet(color_style)
             icon_path = Utils.get_icon_path(button["icon"])

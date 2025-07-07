@@ -114,6 +114,13 @@
                     "tooltip": "Color of the layer/label."
                 },
                 {
+                    "name": "visibility",
+                    "name_view": "Visibility",
+                    "icon": "visibility",
+                    "checkable": true,
+                    "tooltip": "Visibility of the label."
+                },
+                {
                     "name": "setting",
                     "name_view": "Setting",
                     "icon": "setting",

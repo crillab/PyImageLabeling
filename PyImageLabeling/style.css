@@ -92,6 +92,20 @@ QPushButton#setting_button {
     border-top-right-radius: 10px;
 }
 
+QPushButton#setting_button:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#setting_button:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton#setting_button:checked {
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
+}
+
 
 QBlanckWidget1 {
     max-height: 1px;
@@ -140,6 +154,23 @@ QPushButton:checked {
     border: 3px inset #bbb;
 }
 
+QPushButton#visibility {
+    background-color: #cccccc;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 0px;
+    text-align: center;
+    margin-bottom:0px;
+    margin-top:0px;
+    margin-right: 0px;
+    border-bottom-left-radius: 0px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 0px;
+    border-top-right-radius: 0px;
+}
+
 QPushButton#activation {
     background-color: #cccccc;
     min-height: 40px;
@@ -167,6 +198,20 @@ QPushButton#activation:pressed {
 }
 
 QPushButton#activation:checked {
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
+}
+
+QPushButton#visibility:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#visibility:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton#visibility:checked {
     background-color: #fcfcfc;
     border: 3px inset #bbb;
 }
