@@ -18,7 +18,12 @@ class View(QMainWindow):
         self.config = config
 
         #Components of the view 
-        self.buttons = dict()
+        self.buttons_labeling_bar = dict()
+        self.buttons_label_bar_permanent = dict()
+        self.buttons_label_bar_temporary = dict()
+        self.buttons_image_bar = dict()
+        self.buttons_file_bar = dict()
+        
         self.zoomable_graphics_view = None
 
         # Set the main properties of the view
@@ -31,20 +36,16 @@ class View(QMainWindow):
         # Display
         self.show()
 
-    def desactivate_buttons(self, clicked):
-        for button in self.buttons.keys():
-            # The button have not to be the same that clicked
-            # The button have to be checked 
-            # The clicked button have to be checkable 
-            if button != clicked and self.buttons[button].isChecked() is True and self.buttons[clicked].isCheckable():
-                if button.startswith('activation_') and clicked.startswith('activation_'):
-                        self.buttons[button].setChecked(False)
-                elif button.startswith('activation_') and not clicked.startswith('activation_'):
-                    continue 
-                elif not button.startswith('activation_') and clicked.startswith('activation_'):
-                    continue 
-                else:
-                    self.buttons[button].setChecked(False)
+    # Here we are sure that clicked is checkable
+    def desactivate_buttons(self, clicked, list_buttons_bars):
+        for buttons_bar in list_buttons_bars:
+            for button in buttons_bar.keys():
+                # The button have not to be the same that clicked
+                # The button have to be checked 
+                # The clicked button have to be checkable 
+                if button != clicked and buttons_bar[button].isChecked() is True:
+                    buttons_bar[button].setChecked(False)
+
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
@@ -69,5 +70,6 @@ class View(QMainWindow):
 
     def build_label_setting_form(self): self.builder.build_label_setting_form()
     def build_new_layer_label_bar(self): self.builder.build_new_layer_label_bar()
+
         
    

@@ -1,11 +1,10 @@
 
 
-
 from PyImageLabeling.model.Core import Core
 
-class HideShowLabelShortcut(Core):
+class LoadLabels(Core):
     def __init__(self):
         super().__init__() 
     
-    def hide_show_label_shortcut(self):
+    def load_labels(self):
         pass

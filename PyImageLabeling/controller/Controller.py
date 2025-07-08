@@ -1,12 +1,11 @@
 
 from PyImageLabeling.controller.FileEvents import FileEvents
-from PyImageLabeling.controller.EditEvents import EditEvents
 from PyImageLabeling.controller.LabelingEvents import LabelingEvents
 from PyImageLabeling.controller.ImageEvents import ImageEvents
-from PyImageLabeling.controller.LayerEvents import LayerEvents
+from PyImageLabeling.controller.LabelEvents import LabelEvents
 
 
-class Controller(FileEvents, EditEvents, LabelingEvents, ImageEvents, LayerEvents):
+class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):
     def __init__(self, config):
         super().__init__()
         

@@ -19,3 +19,7 @@ class Utils():
         with open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"config.json", 'r', encoding='utf-8') as file:
             dictionnaire = json.load(file)
         return dictionnaire
+    
+    def color_to_stylesheet(color):
+        return f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
+        

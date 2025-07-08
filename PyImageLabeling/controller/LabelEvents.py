@@ -4,21 +4,22 @@ from  controller.Events import Events
 from PyQt6.QtWidgets import QFileDialog, QDialog
 from PyQt6.QtGui import QPixmap, QImage
 
-class LayerEvents(Events):
+class LabelEvents(Events):
     def __init__(self):
         super().__init__()
 
         
     def new_label(self):
         self.all_events(self.new_label.__name__)
-        
         self.view.build_label_setting_form()
 
-        self.model.new_layer()
-        #self.view.build_new_layer_bottom_bar()
-        
-        print("load_layer")
-        
+        print("new_label")
+
+    def new_label_end(self, data_new_label):  
+        self.model.new_label(data_new_label)      
+        print("new_label_end:", data_new_label)
+
+
     def load_labels(self):
         self.all_events(self.load_labels.__name__)
 
@@ -29,8 +30,14 @@ class LayerEvents(Events):
         print("save_layers")
 
     def activation(self, activation_name):
-        layer_id = int(activation_name.split('_')[1])
-        self.all_events(f"activation_{layer_id}")
+        label_name = activation_name.split("_")[-1]
+        #if self.model.current_label == label_name:
+        #    self.view.activate_buttons(activation_name, [self.view.buttons_label_bar_temporary])
+        #else:
+        self.desactivate_buttons_label_bar(activation_name)
+        print("activation_name:", activation_name)
+        self.all_events(activation_name)
+        self.model.set_current_label(label_name)
 
         print("activation")
 
@@ -43,6 +50,11 @@ class LayerEvents(Events):
         self.all_events(self.visibility.__name__)
 
         print("visibility")
+    
+    def opacity(self):
+        self.all_events(self.opacity.__name__)
+        print("opacity")
+
 
     def label_setting(self):
         self.all_events(self.label_setting.__name__)
