@@ -43,9 +43,11 @@ class View(QMainWindow):
                 # The button have not to be the same that clicked
                 # The button have to be checked 
                 # The clicked button have to be checkable 
+                print("button:",button)
                 if button != clicked and buttons_bar[button].isChecked() is True:
                     buttons_bar[button].setChecked(False)
-
+                if button == clicked:
+                    buttons_bar[button].setChecked(True)
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
