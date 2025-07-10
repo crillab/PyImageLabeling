@@ -1,14 +1,13 @@
 
-from PyImageLabeling.controller.Events import Events
+from controller.Events import Events
 
 from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtGui import QPixmap, QImage
 
-
 class FileEvents(Events):
     def __init__(self):
         super().__init__()
-
+        
     def set_view(self, view):
         super().set_view(view)
 
@@ -17,23 +16,13 @@ class FileEvents(Events):
         
     def load_images(self):
         self.all_events(self.load_images.__name__)
+        self.model.init_load_image()
         print("load_images")
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getOpenFileName(
-            self.view, "Open Image", "", "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)"
-        )
-        if file_path == "": return
-        
-        image = QPixmap(file_path)
-        if image.isNull(): self.error_message("Load Image", "Could not load the image.")
-
-        self.model.load_image(image)
-        
    
     def next_image(self):
         self.all_events(self.next_image.__name__)
-        print("next_image")
-    
+        self.model.next_image()
+
     def previous_image(self):
         self.all_events(self.previous_image.__name__)
-        print("previous_image")
+        self.model.previous_image()

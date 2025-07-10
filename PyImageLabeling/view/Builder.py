@@ -5,12 +5,12 @@
 from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
-from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
-from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
+from view.ZoomableGraphicsView import ZoomableGraphicsView
+from view.QLabelSettingForm import QLabelSettingForm
 
-from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
+from view.QWidgets import QBlanckWidget1, QSeparator1
 import os
 
 class Builder:
@@ -51,28 +51,30 @@ class Builder:
                 self.view.buttons_file_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
             self.view.buttons_file_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
             self.view.buttons_file_bar[button_name].setCheckable(button["checkable"])
-            
+            if 'previous' in button_name or 'next' in button_name:
+                        self.view.buttons_file_bar[button_name].setEnabled(False)
+
             self.file_bar_button_layout.addWidget(self.view.buttons_file_bar[button_name])
         file_bar_layout.addWidget(self.file_bar_button_container)
         self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        self.file_bar_list = QListWidget()
+        self.view.file_bar_list = QListWidget()
+        """
         self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
         for i in range(100):
             self.file_bar_list.addItem("file_"+str(i)+".png")
-        
-        self.file_bar_list.setMinimumWidth(0)
-        
-        file_bar_layout.addWidget(self.file_bar_list)
+        """
+        self.view.file_bar_list.setMinimumWidth(0)
+
+        file_bar_layout.addWidget(self.view.file_bar_list)
         file_bar_layout.setSpacing(0)
         file_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
 
         self.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
         self.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
         
-        self.view.main_layout.addWidget(self.file_bar_container, 0, 3, 2, 1)  
-        
-        
+        self.view.main_layout.addWidget(self.file_bar_container, 0, 3, 2, 1)
+
     def build_labeling_bar(self):
         self.labeling_bar_container = QWidget()
     

@@ -1,8 +1,8 @@
 
-from PyImageLabeling.view.Builder import Builder
-from PyImageLabeling.model.Utils import Utils
+from view.Builder import Builder
+from model.Utils import Utils
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
 
@@ -50,6 +50,47 @@ class View(QMainWindow):
                     buttons_bar[button].setChecked(False)
                 if button == clicked:
                     buttons_bar[button].setChecked(True)
+
+    def add_file_to_list(self, filename, loaded_image_paths):
+        # Create list item
+        item = QListWidgetItem()
+        self.file_bar_list.addItem(item)
+        
+        # Create custom widget for the item
+        item_widget = QWidget()
+        item_layout = QHBoxLayout(item_widget)
+        item_layout.setContentsMargins(5, 2, 5, 2)
+        
+        # File name label
+        file_label = QLabel(filename)
+        file_label.setToolTip(filename)  # Full filename as tooltip
+        
+        # Remove button
+        remove_button = QPushButton("×")
+        remove_button.setToolTip("Remove file")
+        remove_button.setObjectName("remove_image_button")
+        
+        # Connect remove button to removal function
+        remove_button.clicked.connect(lambda: self.remove_file_from_list(item, filename, loaded_image_paths))
+ 
+        item_layout.addWidget(file_label)
+        item_layout.addWidget(remove_button)
+        
+        self.file_bar_list.setItemWidget(item, item_widget)
+    
+    def remove_file_from_list(self, item, filename, loaded_image_paths):
+        # Get the row of the item
+        for path in loaded_image_paths:
+            if filename in path:
+                loaded_image_paths.remove(path)
+        row = self.file_bar_list.row(item)
+        if row >= 0:
+            # Remove the item from the list
+            self.file_bar_list.takeItem(row)
+        if len(loaded_image_paths) == 0:
+            for button_name in self.buttons_file_bar:
+                if 'previous' in button_name or 'next' in button_name:
+                    self.buttons_file_bar[button_name].setEnabled(False)
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
