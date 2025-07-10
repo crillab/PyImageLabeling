@@ -1,15 +1,52 @@
 from PyQt6.QtWidgets import QMessageBox
 
+from PyQt6.QtCore import QObject, QEvent
+
+from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
+
+class eventEater(QObject):
+    def __init__(self, controler, view, model):
+        super().__init__()
+        self.controler = controler
+        self.view = view
+        self.model = model
+
+    def set_model(self, model):
+        self.model = model
+
+    def eventFilter(self, obj, event):
+        print("eventEater:", event.type())
+        if self.model.checked_button == "zoom_plus":
+            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+                print("QEvent.Type.GraphicsSceneMousePress")
+                self.model.apply_zoom_plus()
+                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+                return True
+            elif event.type() == 157:
+                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+            elif event.type() == 156:
+                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+        return True
+        #else:
+            # standard event processing
+        #    return QObject.eventFilter(obj, event)
+
 class Events:
 
     def __init__(self):
-        pass
+        self.view = None
+        self.model = None
+        self.event_eater = None
 
     def set_view(self, view):
         self.view = view
+        print("view:", view)
+        self.event_eater = eventEater(self, self.view, self.model)
+        self.view.zoomable_graphics_view.scene.installEventFilter(self.event_eater)
     
     def set_model(self, model):
         self.model = model
+        self.event_eater.set_model(model)
 
     def all_events(self, event_name):
         #self.view.desactivate_buttons(event_name, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])

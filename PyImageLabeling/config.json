@@ -1,7 +1,7 @@
 {
     "window_size":{
         "margin": 10,
-        "icon": [28, 28],
+        "icon": [20, 20],
         "graphics_view":{
             "width":400
         },

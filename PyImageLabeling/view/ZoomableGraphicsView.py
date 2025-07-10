@@ -13,6 +13,8 @@ import gc
 import math
 import traceback
 
+from PyImageLabeling.model.Utils import Utils
+
 #from models.LabeledRectangle import LabeledRectangle
 #from models.PointItem import PointItem
 #from models.ProcessWorker import ProcessWorker
@@ -28,9 +30,10 @@ import traceback
 #class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, OverlayTool, RectangleTool, ContourTool, PolygonTool):
 
 class ZoomableGraphicsView(QGraphicsView):
-    def __init__(self, parent=None):
+    def __init__(self, view, parent=None):
         super().__init__(parent)
         
+        self.view = view
         # Create scene
         self.scene = QGraphicsScene(self)
         self.setScene(self.scene)
@@ -75,7 +78,11 @@ class ZoomableGraphicsView(QGraphicsView):
     def clear(self):
         pass
 
-
+    def change_cursor(self, name):
+        cursor_pixmap = QPixmap(Utils.get_icon_path(name))
+        cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
+        cursor = QCursor(cursor_pixmap)
+        self.viewport().setCursor(cursor)
 
 class OldZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):

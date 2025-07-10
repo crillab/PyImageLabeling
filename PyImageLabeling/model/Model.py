@@ -2,9 +2,6 @@
 
 
 from PyImageLabeling.model.File.LoadImage import LoadImage
-from PyImageLabeling.model.File.SaveLayer import SaveLayer
-
-
 
 from PyImageLabeling.model.Labeling.ContourFilling import ContourFilling
 from PyImageLabeling.model.Labeling.MagicPen import MagicPen
@@ -22,6 +19,7 @@ from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
 
 from PyImageLabeling.model.Labels.LoadLabels import LoadLabels
 from PyImageLabeling.model.Labels.Opacity import Opacity
+from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
 class Model(LoadImage, SaveLayer, ClearAll, Eraser, Opacity, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, MoveImage, ResetMoveZoomImage, ZoomMinus, ZoomPlus, LoadLabels):
     def __init__(self, view, config):

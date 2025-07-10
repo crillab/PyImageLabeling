@@ -8,7 +8,10 @@ class ImageEvents(Events):
     def zoom_plus(self):
         self.desactivate_buttons_labeling_image_bar(self.zoom_plus.__name__)
         self.all_events(self.zoom_plus.__name__)
-        print("zoom_plus")
+        self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+        self.model.zoom_plus()
+        
+       
 
     def zoom_minus(self):
         self.desactivate_buttons_labeling_image_bar(self.zoom_minus.__name__)

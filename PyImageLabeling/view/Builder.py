@@ -151,7 +151,7 @@ class Builder:
         self.graphics_view_layout = QStackedLayout(self.graphics_view_container)
         
 
-        self.view.zoomable_graphics_view = ZoomableGraphicsView()
+        self.view.zoomable_graphics_view = ZoomableGraphicsView(self.view)
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)  
         

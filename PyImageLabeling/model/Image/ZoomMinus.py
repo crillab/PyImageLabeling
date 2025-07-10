@@ -7,4 +7,5 @@ class ZoomMinus(Core):
         super().__init__() 
     
     def zoom_minus(self):
-        pass
+        self.checked_button = self.zoom_minus.__name__
+        

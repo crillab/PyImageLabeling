@@ -14,7 +14,6 @@ class View(QMainWindow):
         super().__init__()
         # Parameters
         self.controller = controller
-        self.controller.set_view(self) 
         self.config = config
 
         #Components of the view 
@@ -33,6 +32,9 @@ class View(QMainWindow):
         self.builder = Builder(self)
         self.builder.build()
 
+
+        self.controller.set_view(self) 
+        
         # Display
         self.show()
 
