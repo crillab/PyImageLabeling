@@ -1,6 +1,6 @@
 
 
-from model.Core import Core
+from PyImageLabeling.model.Core import Core
 
 class ResetMoveZoomImage(Core):
     def __init__(self):

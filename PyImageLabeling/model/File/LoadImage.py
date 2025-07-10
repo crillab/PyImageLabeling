@@ -1,6 +1,6 @@
 
 
-from model.Core import Core
+from PyImageLabeling.model.Core import Core
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtGui import QPixmap

@@ -13,7 +13,7 @@ import gc
 import math
 import traceback
 
-from model.Utils import Utils
+from PyImageLabeling.model.Utils import Utils
 
 #from models.LabeledRectangle import LabeledRectangle
 #from models.PointItem import PointItem

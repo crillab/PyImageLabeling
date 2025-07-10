@@ -1,7 +1,7 @@
-from model.Utils import Utils
-from view.View import View
-from controller.Controller import Controller
-from model.Model import Model
+from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model.View import View
+from PyImageLabeling.utils.Controller import Controller
+from PyImageLabeling.model.Model import Model
 
 from PyQt6.QtWidgets import QApplication
 import sys 
