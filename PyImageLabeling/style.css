@@ -195,6 +195,12 @@ QPushButton:checked {
     border: 3px inset #bbb;
 }
 
+QPushButton:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
+}
+
 QPushButton#without_parameters {
     border: 1px solid #bbb;
     background-color: #cccccc;
@@ -399,6 +405,12 @@ QPushButton#permanent:pressed {
 QPushButton#permanent:checked {
     background-color: #728cff;
     border: 3px inset #bbb;
+}
+
+QPushButton#permanent:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
 }
 
 QPushButton#remove_image_button {

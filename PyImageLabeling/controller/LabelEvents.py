@@ -38,6 +38,8 @@ class LabelEvents(Events):
         print("activation_name:", activation_name)
         self.all_events(activation_name)
         self.model.set_current_label(label_name)
+        self.view.update_labeling_buttons(self.model.labels[self.model.current_label]["labeling_mode"])
+
 
         print("activation")
 

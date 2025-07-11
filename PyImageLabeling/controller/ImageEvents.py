@@ -11,21 +11,21 @@ class ImageEvents(Events):
         self.view.zoomable_graphics_view.change_cursor("zoom_plus")
         self.model.zoom_plus()
         
-       
-
     def zoom_minus(self):
         self.desactivate_buttons_labeling_image_bar(self.zoom_minus.__name__)
         self.all_events(self.zoom_minus.__name__)
-        print("zoom_minus")
+        self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+        self.model.zoom_minus()
 
     def move_image(self):
         self.desactivate_buttons_labeling_image_bar(self.move_image.__name__)
         self.all_events(self.move_image.__name__)
-        print("move_image")
+        self.view.zoomable_graphics_view.change_cursor("move")
+        self.model.move_image()
         
     def reset_move_zoom_image(self):
         self.all_events(self.reset_move_zoom_image.__name__)
-        print("reset_move_zoom_image")
+        self.model.reset_move_zoom_image()
 
 
 

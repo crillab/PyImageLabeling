@@ -108,6 +108,7 @@ class Builder:
                     self.view.buttons_labeling_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
                 self.view.buttons_labeling_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
                 self.view.buttons_labeling_bar[button_name].setCheckable(button["checkable"])
+                self.view.buttons_labeling_bar[button_name].setEnabled(False)
                 
                 if button_name in setting_buttons:
                     setting_button_config = setting_buttons[button_name]
@@ -241,11 +242,14 @@ class Builder:
         label_setting_form.open()
         
 
-    def build_new_layer_label_bar(self, name, color):
+    def build_new_layer_label_bar(self, name, color, labeling_mode):
         print("build_new_layer")
         data_new_label = dict()
         data_new_label["name"] = name
         data_new_label["color"] = color
+        data_new_label["labeling_mode"] = labeling_mode
+
+        self.view.update_labeling_buttons(labeling_mode)
         
         activation_name = f"activation_{name}"
     

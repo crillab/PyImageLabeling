@@ -29,6 +29,26 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
             elif event.type() == 156:
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+        elif self.model.checked_button == "zoom_minus":
+            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+                print("QEvent.Type.GraphicsSceneMousePress")
+                self.model.apply_zoom_minus()
+                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+                return True
+            elif event.type() == 157:
+                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+            elif event.type() == 156:
+                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+        elif self.model.checked_button == "move_image":
+            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+                print("QEvent.Type.GraphicsSceneMousePress")
+                self.model.apply_move_image()
+                self.view.zoomable_graphics_view.change_cursor("move")
+                return True
+            elif event.type() == 157:
+                self.view.zoomable_graphics_view.change_cursor("move")
+            elif event.type() == 156:
+                self.view.zoomable_graphics_view.change_cursor("move")
         return True
         #else:
             # standard event processing

@@ -11,6 +11,7 @@ class QLabelSettingForm(QDialog):
         self.builder = builder
         self.name = name
         self.color = color
+        self.labeling_mode = "Geometric"
 
         self.setWindowTitle("Label Setting")
         
@@ -39,6 +40,12 @@ class QLabelSettingForm(QDialog):
         label_layout.addWidget(self.label_combo)
         
         layout.addRow("Label:", label_layout)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Geometric", "Pixel"])
+        self.mode_combo.setCurrentText(self.labeling_mode)
+        self.mode_combo.currentTextChanged.connect(self.mode_update)
+        layout.addRow("Labeling Mode:", self.mode_combo)
 
         # Color selection
         self.color_button = QPushButton("Choose Color")
@@ -74,9 +81,11 @@ class QLabelSettingForm(QDialog):
     
     def ok_event(self):
         self.accept()
-        self.builder.build_new_layer_label_bar(self.name, self.color)
+        self.builder.build_new_layer_label_bar(self.name, self.color, self.labeling_mode)
 
 
+    def mode_update(self, text):
+        self.labeling_mode = text
 
     def update_color(self, color):
         """Update color button appearance to show current color"""

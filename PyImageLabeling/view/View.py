@@ -51,6 +51,23 @@ class View(QMainWindow):
                 if button == clicked:
                     buttons_bar[button].setChecked(True)
 
+    def update_labeling_buttons(self, labeling_mode):
+        print("labeling_mode", labeling_mode)
+        buttons = self.buttons_labeling_bar
+        pixel_tools = ["contour_filling", "paintbrush", "magic_pen"]
+        geometric_tools = ["ellipse", "rectangle", "polygon"]
+        for button in buttons.items():
+            if labeling_mode == "Geometric":
+                for button in geometric_tools:
+                    self.buttons_labeling_bar[button].setEnabled(True)
+                for button in pixel_tools:
+                    self.buttons_labeling_bar[button].setEnabled(False)
+            elif labeling_mode == "Pixel":
+                for button in pixel_tools:
+                    self.buttons_labeling_bar[button].setEnabled(True)
+                for button in geometric_tools:
+                    self.buttons_labeling_bar[button].setEnabled(False)
+
     def add_file_to_list(self, filename, loaded_image_paths):
         # Create list item
         item = QListWidgetItem()

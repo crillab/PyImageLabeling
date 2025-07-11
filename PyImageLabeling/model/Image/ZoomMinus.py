@@ -8,4 +8,7 @@ class ZoomMinus(Core):
     
     def zoom_minus(self):
         self.checked_button = self.zoom_minus.__name__
+
+    def apply_zoom_minus(self):
+        print("apply_zoom_minus")
         

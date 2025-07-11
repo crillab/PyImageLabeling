@@ -15,15 +15,15 @@ from PyImageLabeling.model.Labeling.Eraser import Eraser
 from PyImageLabeling.model.Labeling.Undo import Undo
 
 from PyImageLabeling.model.Image.MoveImage import MoveImage
-from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 from PyImageLabeling.model.Image.ZoomMinus import ZoomMinus
 from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
+from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
 from PyImageLabeling.model.Labels.LoadLabels import LoadLabels
 from PyImageLabeling.model.Labels.Opacity import Opacity
 from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
-class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, MoveImage, ResetMoveZoomImage, ZoomMinus, ZoomPlus, LoadLabels):
+class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
     def __init__(self, view, config):
         super().__init__()
         self.config = config
