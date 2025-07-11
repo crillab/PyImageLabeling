@@ -1,5 +1,5 @@
 
-from PyImageLabeling.model.Builder import Builder
+from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton
@@ -58,6 +58,7 @@ class View(QMainWindow):
         
         # Create custom widget for the item
         item_widget = QWidget()
+        item_widget.setObjectName("file_item")
         item_layout = QHBoxLayout(item_widget)
         item_layout.setContentsMargins(5, 2, 5, 2)
         
@@ -91,6 +92,28 @@ class View(QMainWindow):
             for button_name in self.buttons_file_bar:
                 if 'previous' in button_name or 'next' in button_name:
                     self.buttons_file_bar[button_name].setEnabled(False)
+            self.zoomable_graphics_view.scene.clear()
+            self.pixmap_item = None
+            self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
+            self.zoomable_graphics_view.resetTransform()
+
+    def on_file_selection_changed(self):
+        """Handle selection change to update styling"""
+        for i in range(self.file_bar_list.count()):
+            item = self.file_bar_list.item(i)
+            item_widget = self.file_bar_list.itemWidget(item)
+            
+            if item_widget:
+                if item.isSelected():
+                    # Apply selected style
+                    item_widget.setObjectName("selected_file_item")
+                else:
+                    # Apply normal style
+                    item_widget.setObjectName("file_item")
+                
+                # Force style update
+                item_widget.style().unpolish(item_widget)
+                item_widget.style().polish(item_widget)
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")

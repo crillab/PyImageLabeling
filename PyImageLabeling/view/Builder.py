@@ -7,10 +7,10 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
 
-from PyImageLabeling.model.ZoomableGraphicsView import ZoomableGraphicsView
-from PyImageLabeling.model.QLabelSettingForm import QLabelSettingForm
+from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
+from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
 
-from PyImageLabeling.model.QWidgets import QBlanckWidget1, QSeparator1
+from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
 import os
 
 class Builder:
@@ -59,6 +59,7 @@ class Builder:
         self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.view.file_bar_list = QListWidget()
+        self.view.file_bar_list.itemSelectionChanged.connect(self.view.on_file_selection_changed)
         """
         self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
         for i in range(100):

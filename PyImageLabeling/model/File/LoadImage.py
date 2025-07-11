@@ -56,6 +56,7 @@ class LoadImage(Core):
         # Select the first item in the list
         if self.view.file_bar_list.count() > 0:
             self.view.file_bar_list.setCurrentRow(0) 
+            self.view.on_file_selection_changed()
 
             # Check all possible button names for previous/next
             

@@ -62,32 +62,45 @@ QListWidget {
     border-top-right-radius: 0px;
 }
 
-QListWidgetItem {
-    color:#f00000;
-    background-color: #cccccc;
-    border: 2px solid #808080;
-    border-left: 0px solid #808080;
-
-    border-bottom-left-radius: 0px;
-    border-bottom-right-radius: 0px;
-    border-top-left-radius: 0px;
-    border-top-right-radius: 0px;
+QWidget#file_item {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px;
 }
 
-QListWidgetItem::item:selected {
-    color:#ff0000;
-    background-color: #cccccc;
-    border: 2px solid #808080;
-    border-left: 0px solid #808080;
-
-    border-bottom-left-radius: 0px;
-    border-bottom-right-radius: 0px;
-    border-top-left-radius: 0px;
-    border-top-right-radius: Opx;
+QWidget#file_item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
-QListWidgetItem::item:hover {
-    background-color: #8ba1ff;
+/* Selected file item style */
+QWidget#selected_file_item {
+    background-color: #0078d4;  /* Blue background for selected */
+    border: 2px solid #106ebe;  /* Darker blue border */
+    border-radius: 4px;
+    padding: 2px;
+}
+
+QWidget#selected_file_item QLabel {
+    color: white;  /* White text for selected item */
+}
+
+/* Optional: Style the QListWidget itself */
+QListWidget {
+    background-color: #2d2d2d;
+    border: none;
+    outline: none;
+}
+
+QListWidget::item {
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    margin: 1px 0px;
+}
+
+QListWidget::item:selected {
+    background-color: transparent;  /* We handle selection in the custom widget */
 }
 
 QWidget#image_bar {
