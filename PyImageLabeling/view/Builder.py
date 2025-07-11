@@ -60,6 +60,7 @@ class Builder:
 
         self.view.file_bar_list = QListWidget()
         self.view.file_bar_list.itemSelectionChanged.connect(self.view.on_file_selection_changed)
+        self.view.file_bar_list.itemDoubleClicked.connect(self.view.controller.on_file_double_clicked)
         """
         self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
         for i in range(100):

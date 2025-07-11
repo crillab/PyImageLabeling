@@ -4,6 +4,9 @@ from PyQt6.QtCore import QObject, QEvent
 
 from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
 
+from PyQt6.QtWidgets import QLabel
+import os
+
 class eventEater(QObject):
     def __init__(self, controler, view, model):
         super().__init__()
@@ -60,7 +63,31 @@ class Events:
         buttons_bar = {key: self.view.buttons_label_bar_temporary[key] for key in self.view.buttons_label_bar_temporary.keys() if key.startswith("activation_")}
         
         self.view.desactivate_buttons(event_name, [buttons_bar])
-        
+    
+    def on_file_double_clicked(self, item):
+        """Handle double-click on file list item to load the image"""
+        # Get the custom widget for this item
+        item_widget = self.view.file_bar_list.itemWidget(item)
+        if item_widget:
+            file_label = item_widget.findChild(QLabel)
+            if file_label:
+                filename = file_label.text()
+                matching_path = None
+                for path in self.model.loaded_image_paths:
+                    if os.path.basename(path) == filename:
+                        matching_path = path
+                        break
+                if matching_path:
+                    image = QPixmap(matching_path)
+                    if not image.isNull():
+                        self.model.load_image(image)
+                        self.view.file_bar_list.setCurrentItem(item)
+                        print(f"Loaded image: {filename}")
+                    else:
+                        print(f"Error: Could not load image {filename}")
+                else:
+                    print(f"Error: Could not find path for {filename}")
+
     def error_message(self, title, text):
         msg_box = QMessageBox(self.view)
         msg_box.setWindowTitle("Error: "+str(title))
