@@ -49,7 +49,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         
         # Basic properties
-        self.zoom_factor = 1.0
+        self.view.zoom_factor = 1.0
         self.base_pixmap = None
         self.pixmap_item = None
         self.base_pixmap_item = None
@@ -83,6 +83,34 @@ class ZoomableGraphicsView(QGraphicsView):
         cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
         cursor = QCursor(cursor_pixmap)
         self.viewport().setCursor(cursor)
+
+           
+    def wheelEvent(self, event):
+        zoom_in = event.angleDelta().y() > 0
+        factor = 1.1 if zoom_in else 0.9
+        
+        # Apply zoom factor limit
+        new_zoom_factor = self.view.zoom_factor * factor
+        if 0.9 <= new_zoom_factor <= 40.0:
+            self.view.zoom_factor = new_zoom_factor
+            
+            # Get the scene position under the mouse
+            mouse_pos = event.position().toPoint()
+            scene_pos = self.mapToScene(mouse_pos)
+
+            # Apply the scale
+            self.scale(factor, factor)
+            
+            # Get the new position in viewport coordinates where scene_pos would show
+            new_viewport_pos = self.mapFromScene(scene_pos)
+            
+            # Calculate the viewport delta and adjust the view
+            delta = new_viewport_pos - mouse_pos
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
+        
+        # Prevent standard event handling
+        event.accept()
 
 class OldZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):

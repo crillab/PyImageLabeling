@@ -5,6 +5,8 @@ from PyQt6.QtCore import QObject, QEvent
 from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
 
 from PyQt6.QtWidgets import QLabel
+from PyQt6.QtCore import QTimer
+
 import os
 
 class eventEater(QObject):
@@ -13,17 +15,53 @@ class eventEater(QObject):
         self.controler = controler
         self.view = view
         self.model = model
+        self.zoom_timer = QTimer()
+        self.zoom_timer.timeout.connect(self.continue_zoom)
+        self.zoom_timer.setInterval(100)  # Repeat every 100ms
+        self.current_zoom_action = None
 
     def set_model(self, model):
         self.model = model
 
+    def start_continuous_zoom(self, zoom_type):
+        """Start continuous zoom operation"""
+        self.current_zoom_action = zoom_type
+        if zoom_type == "zoom_plus":
+            self.model.apply_zoom_plus()
+        elif zoom_type == "zoom_minus":
+            self.model.apply_zoom_minus()
+        self.zoom_timer.start()
+
+    def continue_zoom(self):
+        """Continue the zoom operation while timer is active"""
+        if self.current_zoom_action == "zoom_plus":
+            self.model.apply_zoom_plus()
+        elif self.current_zoom_action == "zoom_minus":
+            self.model.apply_zoom_minus()
+
+    def stop_continuous_zoom(self):
+        """Stop continuous zoom operation"""
+        self.zoom_timer.stop()
+        self.current_zoom_action = None
+
+    # Modified eventFilter method:
     def eventFilter(self, obj, event):
         #print("eventEater:", event.type())
+        
+        # Handle wheel events for zooming
+        if event.type() == QEvent.Type.Wheel:
+            if hasattr(self.view, 'zoomable_graphics_view'):
+                self.view.zoomable_graphics_view.wheelEvent(event)
+                return True
+        
         if self.model.checked_button == "zoom_plus":
             if event.type() == QEvent.Type.GraphicsSceneMousePress:
-                print("QEvent.Type.GraphicsSceneMousePress")
-                self.model.apply_zoom_plus()
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+                self.start_continuous_zoom("zoom_plus")
+                return True
+            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
+                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+                self.stop_continuous_zoom()
                 return True
             elif event.type() == 157:
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
@@ -31,9 +69,12 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
         elif self.model.checked_button == "zoom_minus":
             if event.type() == QEvent.Type.GraphicsSceneMousePress:
-                print("QEvent.Type.GraphicsSceneMousePress")
-                self.model.apply_zoom_minus()
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+                self.start_continuous_zoom("zoom_minus")
+                return True
+            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
+                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+                self.stop_continuous_zoom()
                 return True
             elif event.type() == 157:
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
@@ -41,18 +82,17 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
         elif self.model.checked_button == "move_image":
             if event.type() == QEvent.Type.GraphicsSceneMousePress:
-                print("QEvent.Type.GraphicsSceneMousePress")
-                self.model.apply_move_image()
                 self.view.zoomable_graphics_view.change_cursor("move")
+                self.model.apply_move_image()
                 return True
             elif event.type() == 157:
                 self.view.zoomable_graphics_view.change_cursor("move")
             elif event.type() == 156:
                 self.view.zoomable_graphics_view.change_cursor("move")
         return True
-        #else:
-            # standard event processing
-        #    return QObject.eventFilter(obj, event)
+            #else:
+                # standard event processing
+            #    return QObject.eventFilter(obj, event)
 
 class Events:
 
@@ -84,8 +124,6 @@ class Events:
         
         self.view.desactivate_buttons(event_name, [buttons_bar])
     
-
-
     def error_message(self, title, text):
         msg_box = QMessageBox(self.view)
         msg_box.setWindowTitle("Error: "+str(title))

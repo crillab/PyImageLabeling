@@ -1,5 +1,6 @@
 
 from PyImageLabeling.model.Core import Core
+from PyQt6.QtCore import Qt
 
 class ResetMoveZoomImage (Core):
     def __init__(self):
@@ -9,4 +10,7 @@ class ResetMoveZoomImage (Core):
         super().set_view(view)
     
     def reset_move_zoom_image(self):
-        print("reset_move_zoom_image")
+        self.zoomable_graphics_view.resetTransform()
+        self.view.zoom_factor = 1.0
+        self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
+        self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)

@@ -159,6 +159,14 @@ class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, O
         
         # Reset transformations
         self.resetTransform()
+
+    def reset_view(self):
+        """Reset view to original state"""
+        if self.base_pixmap:
+            self.resetTransform()
+            self.zoom_factor = 1.0
+            self.setSceneRect(self.pixmap_item.boundingRect())
+            self.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
     
     def wheelEvent(self, event):
         """Handle mouse wheel for zooming centered on cursor position"""
