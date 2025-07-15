@@ -137,54 +137,62 @@
                 
             ]},
     "labeling_bar": 
-        [
-            {"Pixel Labeling":[
-                {
-                    "name": "contour_filling",
-                    "icon": "filling",
-                    "checkable": true,
-                    "name_view": "Contour Filling",
-                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
-                },
-                {
-                    "name": "paintbrush",
-                    "name_view": "Paintbrush",
-                    "checkable": true,
-                    "icon": "paint",
-                    "tooltip": "Click to reset the image's position and zoom level to the default view."
-                },
-                {
-                    "name": "magic_pen",
-                    "name_view": "Magic Pen",
-                    "checkable": true,
-                    "icon": "magic",
-                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
-                }
-            ]},
-            {"Geometric Labeling":[
-                {
-                    "name": "ellipse",
-                    "name_view": "Ellipse",
-                    "checkable": true,
-                    "icon": "ellipse",
-                    "tooltip": "."
-                },
-                {
-                    "name": "rectangle",
-                    "name_view": "Rectangle",
-                    "checkable": true,
-                    "icon": "rectangle",
-                    "tooltip": "Click to reset the image's position and zoom level to the default view."
-                },
-                {
-                    "name": "polygon",
-                    "name_view": "Polygon",
-                    "checkable": true,
-                    "icon": "polygon",
-                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
-                }
-            ]},
-            {"Edit":[
+            {"pixel": {
+                "name_view": "Pixel-by-pixel",
+                "buttons": [
+                    {
+                        "name": "contour_filling",
+                        "icon": "filling",
+                        "checkable": true,
+                        "name_view": "Contour Filling",
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                    },
+                    {
+                        "name": "paintbrush",
+                        "name_view": "Paintbrush",
+                        "checkable": true,
+                        "icon": "paint",
+                        "tooltip": "Click to reset the image's position and zoom level to the default view."
+                    },
+                    {
+                        "name": "magic_pen",
+                        "name_view": "Magic Pen",
+                        "checkable": true,
+                        "icon": "magic",
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                    }
+                ]
+            }
+            ,
+            "geometric":{
+                "name_view": "Geometric shapes",
+                "buttons": [
+                    {
+                        "name": "ellipse",
+                        "name_view": "Ellipse",
+                        "checkable": true,
+                        "icon": "ellipse",
+                        "tooltip": "."
+                    },
+                    {
+                        "name": "rectangle",
+                        "name_view": "Rectangle",
+                        "checkable": true,
+                        "icon": "rectangle",
+                        "tooltip": "Click to reset the image's position and zoom level to the default view."
+                    },
+                    {
+                        "name": "polygon",
+                        "name_view": "Polygon",
+                        "checkable": true,
+                        "icon": "polygon",
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                    }
+                ]}
+            ,
+            "edit":{
+                "name_view": "Edition",
+                "buttons": [
                 {
                     "name": "undo",
                     "name_view": "Undo",
@@ -207,7 +215,8 @@
                     "tooltip": "Click to clear all layers and reset the image to its original state."
                 }
             ]}
-        ],
+            }
+        ,
     "labeling_bar_setting": 
     [
             {"Edit Setting":[

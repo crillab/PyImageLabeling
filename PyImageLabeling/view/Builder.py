@@ -59,8 +59,8 @@ class Builder:
         self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.view.file_bar_list = QListWidget()
-        self.view.file_bar_list.itemSelectionChanged.connect(self.view.on_file_selection_changed)
-        self.view.file_bar_list.itemDoubleClicked.connect(self.view.controller.on_file_double_clicked)
+        self.view.file_bar_list.itemSelectionChanged.connect(self.view.select_image)
+        #self.view.file_bar_list.itemClicked.connect(self.view.controller.on_file_double_clicked)
         """
         self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
         for i in range(100):
@@ -92,13 +92,14 @@ class Builder:
                     base_name = button["name"].replace("_setting", "")
                     setting_buttons[base_name] = button
 
-        for category in self.view.config["labeling_bar"]:
-            category_name = tuple(category.keys())[0]
+        for category_key in self.view.config["labeling_bar"].keys():
+            category = self.view.config["labeling_bar"][category_key]
+            category_name = category["name_view"]
             frame = QGroupBox()
             frame.setTitle(category_name)
             buttons_layout = QVBoxLayout(frame)
             
-            for button in category[category_name]:
+            for button in category["buttons"]:
                 button_name = button["name"]
                 self.view.buttons_labeling_bar[button_name] = QPushButton(button["name_view"])
                 self.view.buttons_labeling_bar[button_name].setToolTip(button["tooltip"]) # Detailed tooltip
@@ -130,7 +131,8 @@ class Builder:
                     
                     self.view.buttons_labeling_bar[setting_button_name].clicked.connect(getattr(self.view.controller, setting_button_name))
                     self.view.buttons_labeling_bar[setting_button_name].setCheckable(setting_button_config["checkable"])
-                    
+                    self.view.buttons_labeling_bar[setting_button_name].setEnabled(False)
+
                     h_layout.setSpacing(0)
                     h_layout.addWidget(self.view.buttons_labeling_bar[setting_button_name])
                     

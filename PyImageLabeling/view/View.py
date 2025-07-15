@@ -53,20 +53,47 @@ class View(QMainWindow):
 
     def update_labeling_buttons(self, labeling_mode):
         print("labeling_mode", labeling_mode)
-        buttons = self.buttons_labeling_bar
-        pixel_tools = ["contour_filling", "paintbrush", "magic_pen"]
-        geometric_tools = ["ellipse", "rectangle", "polygon"]
-        for button in buttons.items():
-            if labeling_mode == "Geometric":
-                for button in geometric_tools:
-                    self.buttons_labeling_bar[button].setEnabled(True)
-                for button in pixel_tools:
-                    self.buttons_labeling_bar[button].setEnabled(False)
-            elif labeling_mode == "Pixel":
-                for button in pixel_tools:
-                    self.buttons_labeling_bar[button].setEnabled(True)
-                for button in geometric_tools:
-                    self.buttons_labeling_bar[button].setEnabled(False)
+        category_key_selected = None
+        for category_key in self.config["labeling_bar"].keys():
+            category_name = self.config["labeling_bar"][category_key]["name_view"]
+            if category_name == labeling_mode:
+                category_key_selected = category_key
+        if category_key_selected is None:
+            raise ValueError("Bad category_key in the dictionnary `self.config[labeling_bar]` for " + str(labeling_mode)+ ".")
+
+        print("ess:", self.buttons_labeling_bar)
+        print("category_key_selected:", category_key_selected)
+
+        for button_key in self.buttons_labeling_bar.keys():
+            self.buttons_labeling_bar[button_key].setEnabled(False)
+
+        for config_buttons in self.config["labeling_bar"][category_key_selected]["buttons"]:
+            name = config_buttons["name"]
+            self.buttons_labeling_bar[name].setEnabled(True)
+            if name+"_setting" in self.buttons_labeling_bar.keys():
+                self.buttons_labeling_bar[name+"_setting"].setEnabled(True)
+                
+        for config_buttons in self.config["labeling_bar"]["edit"]["buttons"]:
+            name = config_buttons["name"]
+            self.buttons_labeling_bar[name].setEnabled(True)
+            if name+"_setting" in self.buttons_labeling_bar.keys():
+                self.buttons_labeling_bar[name+"_setting"].setEnabled(True)
+
+        # exit(0)
+        # buttons = self.buttons_labeling_bar
+        # pixel_tools = ["contour_filling", "paintbrush", "magic_pen"]
+        # geometric_tools = ["ellipse", "rectangle", "polygon"]
+        # for button in buttons.items():
+        #     if labeling_mode == "Geometric":
+        #         for button in geometric_tools:
+        #             self.buttons_labeling_bar[button].setEnabled(True)
+        #         for button in pixel_tools:
+        #             self.buttons_labeling_bar[button].setEnabled(False)
+        #     elif labeling_mode == "Pixel":
+        #         for button in pixel_tools:
+        #             self.buttons_labeling_bar[button].setEnabled(True)
+        #         for button in geometric_tools:
+        #             self.buttons_labeling_bar[button].setEnabled(False)
 
     def add_file_to_list(self, filename, loaded_image_paths):
         # Create list item
@@ -81,6 +108,7 @@ class View(QMainWindow):
         
         # File name label
         file_label = QLabel(filename)
+        file_label.setObjectName("label_files")
         file_label.setToolTip(filename)  # Full filename as tooltip
         
         # Remove button
@@ -114,7 +142,7 @@ class View(QMainWindow):
             self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
             self.zoomable_graphics_view.resetTransform()
 
-    def on_file_selection_changed(self):
+    def select_image(self):
         """Handle selection change to update styling"""
         for i in range(self.file_bar_list.count()):
             item = self.file_bar_list.item(i)
@@ -124,6 +152,7 @@ class View(QMainWindow):
                 if item.isSelected():
                     # Apply selected style
                     item_widget.setObjectName("selected_file_item")
+                    self.controller.select_image(item)
                 else:
                     # Apply normal style
                     item_widget.setObjectName("file_item")

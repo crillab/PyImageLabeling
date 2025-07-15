@@ -50,9 +50,11 @@ QWidget#file_bar {
     border-top-right-radius: 20px;
 }
 
+
 QListWidget {
     color:#000000;
     background-color: #cccccc;
+    
     border: 2px solid #808080;
     border-left: 0px solid #808080;
 
@@ -60,33 +62,45 @@ QListWidget {
     border-bottom-right-radius: 0px;
     border-top-left-radius: 0px;
     border-top-right-radius: 0px;
+
+}
+
+
+QLabel#label_files {
+
+    background-color: transparent;
+    color:#000000;
 }
 
 QWidget#file_item {
-    background-color: transparent;
+    background-color: #cccccc;
     border: none;
     border-radius: 4px;
     padding: 2px;
 }
 
+QWidget#selected_file_item {
+    background-color: #8ba1ff;
+}
+/*
+
 QWidget#file_item:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Selected file item style */
 QWidget#selected_file_item {
-    background-color: #0078d4;  /* Blue background for selected */
-    border: 2px solid #106ebe;  /* Darker blue border */
+    background-color: #0078d4; 
+    border: 2px solid #106ebe; 
     border-radius: 4px;
     padding: 2px;
 }
 
 QWidget#selected_file_item QLabel {
-    color: white;  /* White text for selected item */
-}
+    color: white; 
+} */
 
 /* Optional: Style the QListWidget itself */
-QListWidget {
+/* QListWidget {
     background-color: #2d2d2d;
     border: none;
     outline: none;
@@ -100,8 +114,8 @@ QListWidget::item {
 }
 
 QListWidget::item:selected {
-    background-color: transparent;  /* We handle selection in the custom widget */
-}
+    background-color: transparent;  
+} */
 
 QWidget#image_bar {
     background-color: #616161;
@@ -140,6 +154,12 @@ QPushButton#setting_button:hover {
 QPushButton#setting_button:pressed {
     background-color: #fcfcfc;
     border: 1px solid #bbb;
+}
+
+QPushButton#setting_button:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
 }
 
 QPushButton#setting_button:checked {
@@ -223,6 +243,12 @@ QPushButton#without_parameters:hover {
 QPushButton#without_parameters:pressed {
     background-color: #fcfcfc;
     border: 1px solid #bbb;
+}
+
+QPushButton#without_parameters:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
 }
 
 QPushButton#without_parameters:checked {
