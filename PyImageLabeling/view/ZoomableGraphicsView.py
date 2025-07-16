@@ -56,7 +56,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.overlay_pixmap_item = None
         self.raw_image = None
         self.is_moving = False
-        self.last_mouse_pos = None
+        self.view.last_mouse_pos = None
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         
@@ -65,10 +65,10 @@ class ZoomableGraphicsView(QGraphicsView):
         self.paint_mode = False
         self.erase_mode = False
         self.magic_pen_mode = False
-        self.point_radius = 3
-        self.point_color = QColor(255, 0, 0)
+        self.view.point_radius = 3
+        self.view.point_color = QColor(255, 0, 0)
         self.point_opacity = 100
-        self.point_label = ""
+        self.view.point_label = ""
         self.eraser_size = 10
         self.absolute_erase_mode = False
         self.magic_pen_tolerance = 20

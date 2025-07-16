@@ -20,8 +20,8 @@ class LoadImage(Core):
         self.pixmap_item.setZValue(0)  # Base laye
         self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
         #self.zoomable_graphics_view.centerOn(0,0)
-        self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio);
-
+        self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        
     def init_load_image(self):
 
         file_dialog = QFileDialog()
@@ -33,7 +33,7 @@ class LoadImage(Core):
         valid_images = []
         for file_path in file_paths:
             image = QPixmap(file_path)
-            if not image.isNull():
+            if not image.isNull() and file_path not in self.loaded_image_paths:
                 valid_images.append(file_path)
                 filename = os.path.basename(file_path)
                 self.view.file_bar_list.addItem(self.view.add_file_to_list(filename, self.loaded_image_paths))

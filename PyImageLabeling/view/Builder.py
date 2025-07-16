@@ -198,6 +198,7 @@ class Builder:
                 self.view.buttons_image_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
             self.view.buttons_image_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
             self.view.buttons_image_bar[button_name].setCheckable(button["checkable"])
+            self.view.buttons_image_bar[button_name].setEnabled(False)
             self.view.image_bar_layout_2.addWidget(self.view.buttons_image_bar[button_name])
 
         self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)        

@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QMessageBox
 
-from PyQt6.QtCore import QObject, QEvent
+from PyQt6.QtCore import QObject, QEvent, Qt
 
 from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
 
@@ -17,14 +17,18 @@ class eventEater(QObject):
         self.model = model
         self.zoom_timer = QTimer()
         self.zoom_timer.timeout.connect(self.continue_zoom)
-        self.zoom_timer.setInterval(100)  # Repeat every 100ms
+        self.zoom_timer.setInterval(100)  
         self.current_zoom_action = None
+
+        self.draw_timer = QTimer()
+        self.draw_timer.timeout.connect(self.continue_draw)
+        self.draw_timer.setInterval(50) # Update every 50ms for smoother drawing
+        self.current_draw_pos = None
 
     def set_model(self, model):
         self.model = model
 
     def start_continuous_zoom(self, zoom_type):
-        """Start continuous zoom operation"""
         self.current_zoom_action = zoom_type
         if zoom_type == "zoom_plus":
             self.model.apply_zoom_plus()
@@ -33,22 +37,31 @@ class eventEater(QObject):
         self.zoom_timer.start()
 
     def continue_zoom(self):
-        """Continue the zoom operation while timer is active"""
         if self.current_zoom_action == "zoom_plus":
             self.model.apply_zoom_plus()
         elif self.current_zoom_action == "zoom_minus":
             self.model.apply_zoom_minus()
 
     def stop_continuous_zoom(self):
-        """Stop continuous zoom operation"""
         self.zoom_timer.stop()
         self.current_zoom_action = None
+
+    def start_continuous_draw(self, pos):
+        self.current_draw_pos = pos
+        self.draw_timer.start()
+
+    def continue_draw(self):
+        if self.current_draw_pos and self.view.last_mouse_pos:
+            self.model.draw_continuous_line(self.view.last_mouse_pos, self.current_draw_pos)
+
+    def stop_continuous_draw(self):
+        self.draw_timer.stop()
+        self.current_draw_pos = None
 
     # Modified eventFilter method:
     def eventFilter(self, obj, event):
         #print("eventEater:", event.type())
-        
-        # Handle wheel events for zooming
+
         if event.type() == QEvent.Type.Wheel:
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
@@ -89,6 +102,30 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("move")
             elif event.type() == 156:
                 self.view.zoomable_graphics_view.change_cursor("move")
+        elif self.model.checked_button == "paint_brush":
+            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+                self.view.scene_pos = event.scenePos()
+                if self.view.last_mouse_pos:
+                    self.view.zoomable_graphics_view.change_cursor("paint")
+                    self.model.draw_continuous_line( self.view.scene_pos, self.view.last_mouse_pos)
+                self.view.last_mouse_pos = self.view.scene_pos
+                self.start_continuous_draw(self.view.scene_pos)
+                return True
+            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
+                self.stop_continuous_draw()
+                return True
+            elif event.type() == QEvent.Type.GraphicsSceneMouseMove:
+                self.view.zoomable_graphics_view.change_cursor("paint")
+                self.view.scene_pos = event.scenePos()
+                if  self.view.last_mouse_pos:
+                     self.model.draw_continuous_line(self.view.last_mouse_pos, self.view.scene_pos)
+                self.view.last_mouse_pos = self.view.scene_pos
+            elif event.type() == QEvent.Type.GraphicsSceneMouseMove:
+                self.view.zoomable_graphics_view.change_cursor("paint")
+            elif event.type() == 157:
+                self.view.zoomable_graphics_view.change_cursor("paint")
+            elif event.type() == 156:
+                self.view.zoomable_graphics_view.change_cursor("paint")
         return True
             #else:
                 # standard event processing

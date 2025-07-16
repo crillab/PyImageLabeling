@@ -2,7 +2,7 @@
 from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
 
@@ -15,7 +15,7 @@ class View(QMainWindow):
         # Parameters
         self.controller = controller
         self.config = config
-
+        
         #Components of the view 
         self.buttons_labeling_bar = dict()
         self.buttons_label_bar_permanent = dict()
@@ -137,6 +137,8 @@ class View(QMainWindow):
             for button_name in self.buttons_file_bar:
                 if 'previous' in button_name or 'next' in button_name:
                     self.buttons_file_bar[button_name].setEnabled(False)
+            for button_names in self.buttons_image_bar:
+                self.buttons_image_bar[button_names].setEnabled(False)
             self.zoomable_graphics_view.scene.clear()
             self.pixmap_item = None
             self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
@@ -160,6 +162,17 @@ class View(QMainWindow):
                 # Force style update
                 item_widget.style().unpolish(item_widget)
                 item_widget.style().polish(item_widget)
+
+    def create_point_item(self, label, x, y, color):
+        # Create a simple circular point (adjust size as needed)
+        radius = 2
+        point_item = QGraphicsEllipseItem(x - radius, y - radius, radius * 2, radius * 2)
+        
+        # Set color and style
+        point_item.setBrush(QBrush(color))
+        point_item.setPen(QPen(color, 1))
+        
+        return point_item
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")

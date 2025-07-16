@@ -15,6 +15,7 @@ class LabelingEvents(Events):
     def paintbrush(self):
         self.desactivate_buttons_labeling_image_bar(self.paintbrush.__name__)
         self.all_events(self.paintbrush.__name__)
+        self.model.paint_brush()
         print("paintbrush")
     
     def magic_pen(self):
