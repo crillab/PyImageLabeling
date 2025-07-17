@@ -46,7 +46,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
         
         # Basic properties
         self.view.zoom_factor = 1.0
@@ -80,7 +80,8 @@ class ZoomableGraphicsView(QGraphicsView):
 
     def change_cursor(self, name):
         cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-        cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
+        print("*self.view.config[window_size][icon]:", *self.view.config["window_size"]["icon"])
+        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
         cursor = QCursor(cursor_pixmap)
         self.viewport().setCursor(cursor)
 

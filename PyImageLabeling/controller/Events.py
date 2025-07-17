@@ -60,76 +60,49 @@ class eventEater(QObject):
 
     # Modified eventFilter method:
     def eventFilter(self, obj, event):
-        #print("eventEater:", event.type())
-
+        #print("event.type():", event.type())
+        #print("obj:", obj)
         if event.type() == QEvent.Type.Wheel:
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
-                return True
-        
-        if self.model.checked_button == "zoom_plus":
-            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+            
+        if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.LeftButton:
+            if self.model.checked_button == "zoom_plus":
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
                 self.start_continuous_zoom("zoom_plus")
-                return True
-            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
-                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
-                self.stop_continuous_zoom()
-                return True
-            elif event.type() == 157:
-                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
-            elif event.type() == 156:
-                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
-        elif self.model.checked_button == "zoom_minus":
-            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+            elif self.model.checked_button == "zoom_minus":
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
                 self.start_continuous_zoom("zoom_minus")
-                return True
-            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
-                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
-                self.stop_continuous_zoom()
-                return True
-            elif event.type() == 157:
-                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
-            elif event.type() == 156:
-                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
-        elif self.model.checked_button == "move_image":
-            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+            elif self.model.checked_button == "move_image":
                 self.view.zoomable_graphics_view.change_cursor("move")
                 self.model.apply_move_image()
-                return True
-            elif event.type() == 157:
-                self.view.zoomable_graphics_view.change_cursor("move")
-            elif event.type() == 156:
-                self.view.zoomable_graphics_view.change_cursor("move")
-        elif self.model.checked_button == "paint_brush":
-            if event.type() == QEvent.Type.GraphicsSceneMousePress:
+            elif self.model.checked_button == "paint_brush":
                 self.view.scene_pos = event.scenePos()
                 if self.view.last_mouse_pos:
                     self.view.zoomable_graphics_view.change_cursor("paint")
                     self.model.draw_continuous_line( self.view.scene_pos, self.view.last_mouse_pos)
                 self.view.last_mouse_pos = self.view.scene_pos
                 self.start_continuous_draw(self.view.scene_pos)
-                return True
-            elif event.type() == QEvent.Type.GraphicsSceneMouseRelease:
+            
+        elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
+            if self.model.checked_button == "zoom_plus":
+                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+                self.stop_continuous_zoom()
+            elif self.model.checked_button == "zoom_minus":
+                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
+                self.stop_continuous_zoom()
+            elif self.model.checked_button == "paint_brush":
                 self.stop_continuous_draw()
-                return True
-            elif event.type() == QEvent.Type.GraphicsSceneMouseMove:
+
+        elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.button() == Qt.MouseButton.LeftButton: 
+            if self.model.checked_button == "paint_brush":       
                 self.view.zoomable_graphics_view.change_cursor("paint")
                 self.view.scene_pos = event.scenePos()
                 if  self.view.last_mouse_pos:
                      self.model.draw_continuous_line(self.view.last_mouse_pos, self.view.scene_pos)
                 self.view.last_mouse_pos = self.view.scene_pos
-            elif event.type() == QEvent.Type.GraphicsSceneMouseMove:
-                self.view.zoomable_graphics_view.change_cursor("paint")
-            elif event.type() == 157:
-                self.view.zoomable_graphics_view.change_cursor("paint")
-            elif event.type() == 156:
-                self.view.zoomable_graphics_view.change_cursor("paint")
+
         return True
-            #else:
-                # standard event processing
-            #    return QObject.eventFilter(obj, event)
 
 class Events:
 
