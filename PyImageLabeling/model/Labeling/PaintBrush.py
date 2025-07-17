@@ -10,6 +10,14 @@ class PaintBrush(Core):
     def paint_brush(self):
         self.checked_button = self.paint_brush.__name__
 
+    def add_point(self, scene_pos):
+            self.view.point_color = self.labels[self.current_label]["color"]
+            self.view.point_label = self.labels[self.current_label]["name"]
+            x = scene_pos.x()
+            y = scene_pos.y() 
+            point_item = self.view.create_point_item(self.view.point_label, x, y, self.view.point_color)
+            self.view.zoomable_graphics_view.scene.addItem(point_item)
+
     def draw_continuous_line(self, start_pos, end_pos):
         self.view.point_color = self.labels[self.current_label]["color"]
         self.view.point_label = self.labels[self.current_label]["name"]

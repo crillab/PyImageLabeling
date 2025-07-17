@@ -1,6 +1,8 @@
 
 
 from PyImageLabeling.model.Core import Core
+from PyQt6.QtWidgets import QGraphicsView
+
 
 class MoveImage(Core):
     def __init__(self):
@@ -10,4 +12,4 @@ class MoveImage(Core):
         self.checked_button = self.move_image.__name__
 
     def apply_move_image(self):
-        print("apply_move_image")
+        self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)

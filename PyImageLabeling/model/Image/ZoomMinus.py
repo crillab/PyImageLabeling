@@ -22,7 +22,7 @@ class ZoomMinus(Core):
             view.scale(factor, factor)
 
             new_viewport_pos = view.mapFromScene(scene_pos)
-
+            
             delta = new_viewport_pos - mouse_pos
             view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + delta.x())
             view.verticalScrollBar().setValue(view.verticalScrollBar().value() + delta.y())

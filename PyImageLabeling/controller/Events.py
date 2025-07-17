@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox, QGraphicsView
 
 from PyQt6.QtCore import QObject, QEvent, Qt
 
@@ -22,7 +22,7 @@ class eventEater(QObject):
 
         self.draw_timer = QTimer()
         self.draw_timer.timeout.connect(self.continue_draw)
-        self.draw_timer.setInterval(50) # Update every 50ms for smoother drawing
+        self.draw_timer.setInterval(1) # Update every 50ms for smoother drawing
         self.current_draw_pos = None
 
     def set_model(self, model):
@@ -62,6 +62,7 @@ class eventEater(QObject):
     def eventFilter(self, obj, event):
         #print("event.type():", event.type())
         #print("obj:", obj)
+        self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
         if event.type() == QEvent.Type.Wheel:
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
@@ -77,13 +78,18 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("move")
                 self.model.apply_move_image()
             elif self.model.checked_button == "paint_brush":
-                self.view.scene_pos = event.scenePos()
-                if self.view.last_mouse_pos:
-                    self.view.zoomable_graphics_view.change_cursor("paint")
-                    self.model.draw_continuous_line( self.view.scene_pos, self.view.last_mouse_pos)
-                self.view.last_mouse_pos = self.view.scene_pos
-                self.start_continuous_draw(self.view.scene_pos)
-            
+                self.view.last_mouse_pos = event.scenePos()
+                self.view.scene_pos = self.view.last_mouse_pos
+                self.view.zoomable_graphics_view.change_cursor("paint")
+                self.model.add_point(self.view.scene_pos)
+                
+        elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.MiddleButton:
+            self.view.zoomable_graphics_view.change_cursor("move")
+            self.model.apply_move_image()
+
+        elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.MiddleButton:
+            self.view.zoomable_graphics_view.change_cursor("move")
+
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "zoom_plus":
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
@@ -93,15 +99,15 @@ class eventEater(QObject):
                 self.stop_continuous_zoom()
             elif self.model.checked_button == "paint_brush":
                 self.stop_continuous_draw()
+            elif self.model.checked_button == "move_image":
+                self.view.zoomable_graphics_view.change_cursor("move")
 
-        elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.button() == Qt.MouseButton.LeftButton: 
-            if self.model.checked_button == "paint_brush":       
+        elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
+            if self.model.checked_button == "paint_brush":
+                self.view.last_mouse_pos = event.scenePos()
+                self.view.scene_pos = self.view.last_mouse_pos
                 self.view.zoomable_graphics_view.change_cursor("paint")
-                self.view.scene_pos = event.scenePos()
-                if  self.view.last_mouse_pos:
-                     self.model.draw_continuous_line(self.view.last_mouse_pos, self.view.scene_pos)
-                self.view.last_mouse_pos = self.view.scene_pos
-
+                self.start_continuous_draw(self.view.scene_pos)
         return True
 
 class Events:
