@@ -107,6 +107,11 @@ class eventEater(QObject):
                 self.view.scene_pos = self.view.last_mouse_pos
                 self.view.zoomable_graphics_view.change_cursor("paint")
                 self.start_drawing(self.view.scene_pos)
+            elif self.model.checked_button == "magic_pen":
+                self.view.zoomable_graphics_view.change_cursor("magic")
+                self.view.last_mouse_pos = event.scenePos()
+                self.view.scene_pos = self.view.last_mouse_pos
+                self.model.apply_magic_pen(self.view.scene_pos)
                 
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
             self.view.zoomable_graphics_view.change_cursor("move")
@@ -117,10 +122,8 @@ class eventEater(QObject):
             delta = event.scenePos() - self.last_mouse_pos
             self.last_mouse_pos = event.scenePos()
             
-            if self.view.zoomable_graphics_view.horizontalScrollBar().value() - int(delta.x()*10) >= 0:
-                self.view.zoomable_graphics_view.horizontalScrollBar().setValue(self.view.zoomable_graphics_view.horizontalScrollBar().value() - int(delta.x()*10))
-            if self.view.zoomable_graphics_view.horizontalScrollBar().value() - int(delta.y()*10) >= 0:
-                self.view.zoomable_graphics_view.verticalScrollBar().setValue(self.view.zoomable_graphics_view.verticalScrollBar().value() - int(delta.y()*10))
+            self.view.zoomable_graphics_view.horizontalScrollBar().setValue(self.view.zoomable_graphics_view.horizontalScrollBar().value() - int(delta.x()*self.view.zoom_factor))
+            self.view.zoomable_graphics_view.verticalScrollBar().setValue(self.view.zoomable_graphics_view.verticalScrollBar().value() - int(delta.y()*self.view.zoom_factor))
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.RightButton:
             self.view.zoomable_graphics_view.change_cursor("move")
@@ -134,10 +137,11 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
                 self.stop_continuous_zoom()
             elif self.model.checked_button == "paint_brush":
-                # Stop drawing stroke
                 self.stop_drawing()
             elif self.model.checked_button == "move_image":
                 self.view.zoomable_graphics_view.change_cursor("move")
+            elif self.model.checked_button == "move_image":
+                self.view.zoomable_graphics_view.change_cursor("magic")
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":

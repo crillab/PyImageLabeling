@@ -21,6 +21,7 @@ class LoadImage(Core):
         self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
         #self.zoomable_graphics_view.centerOn(0,0)
         self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.pixmap =  QPixmap(pixmap)
         
     def init_load_image(self):
 

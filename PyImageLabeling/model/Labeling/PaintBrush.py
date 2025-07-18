@@ -26,6 +26,7 @@ class PaintBrush(Core):
         # Create a single point item
         point_item = self.view.create_point_item(self.view.point_label, x, y, self.view.point_color)
         self.view.zoomable_graphics_view.scene.addItem(point_item)
+        self.view.zoomable_graphics_view.update()
         self.last_point = scene_pos
 
     def start_stroke(self, start_pos):
@@ -44,6 +45,7 @@ class PaintBrush(Core):
 
         # Add to scene
         self.view.zoomable_graphics_view.scene.addItem(self.stroke_item)
+        self.view.zoomable_graphics_view.update()
         self.last_point = start_pos
 
     def continue_stroke(self, current_pos):
@@ -61,6 +63,7 @@ class PaintBrush(Core):
         # Add line to the path
         self.stroke_path.lineTo(current_pos)
         self.stroke_item.setPath(self.stroke_path)
+        self.view.zoomable_graphics_view.update()
         self.last_point = current_pos
 
     def end_stroke(self):

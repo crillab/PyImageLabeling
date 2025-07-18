@@ -15,13 +15,14 @@ class LabelingEvents(Events):
     def paintbrush(self):
         self.desactivate_buttons_labeling_image_bar(self.paintbrush.__name__)
         self.all_events(self.paintbrush.__name__)
+        self.view.zoomable_graphics_view.change_cursor("paint")
         self.model.paint_brush()
-        print("paintbrush")
     
     def magic_pen(self):
         self.desactivate_buttons_labeling_image_bar(self.magic_pen.__name__)
         self.all_events(self.magic_pen.__name__)
-        print("magic_pen")
+        self.view.zoomable_graphics_view.change_cursor("magic")
+        self.model.magic_pen()
 
     def ellipse(self):
         self.desactivate_buttons_labeling_image_bar(self.ellipse.__name__)
