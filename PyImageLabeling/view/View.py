@@ -165,12 +165,12 @@ class View(QMainWindow):
 
     def create_point_item(self, label, x, y, color):
         # Create a simple circular point (adjust size as needed)
-        radius = 2
+        radius = self.point_radius
         point_item = QGraphicsEllipseItem(x - radius, y - radius, radius * 2, radius * 2)
         
         # Set color and style
         point_item.setBrush(QBrush(color))
-        point_item.setPen(QPen(color, 1))
+        point_item.setPen(QPen(color, radius))
         
         return point_item
 

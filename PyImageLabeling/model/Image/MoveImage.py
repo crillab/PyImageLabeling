@@ -13,3 +13,4 @@ class MoveImage(Core):
 
     def apply_move_image(self):
         self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.view.zoomable_graphics_view.change_cursor("move")
