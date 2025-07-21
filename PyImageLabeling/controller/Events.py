@@ -28,10 +28,7 @@ class eventEater(QObject):
             elif self.model.checked_button == "paint_brush":
                 self.model.start_paint_brush(event.scenePos())
             elif self.model.checked_button == "magic_pen":
-                self.view.zoomable_graphics_view.change_cursor("magic")
-                self.view.last_mouse_pos = event.scenePos()
-                self.view.scene_pos = self.view.last_mouse_pos
-                self.model.apply_magic_pen(self.view.scene_pos)
+                self.model.apply_magic_pen(event.scenePos())
                 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
