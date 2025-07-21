@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QMessageBox, QGraphicsView, QApplication
 from PyQt6.QtCore import QObject, QEvent, Qt
 from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
 from PyQt6.QtWidgets import QLabel
-from PyQt6.QtCore import QTimer
 import os
 
 class eventEater(QObject):
@@ -12,48 +11,18 @@ class eventEater(QObject):
         self.view = view
         self.model = model
 
-        # Zoom timer setup
-        self.zoom_timer = QTimer()
-        self.zoom_timer.timeout.connect(self.continue_zoom)
-        self.zoom_timer.setInterval(100)  
-        self.current_zoom_type = None
-
-        
-        
     def set_model(self, model):
         self.model = model
 
-    def start_zoom(self, zoom_type):
-        self.current_zoom_type = zoom_type
-        if zoom_type == "zoom_plus":
-            self.model.apply_zoom_plus()
-        elif zoom_type == "zoom_minus":
-            self.model.apply_zoom_minus()
-        self.zoom_timer.start()
-
-    def continue_zoom(self):
-        if self.current_zoom_type == "zoom_plus":
-            self.model.apply_zoom_plus()
-        elif self.current_zoom_type == "zoom_minus":
-            self.model.apply_zoom_minus()
-
-    def stop_continuous_zoom(self):
-        self.zoom_timer.stop()
-        self.current_zoom_action = None
-
-
-    
     def eventFilter(self, obj, event):
         #self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
         
         #MouseButton.LeftButton: all tools 
         if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.LeftButton:
             if self.model.checked_button == "zoom_plus":
-                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
-                self.start_zoom("zoom_plus")
+                self.model.start_zoom_plus()
             elif self.model.checked_button == "zoom_minus":
-                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
-                self.start_zoom("zoom_minus")
+                self.model.start_zoom_minus()
             elif self.model.checked_button == "move_image":
                 self.model.start_move_tool(event)
             elif self.model.checked_button == "paint_brush":
@@ -74,10 +43,10 @@ class eventEater(QObject):
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "zoom_plus":
                 self.view.zoomable_graphics_view.change_cursor("zoom_plus")
-                self.stop_continuous_zoom()
+                self.model.end_zoom_plus()
             elif self.model.checked_button == "zoom_minus":
                 self.view.zoomable_graphics_view.change_cursor("zoom_minus")
-                self.stop_continuous_zoom()
+                self.model.end_zoom_minus()
             elif self.model.checked_button == "paint_brush":
                 self.model.end_paint_brush()
             elif self.model.checked_button == "move_image":

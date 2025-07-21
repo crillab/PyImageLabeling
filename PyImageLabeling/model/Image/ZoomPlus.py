@@ -1,15 +1,23 @@
 
 
 from PyImageLabeling.model.Core import Core
-
+from PyQt6.QtCore import QTimer
 
 class ZoomPlus(Core):
     def __init__(self):
         super().__init__() 
-    
+        self.zoom_timer_minus = QTimer()
+        self.zoom_timer_minus.timeout.connect(self.apply_zoom_plus)
+        self.zoom_timer_minus.setInterval(100)  
+        self.current_zoom_type = None
+
     def zoom_plus(self):
         self.checked_button = self.zoom_plus.__name__
-        
+    
+    def start_zoom_plus(self):
+        self.view.zoomable_graphics_view.change_cursor("zoom_plus")
+        self.apply_zoom_plus()
+        self.zoom_timer_minus.start()
         
     def apply_zoom_plus(self):
         factor = 1.1  
@@ -28,3 +36,6 @@ class ZoomPlus(Core):
             delta = new_viewport_pos - mouse_pos
             view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + delta.x())
             view.verticalScrollBar().setValue(view.verticalScrollBar().value() + delta.y())
+    
+    def end_zoom_plus(self):
+        self.zoom_timer_minus.stop()
