@@ -10,7 +10,8 @@ class LabelingEvents(Events):
     def contour_filling(self):
         self.desactivate_buttons_labeling_image_bar(self.contour_filling.__name__)
         self.all_events(self.contour_filling.__name__)
-        print("contour_filling")
+        self.view.zoomable_graphics_view.change_cursor("filling")
+        self.model.contour_filling()
         
     def paintbrush(self):
         self.desactivate_buttons_labeling_image_bar(self.paintbrush.__name__)

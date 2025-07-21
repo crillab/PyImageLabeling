@@ -29,6 +29,8 @@ class eventEater(QObject):
                 self.model.start_paint_brush(event.scenePos())
             elif self.model.checked_button == "magic_pen":
                 self.model.start_magic_pen(event.scenePos())
+            elif self.model.checked_button == "contour_filling":
+                self.model.start_contour_filling()
                 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
