@@ -7,50 +7,48 @@ from PyQt6.QtCore import QPointF, Qt
 class PaintBrush(Core):
     def __init__(self):
         super().__init__()
-        self.current_stroke_group = None
-        self.stroke_path = None
-        self.stroke_item = None
-        self.point_spacing = 2.0
+        self.painter_path = None
+        self.graphics_path_item = None
         self.last_point = None
+        self.paint_brush_activation = False
+        self.point_spacing = 2.0
 
     def paint_brush(self):
         self.checked_button = self.paint_brush.__name__
 
     def add_point(self, scene_pos):
-        self.view.point_color = self.labels[self.current_label]["color"]
-        self.view.point_label = self.labels[self.current_label]["name"]
-
-        x = scene_pos.x()
-        y = scene_pos.y()
-
         # Create a single point item
-        point_item = self.view.create_point_item(self.view.point_label, x, y, self.view.point_color)
+        point_item = self.view.create_point_item(self.view.point_label, scene_pos.x(), scene_pos.y(), self.view.point_color)
+        # Add to scene
         self.view.zoomable_graphics_view.scene.addItem(point_item)
         self.view.zoomable_graphics_view.update()
         self.last_point = scene_pos
 
-    def start_stroke(self, start_pos):
+    def start_paint_brush(self, start_pos):
+        self.view.zoomable_graphics_view.change_cursor("paint")
         self.view.point_color = self.labels[self.current_label]["color"]
         self.view.point_label = self.labels[self.current_label]["name"]
 
-        # Create a new path for this stroke
-        self.stroke_path = QPainterPath()
-        self.stroke_path.moveTo(start_pos)
+        self.add_point(start_pos)
+        # Create a new path for this brush stroke
+        self.painter_path = QPainterPath()
+        self.painter_path.moveTo(start_pos)
 
-        # Create the graphics item for this stroke
-        self.stroke_item = QGraphicsPathItem(self.stroke_path)
+        # Create the graphics item for this brush stroke
+        self.graphics_path_item = QGraphicsPathItem(self.painter_path)
         pen = QPen(self.view.point_color, self.view.point_radius * 2.7)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
-        self.stroke_item.setPen(pen)
+        self.graphics_path_item.setPen(pen)
 
         # Add to scene
-        self.view.zoomable_graphics_view.scene.addItem(self.stroke_item)
+        self.view.zoomable_graphics_view.scene.addItem(self.graphics_path_item)
         self.view.zoomable_graphics_view.update()
         self.last_point = start_pos
 
-    def continue_stroke(self, current_pos):
-        if self.stroke_path is None or self.stroke_item is None:
-            self.start_stroke(current_pos)
+    def move_paint_brush(self, current_pos):
+        self.view.zoomable_graphics_view.change_cursor("paint")
+        if self.painter_path is None or self.graphics_path_item is None:
+            self.start_paint_brush(current_pos)
             return
 
         # Only add point if it's far enough from the last point
@@ -61,12 +59,12 @@ class PaintBrush(Core):
                 return
 
         # Add line to the path
-        self.stroke_path.lineTo(current_pos)
-        self.stroke_item.setPath(self.stroke_path)
+        self.painter_path.lineTo(current_pos)
+        self.graphics_path_item.setPath(self.painter_path)
         self.view.zoomable_graphics_view.update()
         self.last_point = current_pos
 
-    def end_stroke(self):
-        self.stroke_path = None
-        self.stroke_item = None
+    def end_paint_brush(self):
+        self.painter_path = None
+        self.graphics_path_item = None
         self.last_point = None
