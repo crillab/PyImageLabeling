@@ -38,4 +38,5 @@ class ZoomMinus(Core):
             view.verticalScrollBar().setValue(view.verticalScrollBar().value() + delta.y())
     
     def end_zoom_minus(self):
+        self.view.zoomable_graphics_view.change_cursor("zoom_minus")
         self.zoom_timer_plus.stop()

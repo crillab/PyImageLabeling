@@ -28,21 +28,21 @@ class eventEater(QObject):
             elif self.model.checked_button == "paint_brush":
                 self.model.start_paint_brush(event.scenePos())
             elif self.model.checked_button == "magic_pen":
-                self.model.apply_magic_pen(event.scenePos())
+                self.model.start_magic_pen(event.scenePos())
                 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
                 self.model.move_paint_brush(event.scenePos())
             elif self.model.checked_button == "move_image":
                 self.model.move_move_tool(event)
+            elif self.model.checked_button == "magic_pen":
+                self.view.zoomable_graphics_view.change_cursor("magic")
                 
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "zoom_plus":
-                self.view.zoomable_graphics_view.change_cursor("zoom_plus")
                 self.model.end_zoom_plus()
             elif self.model.checked_button == "zoom_minus":
-                self.view.zoomable_graphics_view.change_cursor("zoom_minus")
                 self.model.end_zoom_minus()
             elif self.model.checked_button == "paint_brush":
                 self.model.end_paint_brush()

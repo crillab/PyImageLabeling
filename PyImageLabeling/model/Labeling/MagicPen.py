@@ -1,55 +1,14 @@
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QRectF
+from PyQt6.QtCore import Qt, QRectF
+from PyImageLabeling.model.Core import Core
 from PyQt6.QtGui import QColor, QPixmap, QBrush, QPainter
 from PyQt6.QtWidgets import QProgressDialog, QApplication, QMessageBox
-import time
-from PyImageLabeling.model.Core import Core
 from collections import deque
-
-class ProcessWorker(QThread):
-    """Worker class to handle long processes with timeout"""
-    finished = pyqtSignal(object)  # Using object to allow for different types of results
-    error = pyqtSignal(str)
-
-    def __init__(self, func, args=None, kwargs=None, timeout=10):
-        super().__init__()
-        self.func = func
-        self.args = args or []
-        self.kwargs = kwargs or {}
-        self.timeout_value = timeout
-
-        # Create a separate timer for timeout
-        self.timeout_timer = QTimer()
-        self.timeout_timer.setSingleShot(True)
-        self.timeout_timer.timeout.connect(self._on_timeout)
-
-    def run(self):
-        """Thread's main function (automatically called by start())"""
-        try:
-            # Start the timeout timer
-            self.timeout_timer.start(self.timeout_value * 1000)
-
-            # Run the actual function
-            result = self.func(*self.args, **self.kwargs)
-
-            # Stop timer and emit result
-            self.timeout_timer.stop()
-            self.finished.emit(result)
-        except Exception as e:
-            self.timeout_timer.stop()
-            self.error.emit(str(e))
-
-    def _on_timeout(self):
-        """Handle timeout event"""
-        self.terminate()  # Terminate thread
-        self.error.emit(f"Operation timed out after {self.timeout_value} seconds")
 
 class MagicPen(Core):
     def __init__(self):
         super().__init__()
         self.magic_pen_tolerance = 50  # Color tolerance for magic pen
         self.max_points_limite = 500000  # Maximum points limit
-        self.process_timeout = 30  # Timeout in seconds
-        self.worker = None
         self.overlay_pixmap_item = None  # Single overlay pixmap item
         self.overlay_original_pixmap = None  # Original overlay pixmap
         self.overlay_pixmap = None  # Current overlay pixmap
@@ -58,7 +17,7 @@ class MagicPen(Core):
         self.checked_button = self.magic_pen.__name__
         print("magic")
 
-    def apply_magic_pen(self, scene_pos):
+    def start_magic_pen(self, scene_pos):
         """Fill area with points using magic pen"""
         self.view.zoomable_graphics_view.change_cursor("magic")
         self.raw_image = self.view.pixmap.toImage()
@@ -70,19 +29,11 @@ class MagicPen(Core):
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
 
-        # Create worker thread for fill operation
-        self.worker = ProcessWorker(
-            self._fill_shape_worker,
-            args=[scene_pos],
-            timeout=self.process_timeout
-        )
-        self.worker.finished.connect(
-            lambda result: self._handle_fill_complete(result, progress)
-        )
-        self.worker.error.connect(
-            lambda error: self._handle_fill_error(error, progress)
-        )
-        self.worker.start()
+        try:
+            new_overlay_pixmap = self._fill_shape_worker(scene_pos)
+            self._handle_fill_complete(new_overlay_pixmap, progress)
+        except Exception as e:
+            self._handle_fill_error(str(e), progress)
 
     def _fill_shape_worker(self, scene_pos):
         image_x = int(scene_pos.x())
@@ -114,7 +65,6 @@ class MagicPen(Core):
         painter.setPen(Qt.PenStyle.NoPen)
 
         visited = set()
-        start_time = time.time()
         directions = [
             (1, 0), (-1, 0), (0, 1), (0, -1),
             (1, 1), (-1, -1), (1, -1), (-1, 1)
@@ -125,10 +75,6 @@ class MagicPen(Core):
 
         try:
             while queue:
-                if time.time() - start_time > self.process_timeout:
-                    print(f"Timeout reached ({self.process_timeout}s). Canceling fill.")
-                    return None
-
                 if len(points_to_fill) >= self.max_points_limite:
                     print(f"Too many points ({self.max_points_limite}). Canceling fill.")
                     return None
@@ -152,8 +98,7 @@ class MagicPen(Core):
                     if abs(current_val - target_val) > tolerance:
                         continue
                 else:
-                    hue_diff = min(abs(current_hue - target_hue),
-                                360 - abs(current_hue - target_hue))
+                    hue_diff = min(abs(current_hue - target_hue), 360 - abs(current_hue - target_hue))
 
                     if (hue_diff > tolerance or
                         abs(current_sat - target_sat) > tolerance or
@@ -205,6 +150,7 @@ class MagicPen(Core):
 
             # Update the view
             self.view.zoomable_graphics_view.update()
+            
 
         except Exception as e:
             print(f"Error during fill completion: {e}")
@@ -246,11 +192,3 @@ class MagicPen(Core):
 
         return True
 
-    def remove_overlay(self):
-        """Remove the overlay if it exists"""
-        if self.overlay_pixmap_item:
-            self.view.zoomable_graphics_view.scene.removeItem(self.overlay_pixmap_item)
-            self.overlay_pixmap_item = None
-            self.overlay_pixmap = None
-            return True
-        return False
