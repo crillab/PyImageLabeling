@@ -1,5 +1,5 @@
-from  controller.Events import Events
-
+from PyImageLabeling.controller.Events import Events
+from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
 
 class LabelingEvents(Events):
     def __init__(self):
@@ -47,6 +47,8 @@ class LabelingEvents(Events):
     def eraser(self):
         self.desactivate_buttons_labeling_image_bar(self.eraser.__name__)
         self.all_events(self.eraser.__name__)
+        self.view.zoomable_graphics_view.change_cursor("eraser")
+        self.model.eraser()
         print("eraser")
     
     def clear_all(self):
@@ -65,7 +67,8 @@ class LabelingEvents(Events):
     
     def magic_pen_setting(self):
         self.all_events(self.magic_pen_setting.__name__)
-        print("magic_pen_setting")
+        magicpensetting = MagicPenSetting(self.view.zoomable_graphics_view, self.view.magic_pen_tolerance, self.view.max_points_limite)
+        magicpensetting.open()
 
     def ellipse_setting(self):
         self.all_events(self.ellipse_setting.__name__)

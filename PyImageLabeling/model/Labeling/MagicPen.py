@@ -7,8 +7,6 @@ from collections import deque
 class MagicPen(Core):
     def __init__(self):
         super().__init__()
-        self.magic_pen_tolerance = 50  # Color tolerance for magic pen
-        self.max_points_limite = 500000  # Maximum points limit
         self.overlay_pixmap_item = None  # Single overlay pixmap item
         self.overlay_original_pixmap = None  # Original overlay pixmap
         self.overlay_pixmap = None  # Current overlay pixmap
@@ -49,7 +47,7 @@ class MagicPen(Core):
         target_hue = target_color.hue()
         target_sat = target_color.saturation()
         target_val = target_color.value()
-        tolerance = self.magic_pen_tolerance
+        tolerance = self.view.magic_pen_tolerance
 
         # Create a transparent pixmap for the new overlay
         new_overlay_pixmap = QPixmap(width, height)
@@ -57,7 +55,7 @@ class MagicPen(Core):
 
         painter = QPainter(new_overlay_pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
         # Set the brush color for the filled area
         current_point_color = self.labels[self.current_label]["color"]
@@ -75,8 +73,8 @@ class MagicPen(Core):
 
         try:
             while queue:
-                if len(points_to_fill) >= self.max_points_limite:
-                    print(f"Too many points ({self.max_points_limite}). Canceling fill.")
+                if len(points_to_fill) >= self.view.max_points_limite:
+                    print(f"Too many points ({self.view.max_points_limite}). Canceling fill.")
                     return None
 
                 x, y = queue.popleft()
@@ -191,4 +189,6 @@ class MagicPen(Core):
         self.view.zoomable_graphics_view.scene.update()
 
         return True
+    
+    
 

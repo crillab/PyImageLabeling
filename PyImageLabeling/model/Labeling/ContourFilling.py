@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt, QPointF, QPoint
-from PyQt6.QtGui import QPixmap, QImage, QColor
+from PyQt6.QtGui import QPixmap, QImage, QColor,  QPainter, QPen
 from PyImageLabeling.model.Core import Core
 import numpy as np
 import cv2
@@ -11,20 +11,107 @@ class ContourFilling(Core):
         super().__init__()
         self.contour_layer_applied = False
         self.contours = []
-        self.point_color = QColor(Qt.GlobalColor.red)  # Default point color
-        self.point_label = "Contour"  # Default point label
+        # Separate overlay items for contours and filled shapes
+        self.overlay_pixmap_item_contour = None  
+        self.overlay_pixmap_contour = None  
+        self.overlay_pixmap_item_filled = None  
+        self.overlay_pixmap_filled = None  
 
     def contour_filling(self):
         self.checked_button = self.contour_filling.__name__
 
     def start_contour_filling(self):
         self.view.zoomable_graphics_view.change_cursor("filling")
+        self.base_pixmap = self.view.pixmap.toImage()
+        self.view.point_color = self.labels[self.current_label]["color"]
+        self.view.point_label = self.labels[self.current_label]["name"]
         self.apply_contour()
+
+    def add_contour_overlay(self, new_overlay_pixmap_contour):
+        """
+        Add or update the contour overlay layer on top of the base image.
+        """
+        if new_overlay_pixmap_contour is None:
+            return False
+
+        # Scale the overlay to match the base image size if needed
+        if self.view.pixmap and new_overlay_pixmap_contour.size() != self.view.pixmap.size():
+            new_overlay_pixmap_contour = new_overlay_pixmap_contour.scaled(
+                self.view.pixmap.size(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+
+        # Set the contour overlay
+        self.overlay_pixmap_contour = new_overlay_pixmap_contour
+
+        # Create or update the contour overlay pixmap item
+        if self.overlay_pixmap_item_contour is None:
+            self.overlay_pixmap_item_contour = self.view.zoomable_graphics_view.scene.addPixmap(self.overlay_pixmap_contour)
+            if hasattr(self.view, 'pixmap_item'):
+                self.overlay_pixmap_item_contour.setPos(self.view.pixmap_item.pos())
+            self.overlay_pixmap_item_contour.setZValue(1)  # Set Z-value to be above the base image
+        else:
+            self.overlay_pixmap_item_contour.setPixmap(self.overlay_pixmap_contour)
+
+        # Update the scene
+        self.view.zoomable_graphics_view.scene.update()
+        return True
+
+    def add_filled_overlay(self, new_overlay_pixmap_filled):
+        """
+        Add or update the filled shapes overlay layer on top of the contour overlay.
+        """
+        if new_overlay_pixmap_filled is None:
+            return False
+
+        # Scale the overlay to match the base image size if needed
+        if self.view.pixmap and new_overlay_pixmap_filled.size() != self.view.pixmap.size():
+            new_overlay_pixmap_filled = new_overlay_pixmap_filled.scaled(
+                self.view.pixmap.size(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+
+        # Merge the new filled overlay with the existing filled overlay if one exists
+        if self.overlay_pixmap_filled is None:
+            self.overlay_pixmap_filled = new_overlay_pixmap_filled
+        else:
+            # Create a painter to merge the new overlay with the existing one
+            from PyQt6.QtGui import QPainter
+            painter = QPainter(self.overlay_pixmap_filled)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            painter.drawPixmap(0, 0, new_overlay_pixmap_filled)
+            painter.end()
+
+        # Create or update the filled overlay pixmap item
+        if self.overlay_pixmap_item_filled is None:
+            self.overlay_pixmap_item_filled = self.view.zoomable_graphics_view.scene.addPixmap(self.overlay_pixmap_filled)
+            if hasattr(self.view, 'pixmap_item'):
+                self.overlay_pixmap_item_filled.setPos(self.view.pixmap_item.pos())
+            self.overlay_pixmap_item_filled.setZValue(2)  # Set Z-value to be above the contour overlay
+        else:
+            self.overlay_pixmap_item_filled.setPixmap(self.overlay_pixmap_filled)
+
+        # Update the scene
+        self.view.zoomable_graphics_view.scene.update()
+        return True
+
+    def remove_overlay(self):
+        """
+        Remove the contour overlay layer from the image.
+        """
+        if self.overlay_pixmap_item_contour is not None:
+            self.view.zoomable_graphics_view.scene.removeItem(self.overlay_pixmap_item_contour)
+            self.overlay_pixmap_item_contour = None
+            self.overlay_pixmap_contour = None
+            self.contour_layer_applied = False
+            self.view.zoomable_graphics_view.scene.update()
 
     def apply_contour(self):
         """Detects contours from the base image and applies the contour layer with improved parameters."""
         if not hasattr(self, 'base_pixmap') or self.base_pixmap is None:
-            msg_box = QMessageBox(self)
+            msg_box = QMessageBox()  # Fixed: removed self parameter
             msg_box.setWindowTitle("Error")
             msg_box.setText("No image loaded.")
             msg_box.setStyleSheet("""
@@ -53,11 +140,10 @@ class ContourFilling(Core):
             return
 
         # Get the pixmap data
-        image = self.view.pixmap.toImage()
-        width, height = image.width(), image.height()
+        width, height = self.base_pixmap.width(), self.base_pixmap.height()
 
         # Convert QImage to NumPy array
-        buffer = image.constBits()
+        buffer = self.base_pixmap.constBits()
         buffer.setsize(height * width * 4)  # 4 channels (RGBA)
         img_array = np.frombuffer(buffer, dtype=np.uint8).reshape((height, width, 4))
 
@@ -91,81 +177,30 @@ class ContourFilling(Core):
         # Convert NumPy array to QImage
         contour_qimage = QImage(contour_layer.data, width, height, width * 4, QImage.Format.Format_RGBA8888)
 
-        # Set the overlay in the image viewer
-        overlay_pixmap = QPixmap.fromImage(contour_qimage)
-        self.add_overlay(overlay_pixmap)
+        # Set the overlay in the image viewer using the dedicated contour overlay method
+        overlay_pixmap_contour = QPixmap.fromImage(contour_qimage)
+        self.add_contour_overlay(overlay_pixmap_contour)
 
         # Mark that the contour layer is applied
         self.contour_layer_applied = True
 
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Contour")
-        msg_box.setText("Contour layer applied successfully.")
-        msg_box.setStyleSheet("""
-            QMessageBox {
-                background-color: #000000;
-                color: white;
-                font-size: 14px;
-                border: 1px solid #444444;
-            }
-            QLabel {
-                color: white;
-                background-color: #000000;
-            }
-            QPushButton {
-                background-color: #000000;
-                color: white;
-                border: 1px solid #555555;
-                border-radius: 5px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #222222;
-            }
-        """)
-        msg_box.exec()
-
-    def fill_contour(self):
+    def fill_contour(self, scene_pos):
         """Fill the contour clicked by the user."""
-        if not hasattr(self, "contour_layer_applied") or not self.contour_layer_applied:
-            QMessageBox.warning(self, "Error", "Contour layer is not applied.")
-            return
-
-        if not hasattr(self, 'base_pixmap') or self.base_pixmap is None:
-            QMessageBox.warning(self, "Error", "No image loaded.")
-            return
-
-        if not hasattr(self, "last_mouse_pos") or not self.last_mouse_pos:
-            QMessageBox.warning(self, "Error", "No position to fill. Click on an area first.")
-            return
-
-        # Create progress dialog
-        progress = QProgressDialog("Processing...", "Cancel", 0, 0, self)
+        progress = QProgressDialog("Processing magic pen fill...", "Cancel", 0, 0, self.view)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
 
         try:
-            filled_points = self._fill_contour_worker(self.last_mouse_pos)
+            filled_points = self._fill_contour_worker(scene_pos)
             self._handle_fill_contour_complete(filled_points, progress)
         except Exception as e:
             self._handle_fill_contour_error(str(e), progress)
 
-    def _fill_contour_worker(self, pos):
+    def _fill_contour_worker(self, scene_pos):
         """Worker function to perform the contour fill with improved gap tolerance."""
         try:
-            if isinstance(pos, QPointF):
-                scene_pos = QPoint(int(pos.x()), int(pos.y()))
-            else:
-                scene_pos = pos
-
-            scene_pos = self.mapToScene(scene_pos)
-
-            item_pos = QPointF(0, 0)
-            if hasattr(self, 'pixmap_item') and self.pixmap_item:
-                item_pos = self.pixmap_item.pos()
-
-            image_x = int(scene_pos.x() - item_pos.x())
-            image_y = int(scene_pos.y() - item_pos.y())
+            image_x = int(scene_pos.x())
+            image_y = int(scene_pos.y())
 
             if not hasattr(self, 'base_pixmap') or self.base_pixmap is None:
                 raise ValueError("No base pixmap available")
@@ -237,56 +272,72 @@ class ContourFilling(Core):
             raise
 
     def _handle_fill_contour_complete(self, new_points, progress):
-        """Handles the completion of the fill operation."""
-        try:
+        """Handles the completion of the fill operation using pixmap overlay."""
+        if progress:
             progress.close()
 
+        try:
             if not new_points:
-                QMessageBox.information(self, "Fill Complete", "No points were filled.")
+                QMessageBox.information(self.view, "Fill Complete", "No points were filled.")
                 return
 
-            # Ensure the ZoomableGraphicsView has the necessary attributes
-            if not hasattr(self, 'scene'):
-                QMessageBox.warning(self, "Error", "Graphics view is not properly initialized.")
-                return
-
-            # Process points in chunks to avoid UI freezing
-            chunk_size = 10000
-            chunks = [new_points[i:i + chunk_size] for i in range(0, len(new_points), chunk_size)]
-
-            # Ensure points and points_history attributes exist
-            if not hasattr(self, 'points'):
-                self.points = []
+            # Store the points as QPointF objects (not QGraphicsItems)
+            if not hasattr(self, 'filled_points'):
+                self.filled_points = []
             if not hasattr(self, 'points_history'):
                 self.points_history = []
 
-            # Create point items and add to the image label
-            new_point_items = []
-            for chunk in chunks:
-                chunk_items = []
-                for point in chunk:
-                    point_item = self.view.create_point_item(self.point_label, point.x(), point.y(), self.point_color)
-                    chunk_items.append(point_item)
+            # Add the new points to our collection
+            self.filled_points.extend(new_points)
+            self.points_history.append(new_points)
 
-                new_point_items.extend(chunk_items)
+            # Create and apply the points overlay using the dedicated filled overlay method
+            self.create_points_overlay()
 
-            # Add the new points to the existing points list
-            self.points.extend(new_point_items)
-
-            # Add to points history for potential undo functionality
-            self.points_history.append(new_point_items)
-
-            # Update the points overlay to reflect new points
-            if hasattr(self, 'update_points_overlay'):
-                self.update_points_overlay()
-
-            QMessageBox.information(self, "Fill Complete", f"Filled {len(new_points)} points.")
+            QMessageBox.information(self.view, "Fill Complete", f"Filled {len(new_points)} points.")
 
         except Exception as e:
-            QMessageBox.warning(self, "Rendering Error", f"Failed to render fill: {str(e)}")
+            QMessageBox.warning(self.view, "Rendering Error", f"Failed to render fill: {str(e)}")
             print(f"Fill rendering error: {traceback.format_exc()}")
+
+    def create_points_overlay(self):
+        """Create a pixmap overlay showing all filled points."""
+        if not hasattr(self, 'base_pixmap') or self.base_pixmap is None:
+            return
+        
+        if not hasattr(self, 'filled_points') or not self.filled_points:
+            return
+
+        # Create a transparent pixmap for the points overlay
+        width, height = self.base_pixmap.width(), self.base_pixmap.height()
+        points_overlay = QPixmap(width, height)
+        points_overlay.fill(Qt.GlobalColor.transparent)
+
+        # Create a QPainter to draw on the points overlay
+        painter = QPainter(points_overlay)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Set the brush for filled circles instead of just points
+        painter.setBrush(self.view.point_color)
+        painter.setPen(QPen(self.view.point_color, 1))
+
+        # Draw each point as a small filled circle
+        point_size = 2  # Adjust size as needed
+        for point in self.filled_points:
+            x, y = int(point.x()), int(point.y())
+            painter.drawEllipse(x - point_size//2, y - point_size//2, point_size, point_size)
+
+        painter.end()
+
+        # Add the points overlay using the dedicated filled overlay system
+        self.add_filled_overlay(points_overlay)
+
+    def update_points_overlay(self):
+        """Update method - delegates to create_points_overlay."""
+        self.create_points_overlay()
 
     def _handle_fill_contour_error(self, error, progress):
         """Handles any errors that occur during the fill operation."""
-        progress.close()
-        QMessageBox.warning(self, "Error", f"Fill operation failed: {error}")
+        if progress:
+            progress.close()
+        QMessageBox.warning(self.view, "Error", f"Fill operation failed: {error}")

@@ -59,6 +59,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.view.last_mouse_pos = None
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.view.layer_activation = False
         
         # Drawing properties
         self.points = []  # List of PointItem objects
@@ -74,6 +75,9 @@ class ZoomableGraphicsView(QGraphicsView):
         self.magic_pen_tolerance = 20
         self.max_points_limite = 100000
         self.shape_fill_mode = False
+        
+        self.view.magic_pen_tolerance = 50  # Color tolerance for magic pen
+        self.view.max_points_limite = 500000  # Maximum points limit
 
     def clear(self):
         pass

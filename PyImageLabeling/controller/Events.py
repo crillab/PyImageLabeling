@@ -30,8 +30,17 @@ class eventEater(QObject):
             elif self.model.checked_button == "magic_pen":
                 self.model.start_magic_pen(event.scenePos())
             elif self.model.checked_button == "contour_filling":
-                self.model.start_contour_filling()
-                
+                if self.view.layer_activation == True :
+                    print("apply")
+                    self.model.remove_overlay()
+                    self.view.layer_activation = False
+                elif self.view.layer_activation == False :
+                    print("remove")
+                    self.model.start_contour_filling()
+                    self.view.layer_activation = True
+            elif self.model.checked_button == "eraser":
+                self.model.start_eraser(event.scenePos())
+
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
                 self.model.move_paint_brush(event.scenePos())
@@ -39,6 +48,8 @@ class eventEater(QObject):
                 self.model.move_move_tool(event)
             elif self.model.checked_button == "magic_pen":
                 self.view.zoomable_graphics_view.change_cursor("magic")
+            elif self.model.checked_button == "eraser":
+                self.model.move_eraser(event.scenePos())
                 
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
@@ -52,7 +63,13 @@ class eventEater(QObject):
                 self.model.end_move_tool()
             elif self.model.checked_button == "magic_pen":
                 self.view.zoomable_graphics_view.change_cursor("magic")
+            elif self.model.checked_button == "eraser":
+                self.model.end_eraser()
 
+        if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
+            if self.model.checked_button == "contour_filling":
+                if self.view.layer_activation == True :
+                    self.model.fill_contour(event.scenePos())
         
         #MouseButton.MiddleButton: move tool
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.MiddleButton:
@@ -63,7 +80,7 @@ class eventEater(QObject):
             self.model.end_move_tool()
 
         #MouseButton.MiddleButton: zoom tool
-        elif event.type() == QEvent.Type.Wheel:# and event.angleDelta().y() != 0:
+        elif event.type() == QEvent.Type.Wheel and self.model.move_tool_activation == False:
             #if QApplication.mouseButtons() & Qt.MiddleButton:
             #    return False  
             if hasattr(self.view, 'zoomable_graphics_view'):
