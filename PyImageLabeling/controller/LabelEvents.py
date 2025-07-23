@@ -50,9 +50,10 @@ class LabelEvents(Events):
 
     def visibility(self):
         self.all_events(self.visibility.__name__)
-
-        print("visibility")
-    
+        if self.view.buttons_label_bar_temporary[self.visibility.__name__].isChecked() is True:
+            self.model.visibility(True)
+        else:
+            self.model.visibility(False)
     def opacity(self):
         self.all_events(self.opacity.__name__)
         print("opacity")

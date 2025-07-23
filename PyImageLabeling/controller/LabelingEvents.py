@@ -2,6 +2,7 @@ from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
 from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
 from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
+from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
@@ -61,7 +62,10 @@ class LabelingEvents(Events):
 
     def contour_filling_setting(self):
         self.all_events(self.contour_filling_setting.__name__)
-        print("contour_filling_setting")
+        contourfillingsetting = ContourFillingSetting(self.view.zoomable_graphics_view, self.view.contour_tolerance)
+        contourfillingsetting.open()
+        if contourfillingsetting.exec() == QDialog.DialogCode.Accepted: 
+            self.view.contour_tolerance = contourfillingsetting.get_settings()
         
     def paintbrush_setting(self):
         self.all_events(self.paintbrush_setting.__name__)

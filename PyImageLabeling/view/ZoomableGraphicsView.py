@@ -79,6 +79,8 @@ class ZoomableGraphicsView(QGraphicsView):
         self.view.magic_pen_tolerance = 50  # Color tolerance for magic pen
         self.view.max_points_limite = 500000  # Maximum points limit
 
+        self.view.contour_tolerance = 5
+
     def clear(self):
         pass
 

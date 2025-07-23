@@ -16,6 +16,20 @@ class ContourFilling(Core):
         self.overlay_pixmap_contour = None  
         self.overlay_pixmap_item_filled = None  
         self.overlay_pixmap_filled = None  
+        
+        # Contour tolerance parameters
+        self._tolerance_params = {
+            1: {'canny_low': 100, 'canny_high': 200, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 50},
+            2: {'canny_low': 80, 'canny_high': 180, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 30},
+            3: {'canny_low': 70, 'canny_high': 160, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 20},
+            4: {'canny_low': 60, 'canny_high': 140, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 15},
+            5: {'canny_low': 50, 'canny_high': 150, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 10}, 
+            6: {'canny_low': 40, 'canny_high': 120, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 8},
+            7: {'canny_low': 30, 'canny_high': 100, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 5},
+            8: {'canny_low': 25, 'canny_high': 80, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 3},
+            9: {'canny_low': 20, 'canny_high': 60, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
+            10: {'canny_low': 15, 'canny_high': 40, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 1}
+        }
 
     def contour_filling(self):
         self.checked_button = self.contour_filling.__name__
@@ -109,9 +123,9 @@ class ContourFilling(Core):
             self.view.zoomable_graphics_view.scene.update()
 
     def apply_contour(self):
-        """Detects contours from the base image and applies the contour layer with improved parameters."""
+        """Detects contours from the base image using tolerance-based parameters."""
         if not hasattr(self, 'base_pixmap') or self.base_pixmap is None:
-            msg_box = QMessageBox()  # Fixed: removed self parameter
+            msg_box = QMessageBox()
             msg_box.setWindowTitle("Error")
             msg_box.setText("No image loaded.")
             msg_box.setStyleSheet("""
@@ -139,6 +153,9 @@ class ContourFilling(Core):
             msg_box.exec()
             return
 
+        # Get tolerance parameters based on current tolerance level
+        params = self._tolerance_params[self.view.contour_tolerance]
+
         # Get the pixmap data
         width, height = self.base_pixmap.width(), self.base_pixmap.height()
 
@@ -150,24 +167,26 @@ class ContourFilling(Core):
         # Convert to grayscale (use OpenCV)
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
 
-        # Apply Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # Apply Gaussian blur to reduce noise (kernel size based on tolerance)
+        blur_kernel = params['blur_kernel']
+        blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
 
-        # Apply Canny edge detection with adjusted parameters
-        edges = cv2.Canny(blurred, 50, 150)  # Lower thresholds for more sensitive detection
+        # Apply Canny edge detection with tolerance-based parameters
+        edges = cv2.Canny(blurred, params['canny_low'], params['canny_high'])
 
-        # Apply slight dilation to connect nearby edges
-        kernel = np.ones((2, 2), np.uint8)
-        edges = cv2.dilate(edges, kernel, iterations=1)
+        # Apply dilation to connect nearby edges (iterations based on tolerance)
+        if params['dilate_iter'] > 0:
+            kernel = np.ones((2, 2), np.uint8)
+            edges = cv2.dilate(edges, kernel, iterations=params['dilate_iter'])
 
         # Find contours with hierarchy to better handle nested shapes
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
 
-        # Filter out very small contours that might be noise
-        min_contour_area = 10  # Adjust based on your needs
+        # Filter out small contours based on tolerance level
+        min_contour_area = params['min_area']
         contours = [cnt for cnt in contours if cv2.contourArea(cnt) > min_contour_area]
 
-        # Save contours in image_label for later use
+        # Save contours for later use
         self.contours = contours
 
         # Create a transparent layer to visualize the contours (Blue lines)
@@ -183,6 +202,8 @@ class ContourFilling(Core):
 
         # Mark that the contour layer is applied
         self.contour_layer_applied = True
+
+        print(f"Applied contours with tolerance level {self.view.contour_tolerance}: {len(contours)} contours found")
 
     def fill_contour(self, scene_pos):
         """Fill the contour clicked by the user."""
@@ -225,9 +246,10 @@ class ContourFilling(Core):
 
             if target_contour is None:
                 # If no direct contour contains the point, try nearby points within a tolerance
-                tolerance = 5  # Adjust this value based on desired gap tolerance
-                for dx in range(-tolerance, tolerance + 1):
-                    for dy in range(-tolerance, tolerance + 1):
+                # Use contour tolerance to determine search radius
+                search_tolerance = max(1, self.view.contour_tolerance // 2)
+                for dx in range(-search_tolerance, search_tolerance + 1):
+                    for dy in range(-search_tolerance, search_tolerance + 1):
                         check_x = image_x + dx
                         check_y = image_y + dy
 
@@ -253,8 +275,9 @@ class ContourFilling(Core):
             mask = np.zeros((height, width), dtype=np.uint8)
             cv2.drawContours(mask, [target_contour], 0, 255, -1)  # Fill the contour with white
 
-            # Apply morphological closing to fill small gaps in the contour
-            kernel_size = 3  # Adjust based on the typical gap size
+            # Apply morphological closing to fill small gaps based on tolerance
+            # Higher tolerance = larger kernel for filling bigger gaps
+            kernel_size = min(2 + (self.view.contour_tolerance // 3), 7)  # Scale from 2 to 7
             kernel = np.ones((kernel_size, kernel_size), np.uint8)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
