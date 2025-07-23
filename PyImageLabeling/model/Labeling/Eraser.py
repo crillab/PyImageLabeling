@@ -1,7 +1,7 @@
 
 
 
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QRectF
 from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
 from PyImageLabeling.model.Core import Core
@@ -47,9 +47,8 @@ class Eraser(Core):
 
     def _erase_paint_brush_items(self, scene_pos):
         """Erase paint brush items (QGraphicsItems) from the scene"""
-        from PyQt6.QtCore import QRectF
-
         items_to_remove = []
+        items_to_modify = []
         scene = self.view.zoomable_graphics_view.scene
 
         # Create QRectF for the eraser area
@@ -74,19 +73,91 @@ class Eraser(Core):
                     if distance <= self.view.eraser_size:
                         items_to_remove.append(item)
 
-                # For path items (brush strokes)
+                # For path items (brush strokes) - modify the path instead of removing entirely
                 elif isinstance(item, QGraphicsPathItem):
-                    # Check if any part of the path is within eraser radius
-                    path = item.path()
-                    if self._path_intersects_circle(path, scene_pos, self.view.eraser_size):
+                    original_path = item.path()
+                    new_paths = self._erase_path_portion(original_path, scene_pos, self.view.eraser_size)
+                    
+                    if not new_paths:
+                        # If the entire path was erased, remove the item
                         items_to_remove.append(item)
+                    else:
+                        # If the path was modified, replace with new segments
+                        items_to_modify.append((item, new_paths))
 
-        # Remove the items
+        # Remove the items that were completely erased
         for item in items_to_remove:
             scene.removeItem(item)
+        
+        # Update the paths that were partially erased
+        for item, new_paths in items_to_modify:
+            # Remove the old item completely
+            scene.removeItem(item)
+            
+            # Create separate items for each disconnected path segment
+            for path_segment in new_paths:
+                if not path_segment.isEmpty():
+                    new_item = QGraphicsPathItem(path_segment)
+                    # Copy the original item's properties (pen, brush, etc.)
+                    new_item.setPen(item.pen())
+                    new_item.setBrush(item.brush())
+                    new_item.setZValue(item.zValue())
+                    new_item.setOpacity(item.opacity())
+                    scene.addItem(new_item)
 
-        if items_to_remove:
+        if items_to_remove or items_to_modify:
             self.view.zoomable_graphics_view.update()
+
+    def _erase_path_portion(self, path, eraser_center, eraser_radius):
+        """Remove portions of a path that intersect with the eraser circle and return separate path segments"""
+        from PyQt6.QtGui import QPainterPath
+        from PyQt6.QtCore import QPointF
+        
+        # Sample points along the path
+        path_length = path.length()
+        if path_length == 0:
+            return []
+        
+        sample_distance = min(2.0, eraser_radius / 4)  # Sample every 2 pixels or quarter eraser radius
+        num_samples = max(int(path_length / sample_distance), 1)
+        
+        # Collect points and their keep/erase status
+        sampled_points = []
+        for i in range(num_samples + 1):
+            t = i / num_samples if num_samples > 0 else 0
+            point = path.pointAtPercent(t)
+            distance = self._calculate_distance(eraser_center, point)
+            keep = distance > eraser_radius
+            sampled_points.append((point, keep))
+        
+        # Build separate path segments for continuous sequences of kept points
+        path_segments = []
+        current_segment_points = []
+        
+        for point, keep in sampled_points:
+            if keep:
+                current_segment_points.append(point)
+            else:
+                # End current segment if it has points
+                if current_segment_points:
+                    if len(current_segment_points) > 1:  # Need at least 2 points for a line
+                        segment = QPainterPath()
+                        segment.moveTo(current_segment_points[0])
+                        for p in current_segment_points[1:]:
+                            segment.lineTo(p)
+                        path_segments.append(segment)
+                    current_segment_points = []
+        
+        # Don't forget the last segment
+        if current_segment_points:
+            if len(current_segment_points) > 1:
+                segment = QPainterPath()
+                segment.moveTo(current_segment_points[0])
+                for p in current_segment_points[1:]:
+                    segment.lineTo(p)
+                path_segments.append(segment)
+        
+        return path_segments
 
     def _erase_magic_pen_overlay(self, scene_pos):
         """Erase from magic pen overlay pixmap"""

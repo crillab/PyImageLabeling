@@ -16,14 +16,7 @@ class LoadImage(Core):
     
     def load_image(self, pixmap):
         #remove all overlays#
-        self.overlay_pixmap_item = None  
-        self.overlay_original_pixmap = None 
-        self.overlay_pixmap = None 
-        self.overlay_pixmap_item_contour = None  
-        self.overlay_pixmap_contour = None  
-        self.overlay_pixmap_item_filled = None  
-        self.overlay_pixmap_filled = None  
-        self.zoomable_graphics_view.scene.clear()
+        self.clear_all()
 
         #load the image
         self.pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)

@@ -52,11 +52,10 @@ class LabelingEvents(Events):
         self.all_events(self.eraser.__name__)
         self.view.zoomable_graphics_view.change_cursor("eraser")
         self.model.eraser()
-        print("eraser")
     
     def clear_all(self):
         self.all_events(self.clear_all.__name__)
-        print("clear_all")
+        self.model.clear_all()
 
     ### Setting Buttons events
 
