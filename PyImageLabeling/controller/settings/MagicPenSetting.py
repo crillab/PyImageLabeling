@@ -1,4 +1,3 @@
-
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 
@@ -24,8 +23,13 @@ class MagicPenSetting(QDialog):
         self.tolerance_spinbox.setRange(0, 100)
         self.tolerance_spinbox.setValue(self.tolerance)
 
+        # Connect both ways to keep them synchronized
         self.tolerance_spinbox.valueChanged.connect(self.tolerance_slider.setValue)
         self.tolerance_slider.valueChanged.connect(self.tolerance_spinbox.setValue)
+        
+        # Update internal values when sliders change
+        self.tolerance_slider.valueChanged.connect(self.update_tolerance)
+        self.tolerance_spinbox.valueChanged.connect(self.update_tolerance)
 
         form_layout.addRow("Color Tolerance:", self.tolerance_slider)
         form_layout.addRow("Value:", self.tolerance_spinbox)
@@ -52,8 +56,13 @@ class MagicPenSetting(QDialog):
         self.points_limit_spinbox.setValue(self.max_point)
         self.points_limit_spinbox.setSingleStep(5000)
 
+        # Connect both ways to keep them synchronized
         self.points_limit_slider.valueChanged.connect(self.points_limit_spinbox.setValue)
         self.points_limit_spinbox.valueChanged.connect(self.points_limit_slider.setValue)
+        
+        # Update internal values when sliders change
+        self.points_limit_slider.valueChanged.connect(self.update_max_points)
+        self.points_limit_spinbox.valueChanged.connect(self.update_max_points)
 
         points_slider_layout.addWidget(self.points_limit_slider)
         points_slider_layout.addWidget(self.points_limit_spinbox)
@@ -72,11 +81,28 @@ class MagicPenSetting(QDialog):
 
         self.setLayout(layout)
 
+    def update_tolerance(self, value):
+        """Update internal tolerance value when slider changes"""
+        self.tolerance = value
+
+    def update_max_points(self, value):
+        """Update internal max points value when slider changes"""
+        self.max_point = value
+
     def get_settings(self):
-        return {
-            "tolerance": self.tolerance_slider.value(),
-            "max_points": self.points_limit_spinbox.value()
-        }
+        """Return current settings from the UI controls"""
+        # Get values directly from the controls to ensure we have the latest values
+        tolerance = self.tolerance_slider.value()
+        max_points = self.points_limit_slider.value()
+        
+        # Also update internal variables for consistency
+        self.tolerance = tolerance
+        self.max_point = max_points
+        return tolerance, max_points
     
     def accept(self):
+        """Override accept to ensure settings are updated before closing"""
+        # Update internal values one final time
+        self.tolerance = self.tolerance_slider.value()
+        self.max_point = self.points_limit_slider.value()
         return super().accept()

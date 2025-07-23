@@ -1,5 +1,6 @@
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
+from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
     def __init__(self):
@@ -69,6 +70,8 @@ class LabelingEvents(Events):
         self.all_events(self.magic_pen_setting.__name__)
         magicpensetting = MagicPenSetting(self.view.zoomable_graphics_view, self.view.magic_pen_tolerance, self.view.max_points_limite)
         magicpensetting.open()
+        if magicpensetting.exec() == QDialog.DialogCode.Accepted: 
+            self.view.magic_pen_tolerance, self.view.max_points_limite = magicpensetting.get_settings()
 
     def ellipse_setting(self):
         self.all_events(self.ellipse_setting.__name__)
