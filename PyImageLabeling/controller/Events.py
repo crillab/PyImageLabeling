@@ -31,11 +31,9 @@ class eventEater(QObject):
                 self.model.start_magic_pen(event.scenePos())
             elif self.model.checked_button == "contour_filling":
                 if self.view.layer_activation == True :
-                    print("apply")
                     self.model.remove_overlay()
                     self.view.layer_activation = False
                 elif self.view.layer_activation == False :
-                    print("remove")
                     self.model.start_contour_filling()
                     self.view.layer_activation = True
             elif self.model.checked_button == "eraser":

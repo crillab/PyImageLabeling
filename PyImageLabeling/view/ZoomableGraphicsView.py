@@ -70,7 +70,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.view.point_color = QColor(255, 0, 0)
         self.point_opacity = 100
         self.view.point_label = ""
-        self.eraser_size = 10
+        self.view.eraser_size = 10
         self.absolute_erase_mode = False
         self.magic_pen_tolerance = 20
         self.max_points_limite = 100000

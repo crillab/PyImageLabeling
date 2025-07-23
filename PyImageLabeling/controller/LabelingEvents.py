@@ -1,5 +1,7 @@
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
+from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
+from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
 from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
@@ -64,7 +66,10 @@ class LabelingEvents(Events):
         
     def paintbrush_setting(self):
         self.all_events(self.paintbrush_setting.__name__)
-        print("paintbrush_setting")
+        paintbrushsetting = PaintBrushSetting(self.view.zoomable_graphics_view, self.view.point_radius)
+        paintbrushsetting.open()
+        if paintbrushsetting.exec() == QDialog.DialogCode.Accepted: 
+            self.view.point_radius = paintbrushsetting.get_settings()
     
     def magic_pen_setting(self):
         self.all_events(self.magic_pen_setting.__name__)
@@ -87,5 +92,8 @@ class LabelingEvents(Events):
    
     def eraser_setting(self):
         self.all_events(self.eraser_setting.__name__)
-        print("eraser_setting")
+        erasersetting = EraserSetting(self.view.zoomable_graphics_view, self.view.eraser_size)
+        erasersetting.open()
+        if erasersetting.exec() == QDialog.DialogCode.Accepted: 
+            self.view.eraser_size = erasersetting.get_settings()
    
