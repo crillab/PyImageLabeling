@@ -16,23 +16,22 @@ class Core():
 
     def update_overlay(self, new_overlay):
         if len(self.overlayers_pixmap) != 0:
-            print("je suis pas dedans: ", new_overlay)
-            painter = QPainter(self.overlayers_pixmap[-1])
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
-            painter.drawPixmap(0, 0, QBitmap(new_overlay))
+            painter = QPainter(new_overlay)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            painter.drawPixmap(0, 0, QPixmap(self.overlayers_pixmap[-1]))
             painter.end()
             
         self.overlayers_pixmap.append(new_overlay)
-        print("new_overlay:", new_overlay)
+
         # If a overlayer_item already exists, we delete it 
         if self.overlayer_pixmap_item is None:
-            print("coucou")
-            self.overlayer_pixmap_item = self.view.zoomable_graphics_view.scene.addPixmap(QBitmap(new_overlay))
+            self.overlayer_pixmap_item = self.view.zoomable_graphics_view.scene.addPixmap(QPixmap(new_overlay))
             self.overlayer_pixmap_item.setZValue(1)  # Set Z-value to be above the base image
         else:
-            self.overlayer_pixmap_item.setPixmap(QBitmap(new_overlay))
+            self.overlayer_pixmap_item.setPixmap(QPixmap(new_overlay))
 
         # Update the scene
+        self.view.zoomable_graphics_view.scene.update()
         self.view.zoomable_graphics_view.update()
 
 
