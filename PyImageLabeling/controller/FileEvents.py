@@ -20,7 +20,7 @@ class FileEvents(Events):
         self.all_events(self.load_images.__name__)
         self.model.init_load_image()
         for button_names in self.view.buttons_image_bar:
-                self.view.buttons_image_bar[button_names].setEnabled(True)
+            self.view.buttons_image_bar[button_names].setEnabled(True)
         print("load_images")
 
     def select_image(self, item):

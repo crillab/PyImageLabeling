@@ -21,12 +21,12 @@ class LoadImage(Core):
         #load the image
         self.zoomable_graphics_view.scene.clear()
         self.clear_all()
-        self.pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
-        self.pixmap_item.setZValue(0)  # Base laye
-        self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
+        self.image_pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
+        self.image_pixmap_item.setZValue(0)  # Base laye
+        self.zoomable_graphics_view.setSceneRect(self.image_pixmap_item.boundingRect())
         #self.zoomable_graphics_view.centerOn(0,0)
-        self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
-        self.view.pixmap =  QPixmap(pixmap)
+        self.zoomable_graphics_view.fitInView(self.image_pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.image_pixmap = pixmap
         
     def init_load_image(self):
 

@@ -1,15 +1,16 @@
 from PyQt6.QtCore import Qt, QRectF
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtGui import QColor, QPixmap, QBrush, QPainter
+from PyQt6.QtGui import QColor, QPixmap, QBrush, QPainter, QBitmap, QColorConstants, QImage
 from PyQt6.QtWidgets import QProgressDialog, QApplication, QMessageBox
 from collections import deque
+
+import numpy
+
+DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
 
 class MagicPen(Core):
     def __init__(self):
         super().__init__()
-        self.overlay_pixmap_item = None  # Single overlay pixmap item
-        self.overlay_original_pixmap = None  # Original overlay pixmap
-        self.overlay_pixmap = None  # Current overlay pixmap
 
     def magic_pen(self):
         self.checked_button = self.magic_pen.__name__
@@ -18,109 +19,82 @@ class MagicPen(Core):
     def start_magic_pen(self, scene_pos):
         """Fill area with points using magic pen"""
         self.view.zoomable_graphics_view.change_cursor("magic")
-        self.raw_image = self.view.pixmap.toImage()
+        self.raw_image = self.image_pixmap.toImage()
         self.fill_shape(scene_pos)
 
     def fill_shape(self, scene_pos):
         # Create progress dialog
-        progress = QProgressDialog("Processing magic pen fill...", "Cancel", 0, 0, self.view)
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        progress.show()
+        self.view.progressBar.reset()
+
+        #progress = QProgressDialog("Processing magic pen fill...", "Cancel", 0, 0, self.view)
+        #progress.setWindowModality(Qt.WindowModality.WindowModal)
+        #progress.show()
 
         try:
-            new_overlay_pixmap = self._fill_shape_worker(scene_pos)
-            self._handle_fill_complete(new_overlay_pixmap, progress)
+            new_overlay = self._fill_shape_worker(scene_pos)
+            self.update_overlay(new_overlay)
+            #self._handle_fill_complete(new_overlay_pixmap, self.view.progressBar)
         except Exception as e:
-            self._handle_fill_error(str(e), progress)
+            self._handle_fill_error(str(e), self.view.progressBar)
 
     def _fill_shape_worker(self, scene_pos):
-        image_x = int(scene_pos.x())
-        image_y = int(scene_pos.y())
-
+        initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
         width, height = self.raw_image.width(), self.raw_image.height()
 
-        if not (0 <= image_x < width and 0 <= image_y < height):
-            return None
+        if not (0 <= initial_position_x < width and 0 <= initial_position_y < height): return None
 
         # Get target color
-        target_color = QColor(self.raw_image.pixel(image_x, image_y))
-        target_hue = target_color.hue()
-        target_sat = target_color.saturation()
-        target_val = target_color.value()
+        target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
+        target_hue, target_sat, target_val = target_color.hue(), target_color.saturation(), target_color.value()
+        
         tolerance = self.view.magic_pen_tolerance
 
         # Create a transparent pixmap for the new overlay
-        new_overlay_pixmap = QPixmap(width, height)
-        new_overlay_pixmap.fill(Qt.GlobalColor.transparent)
-
-        painter = QPainter(new_overlay_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        new_overlay_image = QImage(width, height, QImage.Format.Format_Mono)
+        new_overlay_image.fill(Qt.GlobalColor.color1)
+        #painter = QPainter(new_overlay_pixmap)
+        #painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
         # Set the brush color for the filled area
-        current_point_color = self.labels[self.current_label]["color"]
-        painter.setBrush(QBrush(QColor(current_point_color)))
-        painter.setPen(Qt.PenStyle.NoPen)
-
-        visited = set()
-        directions = [
-            (1, 0), (-1, 0), (0, 1), (0, -1),
-            (1, 1), (-1, -1), (1, -1), (-1, 1)
-        ]
-
-        queue = deque([(image_x, image_y)])
-        points_to_fill = []
-
-        try:
-            while queue:
-                if len(points_to_fill) >= self.view.max_points_limite:
-                    print(f"Too many points ({self.view.max_points_limite}). Canceling fill.")
-                    return None
-
-                x, y = queue.popleft()
-                if (x, y) in visited:
+        current_label_color = self.labels[self.current_label]["color"]
+        #painter.setBrush(QBrush(QColor(current_point_color)))
+        #painter.setPen(Qt.PenStyle.NoPen)
+        visited = numpy.full((width, height), False)
+        
+        queue = deque()
+        queue.append((initial_position_x, initial_position_y))
+        
+        while queue:
+            x, y = queue.popleft()
+            if not (0 <= x < width and 0 <= y < height): continue
+            # Pass if already seen pixel
+            if visited[x][y] == True: continue
+            visited[x][y] = True
+            # Color verification with tolerance
+            current_color = QColor(self.raw_image.pixel(x, y))
+            
+            current_hue, current_sat, current_val = current_color.hue(), current_color.saturation(), current_color.value()            
+            if target_hue == -1 or current_hue == -1:
+                if abs(current_val - target_val) > tolerance:
                     continue
-
-                visited.add((x, y))
-
-                if not (0 <= x < width and 0 <= y < height):
+            else:
+                hue_diff = min(abs(current_hue - target_hue), 360 - abs(current_hue - target_hue))
+                
+                if (hue_diff > tolerance or
+                    abs(current_sat - target_sat) > tolerance or
+                    abs(current_val - target_val) > tolerance):
                     continue
+            #Color the new_overlay
+            new_overlay_image.setPixel(x, y, 0)
+            
+            # Add neighbors
+            for dx, dy in DIRECTIONS:
+                new_x, new_y = x + dx, y + dy
+                if (0 <= new_x < width and 0 <= new_y < height) and visited[new_x][new_y] == False:
+                    queue.append((new_x, new_y))
 
-                # Color verification with tolerance
-                current_color = QColor(self.raw_image.pixel(x, y))
-                current_hue = current_color.hue()
-                current_sat = current_color.saturation()
-                current_val = current_color.value()
-
-                if target_hue == -1 or current_hue == -1:
-                    if abs(current_val - target_val) > tolerance:
-                        continue
-                else:
-                    hue_diff = min(abs(current_hue - target_hue), 360 - abs(current_hue - target_hue))
-
-                    if (hue_diff > tolerance or
-                        abs(current_sat - target_sat) > tolerance or
-                        abs(current_val - target_val) > tolerance):
-                        continue
-
-                points_to_fill.append((x, y))
-
-                # Add neighbors
-                for dx, dy in directions:
-                    new_x, new_y = x + dx, y + dy
-                    if (new_x, new_y) not in visited:
-                        queue.append((new_x, new_y))
-
-        except Exception as e:
-            print(f"Error during fill: {e}")
-            return None
-
-        # Draw the filled area on the new overlay pixmap
-        for x, y in points_to_fill:
-            painter.drawEllipse(x, y, 1, 1)  # Draw a small circle for each point
-
-        painter.end()
-        return new_overlay_pixmap
+        return new_overlay_image
 
     def _handle_fill_complete(self, new_overlay_pixmap, progress):
         """Handle completion of fill operation"""

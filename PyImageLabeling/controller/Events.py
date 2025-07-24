@@ -44,8 +44,8 @@ class eventEater(QObject):
                 self.model.move_paint_brush(event.scenePos())
             elif self.model.checked_button == "move_image":
                 self.model.move_move_tool(event)
-            elif self.model.checked_button == "magic_pen":
-                self.view.zoomable_graphics_view.change_cursor("magic")
+            #elif self.model.checked_button == "magic_pen":
+            #    self.view.zoomable_graphics_view.change_cursor("magic")
             elif self.model.checked_button == "eraser":
                 self.model.move_eraser(event.scenePos())
                 
