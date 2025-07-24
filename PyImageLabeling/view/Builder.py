@@ -2,7 +2,7 @@
 
 
 
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
@@ -30,7 +30,13 @@ class Builder:
         self.build_label_bar()
         self.build_image_bar()
         self.build_file_bar()
-        
+        self.build_status_bar()
+
+    def build_status_bar(self):
+        self.view.statusBar().showMessage('Ready')
+        self.view.progressBar = QProgressBar()
+        self.view.statusBar().addPermanentWidget(self.view.progressBar) 
+
     def build_file_bar(self):
         self.file_bar_container = QWidget()
         file_bar_layout = QVBoxLayout(self.file_bar_container)
