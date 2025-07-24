@@ -16,9 +16,11 @@ class LoadImage(Core):
     
     def load_image(self, pixmap):
         #remove all overlays#
-        self.clear_all()
-
+        #self.clear_all()
+        print("load_image:", pixmap)
         #load the image
+        self.zoomable_graphics_view.scene.clear()
+        self.clear_all()
         self.pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
         self.pixmap_item.setZValue(0)  # Base laye
         self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
