@@ -57,14 +57,25 @@ class MagicPen(Core):
         #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
         # Set the brush color for the filled area
-        current_label_color = self.labels[self.current_label]["color"]
         #painter.setBrush(QBrush(QColor(current_point_color)))
         #painter.setPen(Qt.PenStyle.NoPen)
         visited = numpy.full((width, height), False)
         
+        print("image created")
         queue = deque()
         queue.append((initial_position_x, initial_position_y))
         
+        p = 0
+        for w in range(width):
+            for h in range(height):
+                current_color = QColor(self.raw_image.pixel(w, h))
+                current_hue, current_sat, current_val = current_color.hue(), current_color.saturation(), current_color.value()  
+
+                p+=1
+        
+        print("p:", p)
+
+        pp = 0
         while queue:
             x, y = queue.popleft()
             if not (0 <= x < width and 0 <= y < height): continue
@@ -87,13 +98,16 @@ class MagicPen(Core):
                     continue
             #Color the new_overlay
             new_overlay_image.setPixel(x, y, 1)
-            
+            pp += 1
+
+            if pp % 1000 == 0:
+                print("pp:", pp)
             # Add neighbors
             for dx, dy in DIRECTIONS:
                 new_x, new_y = x + dx, y + dy
                 if (0 <= new_x < width and 0 <= new_y < height) and visited[new_x][new_y] == False:
                     queue.append((new_x, new_y))
-
+        print("precess finito")
         return new_overlay_image
 
     def _handle_fill_complete(self, new_overlay_pixmap, progress):
