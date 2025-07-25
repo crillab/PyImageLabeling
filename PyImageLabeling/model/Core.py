@@ -17,8 +17,10 @@ class Core():
     def update_overlay(self, new_overlay):
         if len(self.overlayers_pixmap) != 0:
             painter = QPainter(new_overlay)
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-            painter.drawPixmap(0, 0, QPixmap(self.overlayers_pixmap[-1]))
+            painter.setCompositionMode(QPainter.CompositionMode.RasterOp_NotSource)
+            #painter.setCompositionMode(QPainter.CompositionMode.RasterOp_NotSourceAndDestination)
+            painter.drawPixmap(0, 0, QBitmap(new_overlay))
+
             painter.end()
             
         self.overlayers_pixmap.append(new_overlay)

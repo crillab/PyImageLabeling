@@ -50,8 +50,8 @@ class MagicPen(Core):
         tolerance = self.view.magic_pen_tolerance
 
         # Create a transparent pixmap for the new overlay
-        new_overlay_image = QImage(width, height, QImage.Format.Format_RGBA32FPx4)
-        new_overlay_image.fill(Qt.GlobalColor.transparent)
+        new_overlay_image = QImage(width, height, QImage.Format.Format_Mono)
+        new_overlay_image.fill(Qt.GlobalColor.color0)
         #painter = QPainter(new_overlay_pixmap)
         #painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
@@ -86,7 +86,7 @@ class MagicPen(Core):
                     abs(current_val - target_val) > tolerance):
                     continue
             #Color the new_overlay
-            new_overlay_image.setPixelColor(x, y, current_label_color)
+            new_overlay_image.setPixel(x, y, 1)
             
             # Add neighbors
             for dx, dy in DIRECTIONS:
