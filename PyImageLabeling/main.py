@@ -12,8 +12,9 @@ def __main__():
     
     controller = Controller(config)
     view = View(controller, config)
-    model = Model(view, config)
+    model = Model(view, controller, config)
     controller.set_model(model)
+
 
     
     sys.exit(app.exec())

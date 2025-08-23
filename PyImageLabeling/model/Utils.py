@@ -17,9 +17,19 @@ class Utils():
     
     def get_config():
         with open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"config.json", 'r', encoding='utf-8') as file:
-            dictionnaire = json.load(file)
-        return dictionnaire
+            data = json.load(file)
+        return data
     
+    def load_parameters():
+        with open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"parameters.json", 'r', encoding='utf-8') as file:
+            data = json.load(file)
+        return data
+    
+    def save_parameters(data):
+        with open(os.path.dirname(os.path.abspath(__file__))+os.sep+".."+os.sep+"parameters.json", 'w') as fp:
+            json.dump(data, fp)
+
+
     def color_to_stylesheet(color):
         return f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
         

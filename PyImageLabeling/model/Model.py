@@ -25,13 +25,19 @@ from PyImageLabeling.model.Labels.Visibility import Visibility
 from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
 class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Visibility, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
-    def __init__(self, view, config):
+    def __init__(self, view, controller, config):
         super().__init__()
         self.config = config
         self.set_view(view)
+        self.set_controller(controller)
+        
 
     def set_view(self, view):
         super().set_view(view)
         self.view = view
+
+    def set_controller(self, controller):
+        super().set_controller(controller)
+        self.controller = controller
         
 

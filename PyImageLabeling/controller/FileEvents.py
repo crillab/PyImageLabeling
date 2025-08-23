@@ -35,13 +35,9 @@ class FileEvents(Events):
                         matching_path = path
                         break
                 if matching_path:
-                    image = QPixmap(matching_path)
-                    if not image.isNull():
-                        self.model.load_image(image)
-                        self.view.file_bar_list.setCurrentItem(item)
-                        print(f"Loaded image: {filename}")
-                    else:
-                        print(f"Error: Could not load image {filename}")
+                    self.model.load_image(matching_path)
+                    self.view.file_bar_list.setCurrentItem(item)
+                    print(f"Loaded image: {filename}")
                 else:
                     print(f"Error: Could not find path for {filename}")
     

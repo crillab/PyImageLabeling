@@ -6,7 +6,10 @@ from collections import deque
 
 import numpy
 
-DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
+from PyImageLabeling.model.Utils import Utils
+#DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
+
+DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 class MagicPen(Core):
     def __init__(self):
@@ -32,84 +35,118 @@ class MagicPen(Core):
 
         try:
             new_overlay = self._fill_shape_worker(scene_pos)
-            self.update_overlay(new_overlay)
+            self.update_overlay(new_overlay) 
             #self._handle_fill_complete(new_overlay_pixmap, self.view.progressBar)
         except Exception as e:
             self._handle_fill_error(str(e), self.view.progressBar)
 
     def _fill_shape_worker(self, scene_pos):
+        #Create some variables
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
         width, height = self.raw_image.width(), self.raw_image.height()
-
         if not (0 <= initial_position_x < width and 0 <= initial_position_y < height): return None
 
-        # Get target color
-        target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
-        target_hue, target_sat, target_val = target_color.hue(), target_color.saturation(), target_color.value()
-        
-        tolerance = self.view.magic_pen_tolerance
+        #Get parameters
+        tolerance = Utils.load_parameters()["magic_pen"]["tolerance"] 
+        max_pixels = Utils.load_parameters()["magic_pen"]["max_pixels"] 
+        method = Utils.load_parameters()["magic_pen"]["method"] 
 
-        # Create a transparent pixmap for the new overlay
+        #Initialize some data
         new_overlay_image = QImage(width, height, QImage.Format.Format_Mono)
         new_overlay_image.fill(Qt.GlobalColor.color0)
-        #painter = QPainter(new_overlay_pixmap)
-        #painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-
-        # Set the brush color for the filled area
-        #painter.setBrush(QBrush(QColor(current_point_color)))
-        #painter.setPen(Qt.PenStyle.NoPen)
         visited = numpy.full((width, height), False)
+
+        #Call the good method
+        if method == "HSV SPE":
+            return self._fill_shape_hsv_spe(new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
+        elif method == "RGB AVG":
+            return self._fill_shape_rgb_avg(new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
+        elif method == "RGB MIN":
+            pass
+        else:
+            raise NotImplementedError("Mathod not implmented: "+str(method))
+        print("MagicPen: image created")
         
-        print("image created")
+    def _fill_shape_rgb_avg(self, new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
+        #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
+        target_rgb = self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(int)   
         queue = deque()
-        queue.append((initial_position_x, initial_position_y))
         
-        p = 0
-        for w in range(width):
-            for h in range(height):
-                current_color = QColor(self.raw_image.pixel(w, h))
-                current_hue, current_sat, current_val = current_color.hue(), current_color.saturation(), current_color.value()  
-
-                p+=1
+        if (0 <= initial_position_x < width and 0 <= initial_position_y < height): 
+            queue.append((initial_position_x, initial_position_y))
         
-        print("p:", p)
-
-        pp = 0
-        while queue:
+        n_pixels = 0
+        while queue and n_pixels <= max_pixels:
             x, y = queue.popleft()
-            if not (0 <= x < width and 0 <= y < height): continue
-            # Pass if already seen pixel
             if visited[x][y] == True: continue
             visited[x][y] = True
-            # Color verification with tolerance
-            current_color = QColor(self.raw_image.pixel(x, y))
+            current_rgb = self.numpy_pixels_rgb[y, x].astype(int)
+            dist = numpy.mean(100-numpy.divide(numpy.multiply(numpy.abs(target_rgb-current_rgb), 100), 255))
             
-            current_hue, current_sat, current_val = current_color.hue(), current_color.saturation(), current_color.value()            
+            if dist < tolerance: continue
+            
+            #Color the new_overlay
+            new_overlay_image.setPixel(x, y, 1)
+            n_pixels += 1
+
+            # Add neighbors
+            for dx, dy in DIRECTIONS:
+                new_x, new_y = x + dx, y + dy
+                if (0 <= new_x < width and 0 <= new_y < height):
+                    queue.append((new_x, new_y))
+
+        print("MagicPen: end n_pixels:", n_pixels)
+        return new_overlay_image
+
+    def _fill_shape_hsv_spe(self, new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
+        # Problem with this method: getHsv() do not the difference between gray colors (black and white for example)
+        target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
+        target_hue, target_sat, target_val, alpha = target_color.getHsv()  
+        print("here1:", target_hue, target_sat, target_val, alpha)
+        target_hue, target_sat, target_val = target_color.hue(), target_color.saturation(), target_color.value()
+        print("here2:", target_hue, target_sat, target_val)
+
+        print("here3:",  self.numpy_pixels_hsv[initial_position_x, initial_position_y])
+
+        
+        queue = deque()
+        
+        if (0 <= initial_position_x < width and 0 <= initial_position_y < height): 
+            queue.append((initial_position_x, initial_position_y))
+        
+
+        n_pixels = 0
+        while queue and n_pixels <= max_pixels:
+            x, y = queue.popleft()
+            if visited[x][y] == True: continue
+            visited[x][y] = True
+            
+            current_hue, current_sat, current_val, _ = QColor(self.raw_image.pixel(x, y)).getHsv()    
+            
             if target_hue == -1 or current_hue == -1:
                 if abs(current_val - target_val) > tolerance:
                     continue
             else:
+
                 hue_diff = min(abs(current_hue - target_hue), 360 - abs(current_hue - target_hue))
                 
                 if (hue_diff > tolerance or
                     abs(current_sat - target_sat) > tolerance or
                     abs(current_val - target_val) > tolerance):
                     continue
+            
             #Color the new_overlay
             new_overlay_image.setPixel(x, y, 1)
-            pp += 1
+            n_pixels += 1
 
-            if pp % 1000 == 0:
-                print("pp:", pp)
             # Add neighbors
             for dx, dy in DIRECTIONS:
                 new_x, new_y = x + dx, y + dy
-                if (0 <= new_x < width and 0 <= new_y < height) and visited[new_x][new_y] == False:
+                if (0 <= new_x < width and 0 <= new_y < height):
                     queue.append((new_x, new_y))
-        print("precess finito")
+        print("MagicPen: end n_pixels:", n_pixels)
         return new_overlay_image
-
+    
     def _handle_fill_complete(self, new_overlay_pixmap, progress):
         """Handle completion of fill operation"""
         if progress:

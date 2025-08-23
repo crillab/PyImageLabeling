@@ -47,6 +47,13 @@ class ZoomableGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        #self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        #self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+
+        #background_painter = QPainter()
+        #background_brush = QBrush(QColor(255,170,255), Qt.BrushStyle.SolidPattern)
+        #background_painter.fillRect(self.sceneRect(), background_brush)
+        #self.drawBackground(background_painter, self.sceneRect()) 
         
         # Basic properties
         self.view.zoom_factor = 1.0
@@ -76,17 +83,19 @@ class ZoomableGraphicsView(QGraphicsView):
         self.max_points_limite = 100000
         self.shape_fill_mode = False
         
-        self.view.magic_pen_tolerance = 50  # Color tolerance for magic pen
-        self.view.max_points_limite = 500000  # Maximum points limit
+        
 
         self.view.contour_tolerance = 5
+    
+    #def drawBackground(self, painter, rect):
+    #    background_brush = QBrush(QColor(255,170,255), Qt.BrushStyle.SolidPattern)
+    #    painter.fillRect(rect, background_brush)
 
     def clear(self):
         pass
 
     def change_cursor(self, name):
         cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-        print("*self.view.config[window_size][icon]:", *self.view.config["window_size"]["icon"])
         cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
         cursor = QCursor(cursor_pixmap)
         self.viewport().setCursor(cursor)

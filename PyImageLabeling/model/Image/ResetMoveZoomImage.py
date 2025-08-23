@@ -12,5 +12,5 @@ class ResetMoveZoomImage (Core):
     def reset_move_zoom_image(self):
         self.zoomable_graphics_view.resetTransform()
         self.view.zoom_factor = 1.0
-        self.zoomable_graphics_view.setSceneRect(self.pixmap_item.boundingRect())
-        self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.zoomable_graphics_view.setSceneRect(self.qrect_size)
+        #self.zoomable_graphics_view.fitInView(self.pixmap_item.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)

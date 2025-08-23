@@ -25,6 +25,8 @@ class PaintBrush(Core):
         self.last_point = scene_pos
 
     def start_paint_brush(self, start_pos):
+        if not self.zoomable_graphics_view.sceneRect().contains(start_pos):
+            return
         self.view.zoomable_graphics_view.change_cursor("paint")
         self.view.point_color = self.labels[self.current_label]["color"]
         self.view.point_label = self.labels[self.current_label]["name"]
@@ -46,6 +48,9 @@ class PaintBrush(Core):
         self.last_point = start_pos
 
     def move_paint_brush(self, current_pos):
+        if not self.zoomable_graphics_view.sceneRect().contains(current_pos):
+            return
+        
         self.view.zoomable_graphics_view.change_cursor("paint")
         if self.painter_path is None or self.graphics_path_item is None:
             self.start_paint_brush(current_pos)

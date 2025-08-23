@@ -485,6 +485,22 @@ QGroupBox::title {
     margin-left: 5%;
     margin-right: 5%;
 }
+QDialog {
+    background-color: #616161;
+    margin:10px;   
+}
+
+QLabel {
+    background-color: transparent;
+    color:white; 
+    font-weight: bold;
+}
+
+QSlider {
+    background-color: transparent;
+}
+
+
 
 ZoomableGraphicsView {
     background-color: #afafaf; 

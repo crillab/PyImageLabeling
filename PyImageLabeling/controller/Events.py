@@ -1,8 +1,13 @@
-from PyQt6.QtWidgets import QMessageBox, QGraphicsView, QApplication
-from PyQt6.QtCore import QObject, QEvent, Qt
-from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent
+from PyQt6.QtWidgets import QMessageBox, QGraphicsView, QApplication, QGraphicsItem
+from PyQt6.QtCore import QObject, QEvent, Qt, QRectF, QRect
+from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor
 from PyQt6.QtWidgets import QLabel
 import os
+
+from PyImageLabeling.model.Utils import Utils
+
+
+
 
 class eventEater(QObject):
     def __init__(self, controler, view, model):
@@ -14,8 +19,10 @@ class eventEater(QObject):
     def set_model(self, model):
         self.model = model
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, event):
         #self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
+        #print("event.type() QObject", event.type())
+        #print("event.type() QObject", obj)
         
         #MouseButton.LeftButton: all tools 
         if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.LeftButton:
@@ -83,8 +90,6 @@ class eventEater(QObject):
             #    return False  
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
-        else:
-            return self.view.eventFilter(obj, event)
         return True
 
 class Events:
@@ -95,9 +100,8 @@ class Events:
 
     def set_view(self, view):
         self.view = view
-        print("view:", view)
         self.event_eater = eventEater(self, self.view, self.model)
-        self.view.zoomable_graphics_view.scene.installEventFilter(self.event_eater)
+        #self.view.zoomable_graphics_view.scene.installEventFilter(self.event_eater)
     
     def set_model(self, model):
         self.model = model

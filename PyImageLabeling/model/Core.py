@@ -63,7 +63,10 @@ class Core():
     def set_view(self, view):
         self.view = view
         self.zoomable_graphics_view = view.zoomable_graphics_view # short-cut
-    
+
+    def set_controller(self, controller):
+        self.controller = controller
+        
     def new_label(self, data_new_label):
         self.labels[data_new_label["name"]] = data_new_label
         self.set_current_label(data_new_label["name"])

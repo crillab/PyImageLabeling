@@ -76,11 +76,9 @@ class LabelingEvents(Events):
     
     def magic_pen_setting(self):
         self.all_events(self.magic_pen_setting.__name__)
-        magicpensetting = MagicPenSetting(self.view.zoomable_graphics_view, self.view.magic_pen_tolerance, self.view.max_points_limite)
+        magicpensetting = MagicPenSetting(self.view.zoomable_graphics_view)
         magicpensetting.open()
-        if magicpensetting.exec() == QDialog.DialogCode.Accepted: 
-            self.view.magic_pen_tolerance, self.view.max_points_limite = magicpensetting.get_settings()
-
+        
     def ellipse_setting(self):
         self.all_events(self.ellipse_setting.__name__)
         print("ellipse_setting")
