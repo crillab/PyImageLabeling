@@ -82,11 +82,8 @@ class MagicPenSetting(QDialog):
         layout.addWidget(method_label)
         
         self.method_combobox = QComboBox()
-        self.method_combobox.addItem('RGB AVG')
-        self.method_combobox.addItem('RGB MIN')
-        self.method_combobox.addItem('HSV AVG')
-        self.method_combobox.addItem('HSV MIN')
-        self.method_combobox.addItem('HSV SPE')
+        self.method_combobox.addItem('RGB')
+        self.method_combobox.addItem('HSV')
         
         self.method_combobox.setCurrentText(self.method)
         self.method_combobox.currentTextChanged.connect(self.update_method)

@@ -163,16 +163,7 @@ class View(QMainWindow):
                 item_widget.style().unpolish(item_widget)
                 item_widget.style().polish(item_widget)
 
-    def create_point_item(self, label, x, y, color):
-        # Create a simple circular point (adjust size as needed)
-        radius = self.point_radius
-        point_item = QGraphicsEllipseItem(x - radius, y - radius, radius * 2, radius * 2)
-        
-        # Set color and style
-        point_item.setBrush(QBrush(color))
-        point_item.setPen(QPen(color, radius))
-        
-        return point_item
+    
 
     def initialize(self):
         self.setWindowTitle("PyImageLabeling")
