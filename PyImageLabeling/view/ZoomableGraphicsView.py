@@ -107,7 +107,22 @@ class ZoomableGraphicsView(QGraphicsView):
         
         # Apply zoom factor limit
         new_zoom_factor = self.view.zoom_factor * factor
-        if 0.9 <= new_zoom_factor <= 40.0:
+        scene = self.scene 
+        if not scene:
+            event.ignore()
+            return
+
+        scene_rect = scene.itemsBoundingRect()
+        image_width = scene_rect.width()
+        image_height = scene_rect.height()
+
+        viewport_width = self.viewport().width()
+        viewport_height = self.viewport().height()
+
+        min_zoom = min(viewport_width / image_width, viewport_height / image_height)
+        max_zoom = min_zoom * 40
+
+        if min_zoom <= new_zoom_factor <= max_zoom:
             self.view.zoom_factor = new_zoom_factor
             
             # Get the scene position under the mouse

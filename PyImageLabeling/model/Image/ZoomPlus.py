@@ -23,9 +23,26 @@ class ZoomPlus(Core):
         factor = 1.1  
         new_zoom_factor = self.view.zoom_factor * factor
 
-        if 0.9 <= new_zoom_factor <= 40.0:
+        view = self.view.zoomable_graphics_view
+        scene = view.scene 
+        if not scene:
+            return
+        
+        # Size of the full image
+        scene_rect = scene.itemsBoundingRect()
+        image_width = scene_rect.width()
+        image_height = scene_rect.height()
+        
+        # Size of the viewport
+        viewport_width = view.viewport().width()
+        viewport_height = view.viewport().height()
+        
+        # Adaptive limits
+        min_zoom = min(viewport_width / image_width, viewport_height / image_height)
+        max_zoom = min_zoom * 40  
+
+        if min_zoom <= new_zoom_factor <= max_zoom:
             self.view.zoom_factor = new_zoom_factor   
-            view = self.view.zoomable_graphics_view
             mouse_pos = view.mapFromGlobal(view.cursor().pos())
 
             scene_pos = view.mapToScene(mouse_pos)

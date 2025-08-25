@@ -18,28 +18,38 @@ class PaintBrush(Core):
 
     
     
-    def add_point(self, scene_pos, new_overlay_image):
-        # Create a single point item
+    def add_point(self, scene_pos, new_overlay_image, graphics_scene):
+        # Create a single point item with correct radius
         radius = self.view.point_radius
-        point_item = QGraphicsEllipseItem(scene_pos.x() - radius, scene_pos.y() - radius, radius * 2, radius * 2)
+        
+        point_item = QGraphicsEllipseItem(
+            scene_pos.x() - radius, 
+            scene_pos.y() - radius, 
+            2 * radius,  
+            2 * radius   
+        )
         
         # Set color and style
         point_item.setBrush(QBrush(self.view.point_color))
-        point_item.setPen(QPen(self.view.point_color, radius))
+        point_item.setPen(QPen(self.view.point_color, 0))
 
-        # point_item = self.view.create_point_item(self.view.point_label, scene_pos.x(), scene_pos.y(),)
         # Add to scene
-        #Initialize QGraphicsScene()
-        self.graphics_scene = QGraphicsScene()
+        # Initialize QGraphicsScene()
+        self.graphics_scene = graphics_scene
         self.graphics_scene.addItem(point_item)
 
-        painter = QPainter(new_overlay_image)
-        self.graphics_scene.render(painter)
+        # Properly initialize and manage QPainter
+        painter = QPainter()
+        if painter.begin(new_overlay_image):
+            try:
+                self.graphics_scene.render(painter)
+            finally:
+                painter.end()
+        else:
+            print("Failed to begin painting on overlay image")
 
         self.update_overlay(new_overlay_image)
 
-        #self.view.zoomable_graphics_view.scene.addItem(point_item)
-        #self.view.zoomable_graphics_view.update()
         self.last_point = scene_pos
 
     def start_paint_brush(self, start_pos):
@@ -58,8 +68,9 @@ class PaintBrush(Core):
         self.view.point_label = self.labels[self.current_label]["name"]
 
         self.graphics_scene = QGraphicsScene()
+        self.graphics_scene.setSceneRect(0, 0, width, height)
 
-        self.add_point(start_pos, new_overlay_image)
+        self.add_point(start_pos, new_overlay_image, self.graphics_scene)
         # Create a new path for this brush stroke
         #self.painter_path = QPainterPath()
         #self.painter_path.moveTo(start_pos)

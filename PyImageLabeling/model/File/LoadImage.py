@@ -39,6 +39,8 @@ class LoadImage(Core):
         print("load_image:", pixmap)
         #load the image
         self.zoomable_graphics_view.scene.clear()
+        self.zoomable_graphics_view.resetTransform()
+        self.view.zoom_factor = 1.0
         self.clear_all()
 
         
