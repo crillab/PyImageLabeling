@@ -24,7 +24,6 @@ class eventEater(QObject):
         #print("event.type() QObject", event.type())
         #print("event.type() QObject", obj)
         
-        #MouseButton.LeftButton: all tools 
         if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.LeftButton:
             if self.model.checked_button == "zoom_plus":
                 self.model.start_zoom_plus()
@@ -51,18 +50,12 @@ class eventEater(QObject):
                 self.model.move_paint_brush(event.scenePos())
             elif self.model.checked_button == "move_image":
                 self.model.move_move_tool(event)
-            #elif self.model.checked_button == "magic_pen":
-            #    self.view.zoomable_graphics_view.change_cursor("magic")
             elif self.model.checked_button == "eraser":
                 self.model.move_eraser(event.scenePos())
                 
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
-            if self.model.checked_button == "zoom_plus":
-                self.model.end_zoom_plus()
-            elif self.model.checked_button == "zoom_minus":
-                self.model.end_zoom_minus()
-            elif self.model.checked_button == "paint_brush":
+            if self.model.checked_button == "paint_brush":
                 self.model.end_paint_brush()
             elif self.model.checked_button == "move_image":
                 self.model.end_move_tool()
@@ -71,7 +64,7 @@ class eventEater(QObject):
             elif self.model.checked_button == "eraser":
                 self.model.end_eraser()
 
-        if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
+        elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
             if self.model.checked_button == "contour_filling":
                 if self.view.layer_activation == True :
                     self.model.fill_contour(event.scenePos())
@@ -90,6 +83,7 @@ class eventEater(QObject):
             #    return False  
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
+
         return True
 
 class Events:

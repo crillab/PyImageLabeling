@@ -1,5 +1,6 @@
 
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap
+import numpy
 
 class Core():
 
@@ -13,6 +14,18 @@ class Core():
 
         self.image_pixmap_item = None
         self.overlayer_pixmap_item = None
+
+    def initialyse_zoom_factor(self):
+        viewport_width = self.view.zoomable_graphics_view.viewport().width()
+        viewport_height = self.view.zoomable_graphics_view.viewport().height()
+        diagonal_viewport = numpy.sqrt(viewport_width**2 + viewport_height**2)
+        diagonal_pixmap = numpy.sqrt(self.qrect_size.width()**2 + self.qrect_size.height()**2)
+
+        self.view.zoom_factor = diagonal_pixmap / diagonal_viewport
+        if self.view.zoom_factor < self.view.min_zoom: self.view.min_zoom = self.view.zoom_factor
+        if self.view.zoom_factor > self.view.max_zoom: self.view.max_zoom = self.view.zoom_factor
+        self.view.initial_zoom_factor = self.view.zoom_factor
+
 
     ###
     # `new_overlay` is a QImage with QImage.Format.Format_Mono

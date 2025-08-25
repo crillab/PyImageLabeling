@@ -37,32 +37,30 @@ class LoadImage(Core):
         #print("self.numpy_pixels_hsv:", self.numpy_pixels_hsv[0,0])
 
         print("load_image:", pixmap)
-        #load the image
+        # Load the image
         self.zoomable_graphics_view.scene.clear()
         self.zoomable_graphics_view.resetTransform()
-        self.view.zoom_factor = 1.0
-        self.clear_all()
 
+        self.clear_all()
         
-        
-        #Add the image
+        # Add the image
         self.image_pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
         self.qrect_size = self.image_pixmap_item.boundingRect() 
         self.image_pixmap_item.setZValue(1) # Image layer 
         self.zoomable_graphics_view.setSceneRect(self.qrect_size)
-        #self.zoomable_graphics_view.fitInView(self.image_pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
-        
         self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.zoomable_graphics_view.centerOn(self.qrect_size.width()/2,self.qrect_size.height()/2)
         
-
-        #Add the background item
+        # Add the background item
         self.view.event_eater_item = QBackgroundItem(self.qrect_size, self.controller)
         self.view.event_eater_item.setZValue(0) # Base layer
         self.view.zoomable_graphics_view.scene.addItem(self.view.event_eater_item)
         self.image_pixmap_item.installSceneEventFilter(self.view.event_eater_item)
         
-        
+        # Compute the good value of the zoom 
+        self.initialyse_zoom_factor()
+
+        print("self.view.zoom_factor:", self.view.zoom_factor)
         print("self.view.event_eater_item:", self.view.event_eater_item)
        
         print("sceneRect() 1:", self.zoomable_graphics_view.sceneRect() )

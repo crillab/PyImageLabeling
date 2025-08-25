@@ -56,7 +56,12 @@ class ZoomableGraphicsView(QGraphicsView):
         #self.drawBackground(background_painter, self.sceneRect()) 
         
         # Basic properties
-        self.view.zoom_factor = 1.0
+        self.view.zoom_factor = 0
+        self.view.min_zoom = 0.5
+        self.view.max_zoom = 10
+        self.view.plus_zoom_factor = 1.1
+        self.view.minus_zoom_factor = 0.9
+        
         self.base_pixmap = None
         self.pixmap_item = None
         self.base_pixmap_item = None
@@ -100,48 +105,68 @@ class ZoomableGraphicsView(QGraphicsView):
         cursor = QCursor(cursor_pixmap)
         self.viewport().setCursor(cursor)
 
+    def zoom(self, factor):
+        print("self.view.zoom_factor:", self.view.zoom_factor)
+        if self.view.min_zoom <= self.view.zoom_factor*factor <= self.view.max_zoom:
+            view = self.view.zoomable_graphics_view
+            print("new self.view.zoom_factor:", self.view.zoom_factor)
+            self.view.zoom_factor = self.view.zoom_factor * factor
+            mouse_pos = view.mapFromGlobal(view.cursor().pos())
+            scene_pos = view.mapToScene(mouse_pos)
+            view.scale(factor, factor)
+            new_viewport_pos = view.mapFromScene(scene_pos)
+            delta = new_viewport_pos - mouse_pos
+            view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + delta.x())
+            view.verticalScrollBar().setValue(view.verticalScrollBar().value() + delta.y())
+        
+
            
     def wheelEvent(self, event):
         zoom_in = event.angleDelta().y() > 0
-        factor = 1.1 if zoom_in else 0.9
+        if zoom_in is True:
+            self.zoom(self.view.plus_zoom_factor)
+        else:
+            self.zoom(self.view.minus_zoom_factor)
+        
+        #factor = 1.1 if zoom_in else 0.9
         
         # Apply zoom factor limit
-        new_zoom_factor = self.view.zoom_factor * factor
-        scene = self.scene 
-        if not scene:
-            event.ignore()
-            return
+        #new_zoom_factor = self.view.zoom_factor * factor
+        #scene = self.scene 
+        #if not scene:
+        #    event.ignore()
+        #    return
 
-        scene_rect = scene.itemsBoundingRect()
-        image_width = scene_rect.width()
-        image_height = scene_rect.height()
+        #scene_rect = scene.itemsBoundingRect()
+        #image_width = scene_rect.width()
+        #image_height = scene_rect.height()
 
-        viewport_width = self.viewport().width()
-        viewport_height = self.viewport().height()
+        #viewport_width = self.viewport().width()
+        #viewport_height = self.viewport().height()
 
-        min_zoom = min(viewport_width / image_width, viewport_height / image_height)
-        max_zoom = min_zoom * 40
+        #min_zoom = min(viewport_width / image_width, viewport_height / image_height)
+        #max_zoom = min_zoom * 40
 
-        if min_zoom <= new_zoom_factor <= max_zoom:
-            self.view.zoom_factor = new_zoom_factor
+        #if min_zoom <= new_zoom_factor <= max_zoom:
+        #    self.view.zoom_factor = new_zoom_factor
             
             # Get the scene position under the mouse
-            mouse_pos = event.position().toPoint()
-            scene_pos = self.mapToScene(mouse_pos)
+        #    mouse_pos = event.position().toPoint()
+        #    scene_pos = self.mapToScene(mouse_pos)
 
             # Apply the scale
-            self.scale(factor, factor)
+        #    self.scale(factor, factor)
             
             # Get the new position in viewport coordinates where scene_pos would show
-            new_viewport_pos = self.mapFromScene(scene_pos)
+        #    new_viewport_pos = self.mapFromScene(scene_pos)
             
             # Calculate the viewport delta and adjust the view
-            delta = new_viewport_pos - mouse_pos
-            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
-            self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
+        #    delta = new_viewport_pos - mouse_pos
+        #    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+        #    self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
         
         # Prevent standard event handling
-        event.accept()
+        #event.accept()
 
 class OldZoomableGraphicsView(QGraphicsView):
     def __init__(self, parent=None):

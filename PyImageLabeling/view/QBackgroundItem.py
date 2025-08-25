@@ -13,8 +13,6 @@ class QBackgroundItem(QGraphicsItem):
         self.model = model
 
     def sceneEvent(self, event):
-        #self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
-        print("event.type() move good zone", event.type())
         return self.controller.event_eater.eventFilter(event)
     
 
