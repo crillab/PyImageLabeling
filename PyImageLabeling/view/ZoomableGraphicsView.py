@@ -56,11 +56,13 @@ class ZoomableGraphicsView(QGraphicsView):
         #self.drawBackground(background_painter, self.sceneRect()) 
         
         # Basic properties
+
+        self.data_parameters = Utils.load_parameters() # To use only for recuparate constant values (not save)
         self.view.zoom_factor = 0
-        self.view.min_zoom = 0.5
-        self.view.max_zoom = 10
-        self.view.plus_zoom_factor = 1.1
-        self.view.minus_zoom_factor = 0.9
+        self.view.min_zoom = self.data_parameters["zoom"]["min_zoom"]
+        self.view.max_zoom = self.data_parameters["zoom"]["max_zoom"]
+        self.view.plus_zoom_factor = self.data_parameters["zoom"]["plus_zoom_factor"]
+        self.view.minus_zoom_factor = self.data_parameters["zoom"]["minus_zoom_factor"]
         
         self.base_pixmap = None
         self.pixmap_item = None
@@ -78,7 +80,7 @@ class ZoomableGraphicsView(QGraphicsView):
         self.paint_mode = False
         self.erase_mode = False
         self.magic_pen_mode = False
-        self.view.point_radius = 3
+        
         self.view.point_color = QColor(255, 0, 0)
         self.point_opacity = 100
         self.view.point_label = ""

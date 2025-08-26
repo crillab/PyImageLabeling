@@ -45,14 +45,14 @@ class LoadImage(Core):
         
         # Add the image
         self.image_pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
-        self.qrect_size = self.image_pixmap_item.boundingRect() 
+        self.image_size = self.image_pixmap_item.boundingRect() 
         self.image_pixmap_item.setZValue(1) # Image layer 
-        self.zoomable_graphics_view.setSceneRect(self.qrect_size)
+        self.zoomable_graphics_view.setSceneRect(self.image_size)
         self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.zoomable_graphics_view.centerOn(self.qrect_size.width()/2,self.qrect_size.height()/2)
+        self.zoomable_graphics_view.centerOn(self.image_size.width()/2,self.image_size.height()/2)
         
         # Add the background item
-        self.view.event_eater_item = QBackgroundItem(self.qrect_size, self.controller)
+        self.view.event_eater_item = QBackgroundItem(self.image_size, self.controller)
         self.view.event_eater_item.setZValue(0) # Base layer
         self.view.zoomable_graphics_view.scene.addItem(self.view.event_eater_item)
         self.image_pixmap_item.installSceneEventFilter(self.view.event_eater_item)

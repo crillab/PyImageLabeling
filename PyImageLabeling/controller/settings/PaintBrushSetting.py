@@ -1,44 +1,48 @@
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 
-class PaintBrushSetting(QDialog):
-    def __init__(self, parent, current_radius=3):
-        super().__init__(parent)
-        self.setWindowTitle("Paint brush Settings")
+from PyImageLabeling.model.Utils import Utils
 
-        self.radius = current_radius
+class PaintBrushSetting(QDialog):
+    def __init__(self, zoomable_graphic_view, model):
+        super().__init__(zoomable_graphic_view)
+        self.setWindowTitle("Paint brush Settings")
+        self.resize(500, 100)
+
+        self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
+        self.max_size = int(min(model.image_size.width(), model.image_size.height()))
+        self.min_size = 1
+        if not (self.min_size <= self.size_paint_brush <= self.max_size):
+            self.size_paint_brush = 5
 
         layout = QVBoxLayout()
-        form_layout = QFormLayout()
+        label = QLabel("Size of the brush in pixel:")
+        layout.addWidget(label)
+
+        slider_layout = QHBoxLayout()
 
         # Tolerance slider and spinbox
-        self.radius_slider = QSlider(Qt.Orientation.Horizontal)
-        self.radius_slider.setRange(0, 100)
-        self.radius_slider.setValue(self.radius)
-        self.radius_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.radius_slider.setTickInterval(10)
+        self.size_paint_brush_slider = QSlider(Qt.Orientation.Horizontal)
+        self.size_paint_brush_slider.setRange(self.min_size, self.max_size)
+        self.size_paint_brush_slider.setValue(self.size_paint_brush)
+        self.size_paint_brush_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.size_paint_brush_slider.setTickInterval(10)
 
-        self.radius_spinbox = QSpinBox()
-        self.radius_spinbox.setRange(0, 100)
-        self.radius_spinbox.setValue(self.radius)
+        self.size_paint_brush_spinbox = QSpinBox()
+        self.size_paint_brush_spinbox.setRange(self.min_size, self.max_size)
+        self.size_paint_brush_spinbox.setValue(self.size_paint_brush)
 
         # Connect both ways to keep them synchronized
-        self.radius_spinbox.valueChanged.connect(self.radius_slider.setValue)
-        self.radius_slider.valueChanged.connect(self.radius_spinbox.setValue)
+        self.size_paint_brush_spinbox.valueChanged.connect(self.size_paint_brush_slider.setValue)
+        self.size_paint_brush_slider.valueChanged.connect(self.size_paint_brush_spinbox.setValue)
         
         # Update internal values when sliders change
-        self.radius_slider.valueChanged.connect(self.update_radius)
-        self.radius_spinbox.valueChanged.connect(self.update_radius)
+        self.size_paint_brush_slider.valueChanged.connect(self.update_size_paint_brush)
+        self.size_paint_brush_spinbox.valueChanged.connect(self.update_size_paint_brush)
 
-        form_layout.addRow("Radius:", self.radius_slider)
-        form_layout.addRow("Value:", self.radius_spinbox)
-
-        # Help text
-        radius_help = QLabel("Select the radius of your paintbrush")
-        radius_help.setStyleSheet("color: #666; font-style: italic;")
-        form_layout.addRow("", radius_help)
-
-        layout.addLayout(form_layout)
+        slider_layout.addWidget(self.size_paint_brush_slider)
+        slider_layout.addWidget(self.size_paint_brush_spinbox)
+        layout.addLayout(slider_layout)
 
         # Buttons
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -48,21 +52,15 @@ class PaintBrushSetting(QDialog):
 
         self.setLayout(layout)
 
-    def update_radius(self, value):
+    def update_size_paint_brush(self, value):
         """Update internal tolerance value when slider changes"""
-        self.radius = value
+        self.size_paint_brush = value
 
-    def get_settings(self):
-        """Return current settings from the UI controls"""
-        # Get values directly from the controls to ensure we have the latest values
-        radius = self.radius_slider.value()
-        
-        # Also update internal variables for consistency
-        self.radius = radius
-        return radius
-    
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
-        self.radius= self.radius_slider.value()
+        self.size_paint_brush = self.size_paint_brush_slider.value()
+        data = Utils.load_parameters()
+        data["paint_brush"]["size"] = self.size_paint_brush
+        Utils.save_parameters(data) 
         return super().accept()

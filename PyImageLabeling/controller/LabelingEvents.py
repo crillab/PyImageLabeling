@@ -69,10 +69,8 @@ class LabelingEvents(Events):
         
     def paintbrush_setting(self):
         self.all_events(self.paintbrush_setting.__name__)
-        paintbrushsetting = PaintBrushSetting(self.view.zoomable_graphics_view, self.view.point_radius)
+        paintbrushsetting = PaintBrushSetting(self.view.zoomable_graphics_view, self.model)
         paintbrushsetting.open()
-        if paintbrushsetting.exec() == QDialog.DialogCode.Accepted: 
-            self.view.point_radius = paintbrushsetting.get_settings()
     
     def magic_pen_setting(self):
         self.all_events(self.magic_pen_setting.__name__)
