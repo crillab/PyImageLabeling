@@ -1,10 +1,10 @@
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 import numpy as np
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene
+from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter
 from PyQt6.QtCore import QPointF, Qt
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 class PaintBrush(Core):
     def __init__(self):
@@ -22,14 +22,20 @@ class PaintBrush(Core):
     
     def add_point(self, start_pos, new_overlay_image, size_paint_brush, color):
         
-        
-        point_item = QGraphicsEllipseItem(
-            int(start_pos.x() - size_paint_brush/2), 
-            int(start_pos.y() - size_paint_brush/2), 
-            size_paint_brush,  
-            size_paint_brush   
-        )
-        #TODO: Do a rectangle from 3 pixels 
+        if size_paint_brush <= 3:
+            point_item = QGraphicsRectItem(
+                int(start_pos.x() - size_paint_brush/2), 
+                int(start_pos.y() - size_paint_brush/2), 
+                size_paint_brush,  
+                size_paint_brush   
+            )
+        else:
+            point_item = QGraphicsEllipseItem(
+                int(start_pos.x() - size_paint_brush/2), 
+                int(start_pos.y() - size_paint_brush/2), 
+                size_paint_brush,  
+                size_paint_brush   
+            )
         
         # Set color and style
         

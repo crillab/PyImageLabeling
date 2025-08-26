@@ -1,8 +1,8 @@
-from PyImageLabeling.controller.Events import Events
-from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
-from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
-from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
-from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
+from controller.Events import Events
+from controller.settings.MagicPenSetting import MagicPenSetting
+from controller.settings.PaintBrushSetting import PaintBrushSetting
+from controller.settings.EraserSetting import EraserSetting
+from controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
@@ -91,8 +91,6 @@ class LabelingEvents(Events):
    
     def eraser_setting(self):
         self.all_events(self.eraser_setting.__name__)
-        erasersetting = EraserSetting(self.view.zoomable_graphics_view, self.view.eraser_size)
+        erasersetting = EraserSetting(self.view.zoomable_graphics_view)
         erasersetting.open()
-        if erasersetting.exec() == QDialog.DialogCode.Accepted: 
-            self.view.eraser_size = erasersetting.get_settings()
    

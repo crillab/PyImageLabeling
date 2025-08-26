@@ -1,12 +1,15 @@
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 
+from model.Utils import Utils
+
 class EraserSetting(QDialog):
-    def __init__(self, parent, eraser_size=10):
+    def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Eraser Settings")
+        self.resize(500, 100)
 
-        self.radius = eraser_size
+        self.radius = Utils.load_parameters()["eraser"]["size"] 
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
@@ -51,18 +54,13 @@ class EraserSetting(QDialog):
     def update_radius(self, value):
         """Update internal tolerance value when slider changes"""
         self.radius = value
-
-    def get_settings(self):
-        """Return current settings from the UI controls"""
-        # Get values directly from the controls to ensure we have the latest values
-        radius = self.radius_slider.value()
         
-        # Also update internal variables for consistency
-        self.radius = radius
-        return radius
-    
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
         self.radius= self.radius_slider.value()
+        self.radius = self.radius_slider.value()
+        data = Utils.load_parameters()
+        data["eraser"]["size"] = self.radius
+        Utils.save_parameters(data) 
         return super().accept()

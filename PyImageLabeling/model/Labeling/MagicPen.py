@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, QRectF
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 from PyQt6.QtGui import QColor, QPixmap, QBrush, QPainter, QBitmap, QColorConstants, QImage
 from PyQt6.QtWidgets import QProgressDialog, QApplication, QMessageBox
 from collections import deque
@@ -7,7 +7,7 @@ from collections import deque
 import numpy
 import matplotlib
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 #DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
 
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))

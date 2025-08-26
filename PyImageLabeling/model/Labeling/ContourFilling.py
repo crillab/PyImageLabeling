@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt, QPointF, QPoint
 from PyQt6.QtGui import QPixmap, QImage, QColor,  QPainter, QPen
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 import numpy as np
 import cv2
 import traceback

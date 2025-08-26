@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
 from PyQt6.QtCore import Qt
 
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 
 class ClearAll(Core):
     def __init__(self):
