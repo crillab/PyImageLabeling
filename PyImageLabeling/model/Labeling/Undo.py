@@ -42,9 +42,3 @@ class Undo(Core):
         # Update the scene
         self.view.zoomable_graphics_view.scene.update()
         self.view.zoomable_graphics_view.update()
-    
-    def can_undo(self):
-        return len(self.overlayers_pixmap) > 0
-    
-    def get_overlay_count(self):
-        return len(self.overlayers_pixmap)

@@ -28,9 +28,3 @@ class ClearAll(Core):
         self.view.zoomable_graphics_view.scene.update()
         self.view.zoomable_graphics_view.update()
 
-    def can_clear(self):
-        """Check if there are any overlays to clear."""
-        return len(self.overlayers_pixmap) > 0
-
-    def get_overlay_count(self):
-        return len(self.overlayers_pixmap)
