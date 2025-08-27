@@ -13,10 +13,6 @@ class Eraser(Core):
     def eraser(self):
         self.checked_button = self.eraser.__name__
 
-    def set_eraser_radius(self):
-        
-        self.eraser_radius = max(1.0, self.eraser_size)
-
     def start_eraser(self, scene_pos):
         self.eraser_size = Utils.load_parameters()["eraser"]["size"] 
         self.view.zoomable_graphics_view.change_cursor("eraser")
@@ -92,9 +88,6 @@ class Eraser(Core):
                     new_item.setOpacity(item.opacity())
                     scene.addItem(new_item)
 
-        if items_to_remove or items_to_modify:
-            self.view.zoomable_graphics_view.update()
-
     def _erase_path_portion(self, path: QPainterPath, eraser_center: QPointF, eraser_radius: float):
         """Remove portions of a path intersecting the eraser circle"""
         if path.length() == 0:
@@ -167,9 +160,7 @@ class Eraser(Core):
         painter.end()
 
         # Convert QImage to QPixmap before setting
-        overlay_pixmap = QPixmap.fromImage(overlay_image)
-        overlay_item.setPixmap(overlay_pixmap)
-        self.view.zoomable_graphics_view.update()
+        self.update_overlay(overlay_image)
 
     def _calculate_distance(self, pos1, pos2):
         dx = pos1.x() - pos2.x()
