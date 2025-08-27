@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
 from PyQt6.QtCore import Qt
-from model.Core import Core
+from PyImageLabeling.model.Core import Core
 
 class Visibility(Core):
     def __init__(self):
