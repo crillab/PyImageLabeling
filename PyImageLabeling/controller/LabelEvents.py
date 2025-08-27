@@ -54,6 +54,7 @@ class LabelEvents(Events):
             self.model.visibility(True)
         else:
             self.model.visibility(False)
+            
     def opacity(self):
         self.all_events(self.opacity.__name__)
         print("opacity")

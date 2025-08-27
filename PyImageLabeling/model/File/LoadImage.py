@@ -24,7 +24,7 @@ class LoadImage(Core):
     
     def load_image(self, path_image):
         #remove all overlays#
-        #self.clear_all()
+        self.clear_all()
 
         pixmap = QPixmap(path_image)
 
@@ -40,8 +40,6 @@ class LoadImage(Core):
         # Load the image
         self.zoomable_graphics_view.scene.clear()
         self.zoomable_graphics_view.resetTransform()
-
-        self.clear_all()
         
         # Add the image
         self.image_pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)

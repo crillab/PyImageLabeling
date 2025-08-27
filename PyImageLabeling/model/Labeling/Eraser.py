@@ -133,11 +133,8 @@ class Eraser(Core):
             self._erase_from_pixmap_overlay(self.overlayers_pixmap, self.overlayer_pixmap_item, scene_pos)
 
     def _erase_contour_filling_overlays(self, scene_pos):
-        if self.overlay_pixmap_filled and self.overlay_pixmap_item_filled:
-            self._erase_from_pixmap_overlay(self.overlay_pixmap_filled, self.overlay_pixmap_item_filled, scene_pos)
-
-        if hasattr(self, 'filled_points'):
-            self._erase_filled_points(self.filled_points, scene_pos)
+        if self.overlayers_pixmap and self.overlayer_pixmap_item:
+            self._erase_from_pixmap_overlay(self.overlayers_pixmap, self.overlayer_pixmap_item, scene_pos)
 
     def _erase_from_pixmap_overlay(self, overlay_pixmaps, overlay_item, scene_pos):
         """Erase from a pixmap overlay by painting transparent pixels"""

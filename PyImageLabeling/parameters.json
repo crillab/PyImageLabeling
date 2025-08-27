@@ -1,1 +1,1 @@
-{"magic_pen": {"tolerance": 84, "max_pixels": 408780, "method": "RGB"}, "load_image": {"path": "C:/Users/pimfa/Pictures"}, "zoom": {"min_zoom": 0.5, "max_zoom": 100, "plus_zoom_factor": 1.1, "minus_zoom_factor": 0.9}, "paint_brush": {"size": 4}, "eraser": {"size": 4}}
+{"magic_pen": {"tolerance": 84, "max_pixels": 408780, "method": "RGB"}, "load_image": {"path": "C:/Users/pimfa/Pictures"}, "zoom": {"min_zoom": 0.5, "max_zoom": 100, "plus_zoom_factor": 1.1, "minus_zoom_factor": 0.9}, "paint_brush": {"size": 19}, "eraser": {"size": 9}}
