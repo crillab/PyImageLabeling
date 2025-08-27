@@ -46,7 +46,7 @@ class LabelingEvents(Events):
 
     def undo(self):
         self.all_events(self.undo.__name__)
-        print("undo")
+        self.model.undo()
         
     def eraser(self):
         self.desactivate_buttons_labeling_image_bar(self.eraser.__name__)

@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
 from model.Core import Core
 import math
 from model.Utils import Utils
+
 class Eraser(Core):
     def __init__(self):
         super().__init__()
