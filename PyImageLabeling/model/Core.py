@@ -28,7 +28,7 @@ class Core():
         self.image_qrectf = None
         self.image_qrect = None
 
-        self.qpainter = None
+        self.main_painter = None
 
     def set_view(self, view):
         self.view = view
@@ -83,16 +83,8 @@ class Core():
         self.view.max_zoom = diagonal_pixmap/self.view.max_zoom        
         self.view.initial_zoom_factor = self.view.zoom_factor
 
-    def update_labeling_overlay(self, draw_area=None):
-        #self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
-        #if draw_area is None:
-        #    
-        #self.labeling_overlay_item.update()
-        #else:    
-        #    print("draw_area:", draw_area)
-        #    self.labeling_overlay_item.update(draw_area)
-        self.view.zoomable_graphics_view.update()
-        
+    def update_labeling_overlay(self):
+        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
     def new_label(self, data_new_label):
         self.labels[data_new_label["name"]] = data_new_label
@@ -107,11 +99,9 @@ class Core():
         else:
             self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
-        print("shapeMode()", self.labeling_overlay_item.shapeMode())
-        print("here")
-        self.qpainter = QPainter(self.labeling_overlay_pixmap)        
-        print("here2")
-        self.qpainter.setPen(self.labels[self.current_label]["color"])
+        self.main_painter = QPainter(self.labeling_overlay_pixmap)        
+        self.main_painter.setPen(self.labels[self.current_label]["color"])
+
         
     def set_current_label(self, name):
         self.current_label = name

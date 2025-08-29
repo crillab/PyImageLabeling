@@ -33,3 +33,5 @@ class Utils():
     def color_to_stylesheet(color):
         return f"background-color: rgb({color.red()}, {color.green()}, {color.blue()}); color: {'white' if color.lightness() < 128 else 'black'};"
         
+    def compute_diagonal(x_1, y_1, x_2, y_2):
+        return ((x_1 - x_2) ** 2 + (y_1 - y_2) ** 2) ** 0.5

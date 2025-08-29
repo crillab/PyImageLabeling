@@ -1,149 +1,86 @@
 from PyImageLabeling.model.Core import Core
 import numpy as np
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene
-from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter 
+from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene, QGraphicsItem
+from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter, QPixmap 
 from PyQt6.QtCore import QPointF, Qt, QRectF
 
 from PyImageLabeling.model.Utils import Utils
 
+class PaintBrushItem(QGraphicsItem):
+
+    def __init__(self, x, y, color, size, main_painter):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.color = color
+        self.size = size
+        self.main_painter = main_painter
+        self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
+        
+        self.image_pixmap = QPixmap(self.size, self.size) 
+        self.image_pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(self.image_pixmap)
+        self.pen = QPen(color, self.size)
+        self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
+        painter.setPen(self.pen)
+        painter.drawPoint(int(self.size/2), int(self.size/2))
+        painter.end()
+        
+    def boundingRect(self):
+        return self.qrectf
+
+    def paint(self, painter, option, widget):
+        painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.image_pixmap) 
+        self.main_painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.image_pixmap) 
+
 class PaintBrush(Core):
     def __init__(self):
         super().__init__()
-        self.painter_path = None
-        self.last_point = None
-        self.paint_brush_activation = False
-        self.point_spacing = 2.0
-        self.n_trace = 0
+        self.last_position_x, self.last_position_y = None, None
+        self.point_spacing = 2
+        self.paint_brush_items = []
 
     def paint_brush(self):
-        self.checked_button = self.paint_brush.__name__
+        self.checked_button = self.paint_brush.__name__      
 
-    
-    
-    def add_point(self, start_pos, new_overlay_image, size_paint_brush, color):
-        
-        if size_paint_brush <= 3:
-            point_item = QGraphicsRectItem(
-                int(start_pos.x() - size_paint_brush/2), 
-                int(start_pos.y() - size_paint_brush/2), 
-                size_paint_brush,  
-                size_paint_brush   
-            )
-        else:
-            point_item = QGraphicsEllipseItem(
-                int(start_pos.x() - size_paint_brush/2), 
-                int(start_pos.y() - size_paint_brush/2), 
-                size_paint_brush,  
-                size_paint_brush   
-            )
-        
-        # Set color and style
-        
-        point_item.setBrush(QBrush(color))
-        point_item.setPen(QPen(color, 0))
-
-        # Add to scene
-        self.graphics_scene.addItem(point_item)
-        
-        # Properly initialize and manage QPainter
-        painter = QPainter()
-        painter.begin(new_overlay_image)
-        self.graphics_scene.render(painter)
-        painter.end()
-        
-        self.update_overlay(new_overlay_image)
-        
-
-    def start_paint_brush(self, start_pos):
-        print("self.n_trace:", self.n_trace)
-        self.n_trace = 0
-        #Initialize some data
-        self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
-        color = self.labels[self.current_label]["color"]
-        
+    def start_paint_brush(self, current_position):
         self.view.zoomable_graphics_view.change_cursor("paint")
         
-        #self.graphics_scene = QGraphicsScene()
-        #self.graphics_scene.setSceneRect(0, 0, width, height)
-        #self.add_point(start_pos, new_overlay_image, size_paint_brush, color)
+        self.current_position_x = int(current_position.x())
+        self.current_position_y = int(current_position.y())
 
+        self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
+        self.color = self.labels[self.current_label]["color"]
         
-        self.qpainter.setBrush(QBrush(color))
-        self.qpainter.setPen(QPen(color, 0))
-        parameters_draw = (int(start_pos.x() - self.size_paint_brush/2), int(start_pos.y() - self.size_paint_brush/2), self.size_paint_brush, self.size_paint_brush)
-        if self.size_paint_brush <= 3:
-            self.qpainter.drawRect(*parameters_draw)
-        else:
-            self.qpainter.drawEllipse(*parameters_draw)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.main_painter)
+        paint_brush_item.setZValue(2) # To place in the top of the item
+        self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
+        self.paint_brush_items.append(paint_brush_item)
         
-        self.draw_area = QRectF(start_pos.x(), start_pos.y(), 1, 1)
-        #self.draw_area.adjust(start_pos.x(), start_pos.y(), start_pos.x(), start_pos.y())
-        self.update_labeling_overlay(self.draw_area)
-        self.n_trace += 1
+        self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
-        
-        #print("end")
-        # Create a new path for this brush stroke
-        #self.painter_path = QPainterPath()
-        #self.painter_path.moveTo(start_pos)
-        
+    def move_paint_brush(self, current_position):
+        self.current_position_x = int(current_position.x())
+        self.current_position_y = int(current_position.y())
 
-        # Create the graphics item for this brush stroke
-        # self.graphics_path_item = QGraphicsPathItem(self.painter_path)
-        #pen = QPen(color, int(size_paint_brush))
-        #pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
+        if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
+            return 
         
-        #self.qpainter.setPen(pen)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.main_painter)
+        paint_brush_item.setZValue(2) # To place in the top of the item
+        self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
+        self.paint_brush_items.append(paint_brush_item)
         
-        # self.graphics_path_item.setPen(pen)
+        self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
-        # self.graphics_scene.addItem(self.graphics_path_item)
-        self.last_point = start_pos
+    def end_paint_brush(self):  
+        # Remove the dislay of all these item
+        for item in self.paint_brush_items:
+            self.zoomable_graphics_view.scene.removeItem(item)
+        self.paint_brush_items.clear()
 
-    def move_paint_brush(self, current_pos):
-        #self.view.zoomable_graphics_view.change_cursor("paint")
-        # self.start_paint_brush(current_pos)
-        
-        
-        
-        # width, height = self.image_pixmap.width(), self.image_pixmap.height()
-        # new_overlay_image = QImage(width, height, QImage.Format.Format_Mono)
-        # new_overlay_image.fill(Qt.GlobalColor.color0)
-
-        #if self.painter_path is None:
-        #     self.start_paint_brush(current_pos)
-        #     return
-
-        # # Only add point if it's far enough from the last point
-        if self.last_point is not None:
-            distance = ((current_pos.x() - self.last_point.x()) ** 2 +
-                        (current_pos.y() - self.last_point.y()) ** 2) ** 0.5
-            if distance < self.point_spacing:
-                return
-
-        parameters_draw = (int(current_pos.x() - self.size_paint_brush/2), int(current_pos.y() - self.size_paint_brush/2), self.size_paint_brush, self.size_paint_brush)
-        if self.size_paint_brush <= 3:
-            self.qpainter.drawRect(*parameters_draw)
-        else:
-            self.qpainter.drawEllipse(*parameters_draw)
-        #self.draw_area.united (current_pos.x(), current_pos.y(), current_pos.x(), current_pos.y())
-        
-        self.update_labeling_overlay(self.draw_area)
-        # # Add line to the path
-        #self.painter_path.lineTo(current_pos)
-
-        #self.qpainter.drawPath(self.painter_path)
-        #self.update_labeling_overlay()
-        self.n_trace += 1
-        
-        self.last_point = current_pos
-
+        # Display the good pixmap :) 
+        self.update_labeling_overlay()
         
 
-    def end_paint_brush(self):
-        color = self.labels[self.current_label]["color"]
-        self.qpainter.setBrush(QBrush(color))
-        self.qpainter.setPen(QPen(color, 0))
-
-        self.painter_path = None
-        self.last_point = None

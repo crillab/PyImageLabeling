@@ -106,12 +106,11 @@ class ZoomableGraphicsView(QGraphicsView):
         cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
         cursor = QCursor(cursor_pixmap)
         self.viewport().setCursor(cursor)
+        return cursor.pixmap().width(), cursor.pixmap().height()
 
     def zoom(self, factor):
-        print("self.view.zoom_factor:", self.view.zoom_factor)
         if self.view.min_zoom <= self.view.zoom_factor*factor <= self.view.max_zoom:
             view = self.view.zoomable_graphics_view
-            print("new self.view.zoom_factor:", self.view.zoom_factor)
             self.view.zoom_factor = self.view.zoom_factor * factor
             mouse_pos = view.mapFromGlobal(view.cursor().pos())
             scene_pos = view.mapToScene(mouse_pos)

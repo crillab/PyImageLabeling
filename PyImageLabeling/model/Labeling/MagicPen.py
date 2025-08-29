@@ -42,6 +42,8 @@ class MagicPen(Core):
 
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
+
+        
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
         print("self.image_pixmap:", self.image_pixmap)
         width, height = self.image_pixmap.width(), self.image_pixmap.height()
@@ -84,7 +86,7 @@ class MagicPen(Core):
             
             #Color the new_overlay
             #self.labeling_overlay.setPixel(x, y, 1)
-            self.qpainter.drawPoint(x, y)
+            self.main_painter.drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -92,7 +94,6 @@ class MagicPen(Core):
                 new_x, new_y = x + dx, y + dy
                 if (0 <= new_x < width and 0 <= new_y < height):
                     queue.append((new_x, new_y))
-            
         
         print("MagicPen: end n_pixels:", n_pixels)
         
@@ -121,7 +122,7 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            self.labeling_overlay.setPixel(x, y, 1)
+            self.main_painter.drawPoint(x, y)
             n_pixels += 1
             
             # Add neighbors
