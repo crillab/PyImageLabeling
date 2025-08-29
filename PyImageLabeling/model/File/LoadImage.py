@@ -2,15 +2,13 @@
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFileDialog
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
 from PyImageLabeling.model.Core import Core
-from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
 from PyImageLabeling.model.Utils import Utils
 
 import os
 import numpy
-from PIL import Image
 from skimage.color import rgb2hsv
 
         
@@ -24,47 +22,9 @@ class LoadImage(Core):
     
     def load_image(self, path_image):
         #remove all overlays#
-        self.clear_all()
-
-        pixmap = QPixmap(path_image)
-
-        #save a numpy matrix of colors
-        self.numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
-        #print("self.numpy_pixels_rgb:", self.numpy_pixels_rgb[0,0])
-        #self.numpy_pixels_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.numpy_pixels_rgb, 255))
-        #self.numpy_pixels_hsv = numpy.multiply(rgb2hsv(numpy.array(Image.open(path_image).convert("RGB"))), 255)
+        #self.clear_all()
+        super().load_image(path_image)
         
-        #print("self.numpy_pixels_hsv:", self.numpy_pixels_hsv[0,0])
-
-        print("load_image:", pixmap)
-        # Load the image
-        self.zoomable_graphics_view.scene.clear()
-        self.zoomable_graphics_view.resetTransform()
-        
-        # Add the image
-        self.image_pixmap_item = self.zoomable_graphics_view.scene.addPixmap(pixmap)
-        self.image_size = self.image_pixmap_item.boundingRect() 
-        self.image_pixmap_item.setZValue(1) # Image layer 
-        self.zoomable_graphics_view.setSceneRect(self.image_size)
-        self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.zoomable_graphics_view.centerOn(self.image_size.width()/2,self.image_size.height()/2)
-        
-        # Add the background item
-        self.view.event_eater_item = QBackgroundItem(self.image_size, self.controller)
-        self.view.event_eater_item.setZValue(0) # Base layer
-        self.view.zoomable_graphics_view.scene.addItem(self.view.event_eater_item)
-        self.image_pixmap_item.installSceneEventFilter(self.view.event_eater_item)
-        
-        # Compute the good value of the zoom 
-        self.initialyse_zoom_factor()
-
-        print("self.view.zoom_factor:", self.view.zoom_factor)
-        print("self.view.event_eater_item:", self.view.event_eater_item)
-       
-        print("sceneRect() 1:", self.zoomable_graphics_view.sceneRect() )
-        print("sceneRect() 2:", self.zoomable_graphics_view.scene.itemsBoundingRect())
-        
-        self.image_pixmap = pixmap
         
     def init_load_image(self):
         default_path = Utils.load_parameters()["load_image"]["path"]

@@ -7,4 +7,4 @@ class LoadLabels(Core):
         super().__init__() 
     
     def load_labels(self):
-        pass
+        print("load_labels")

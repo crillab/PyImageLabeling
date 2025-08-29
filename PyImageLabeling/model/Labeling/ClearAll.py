@@ -9,7 +9,7 @@ class ClearAll(Core):
         if not self.overlayers_pixmap:
             print("No overlays to clear")
             return False
-
+    
         # Clear the entire overlay list
         self.overlayers_pixmap.clear()
 

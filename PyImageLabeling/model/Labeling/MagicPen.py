@@ -34,8 +34,8 @@ class MagicPen(Core):
         #progress.show()
 
         try:
-            new_overlay = self._fill_shape_worker(scene_pos)
-            self.update_overlay(new_overlay) 
+            self._fill_shape_worker(scene_pos)
+            self.update_labeling_overlay() 
             #self._handle_fill_complete(new_overlay_pixmap, self.view.progressBar)
         except Exception as e:
             self._handle_fill_error(str(e), self.view.progressBar)
@@ -43,6 +43,7 @@ class MagicPen(Core):
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
+        print("self.image_pixmap:", self.image_pixmap)
         width, height = self.image_pixmap.width(), self.image_pixmap.height()
         if not (0 <= initial_position_x < width and 0 <= initial_position_y < height): return None
 
@@ -52,20 +53,18 @@ class MagicPen(Core):
         method = Utils.load_parameters()["magic_pen"]["method"] 
 
         #Initialize some data
-        new_overlay_image = QImage(width, height, QImage.Format.Format_Mono)
-        new_overlay_image.fill(Qt.GlobalColor.color0)
         visited = numpy.full((width, height), False)
 
         #Call the good method
         if method == "HSV":
-            return self._fill_shape_hsv(new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
+            return self._fill_shape_hsv(visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
         elif method == "RGB":
-            return self._fill_shape_rgb(new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
+            return self._fill_shape_rgb(visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
         else:
             raise NotImplementedError("Mathod not implmented: "+str(method))
         print("MagicPen: image created")
         
-    def _fill_shape_rgb(self, new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
+    def _fill_shape_rgb(self, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
         #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
         target_rgb = self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(int)   
         queue = deque()
@@ -84,7 +83,8 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            new_overlay_image.setPixel(x, y, 1)
+            #self.labeling_overlay.setPixel(x, y, 1)
+            self.qpainter.drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -92,11 +92,12 @@ class MagicPen(Core):
                 new_x, new_y = x + dx, y + dy
                 if (0 <= new_x < width and 0 <= new_y < height):
                     queue.append((new_x, new_y))
-
+            
+        
         print("MagicPen: end n_pixels:", n_pixels)
-        return new_overlay_image
+        
     
-    def _fill_shape_hsv(self, new_overlay_image, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
+    def _fill_shape_hsv(self, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
         #Convertion HSV is to slow: an optimization to do is to use openCv2 to store an HSV matrix in LoadImage. 
 
         #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
@@ -120,7 +121,7 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            new_overlay_image.setPixel(x, y, 1)
+            self.labeling_overlay.setPixel(x, y, 1)
             n_pixels += 1
             
             # Add neighbors
@@ -130,8 +131,7 @@ class MagicPen(Core):
                     queue.append((new_x, new_y))
 
         print("MagicPen: end n_pixels:", n_pixels)
-        return new_overlay_image
-
+   
     
     def _handle_fill_complete(self, new_overlay_pixmap, progress):
         """Handle completion of fill operation"""

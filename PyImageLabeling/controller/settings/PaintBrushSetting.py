@@ -10,7 +10,7 @@ class PaintBrushSetting(QDialog):
         self.resize(500, 100)
 
         self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
-        self.max_size = int(min(model.image_size.width(), model.image_size.height()))
+        self.max_size = min(model.image_qrect.width(), model.image_qrect.height())
         self.min_size = 1
         if not (self.min_size <= self.size_paint_brush <= self.max_size):
             self.size_paint_brush = 5

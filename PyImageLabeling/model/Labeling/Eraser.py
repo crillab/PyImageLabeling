@@ -146,8 +146,9 @@ class Eraser(Core):
 
         # Paint eraser on the image
         painter = QPainter(overlay_image)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 0)))
+        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setBrush(QBrush(Qt.GlobalColor.color1))
+        
         painter.setPen(Qt.PenStyle.NoPen)
 
         erase_x = int(scene_pos.x() - self.eraser_size)
@@ -158,6 +159,8 @@ class Eraser(Core):
         painter.end()
 
         # Convert QImage to QPixmap before setting
+        self.view.zoomable_graphics_view.update()
+        self.view.zoomable_graphics_view.scene.update()
         self.update_overlay(overlay_image)
 
     def _calculate_distance(self, pos1, pos2):
