@@ -10,25 +10,24 @@ import numpy
 class Core():
 
     def __init__(self):
-        self.labels = dict()
+        self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
         
-        self.current_label = None
-        self.checked_button = None
+        self.current_label = None # The current label selected
+        self.checked_button = None # The current button checked
+        
 
-        self.backgroung_item = None
+        self.backgroung_item = None # The QBackgroundItem behind the images
 
-        self.image_item = None
-        self.image_pixmap = None
+        self.image_pixmap = None # The current pixmap of the image
+        self.image_item = None # The current pixmap item of the image in the scene
+        self.image_numpy_pixels_rgb = None # The current RGB numpy matrix of the image  
 
-        self.numpy_pixels_rgb = None
+        self.labeling_overlay_pixmap = None # The current pixmap of labeling_overlay
+        self.labeling_overlay_item = None # The current pixmap item of labeling_overlay
+        self.labeling_overlay_painter = None # The painter of labeling_overlay
 
-        self.labeling_overlay_item = None
-        self.labeling_overlay_pixmap = None
-
-        self.image_qrectf = None
-        self.image_qrect = None
-
-        self.main_painter = None
+        self.image_qrectf = None # Float size in QRectF
+        self.image_qrect = None # Integer size in Qrect
 
     def set_view(self, view):
         self.view = view
@@ -65,7 +64,7 @@ class Core():
         self.initialyse_zoom_factor()
 
         #save a numpy matrix of colors
-        self.numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
+        self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
        
         print("load_image:", self.image_pixmap)
         
@@ -99,8 +98,8 @@ class Core():
         else:
             self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
-        self.main_painter = QPainter(self.labeling_overlay_pixmap)        
-        self.main_painter.setPen(self.labels[self.current_label]["color"])
+        self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
+        self.labeling_overlay_painter.setPen(self.labels[self.current_label]["color"])
 
         
     def set_current_label(self, name):

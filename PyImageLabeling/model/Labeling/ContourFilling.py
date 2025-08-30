@@ -6,6 +6,8 @@ import numpy as np
 import cv2
 import traceback
 
+from PyImageLabeling.model.Utils import Utils
+
 class ContourFilling(Core):
     def __init__(self):
         super().__init__()
@@ -113,7 +115,8 @@ class ContourFilling(Core):
             return
 
         # Get tolerance parameters based on current tolerance level
-        params = self._tolerance_params[self.view.contour_tolerance]
+        self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"] 
+        params = self._tolerance_params[self.tolerance]
 
         # Convert the actual image pixmap to QImage and then to NumPy array
         image = self.image_pixmap.toImage()  # Convert QPixmap to QImage
@@ -160,7 +163,7 @@ class ContourFilling(Core):
         # Mark that the contour layer is applied
         self.contour_layer_applied = True
 
-        print(f"Applied contours with tolerance level {self.view.contour_tolerance}: {len(contours)} contours found")
+        print(f"Applied contours with tolerance level {self.tolerance}: {len(contours)} contours found")
 
     def fill_contour(self, scene_pos):
         """Fill the contour clicked by the user."""
@@ -201,7 +204,7 @@ class ContourFilling(Core):
             if target_contour is None:
                 # If no direct contour contains the point, try nearby points within a tolerance
                 # Use contour tolerance to determine search radius
-                search_tolerance = max(1, self.view.contour_tolerance // 2)
+                search_tolerance = max(1, self.tolerance // 2)
                 for dx in range(-search_tolerance, search_tolerance + 1):
                     for dy in range(-search_tolerance, search_tolerance + 1):
                         check_x = image_x + dx
@@ -224,14 +227,14 @@ class ContourFilling(Core):
 
             if target_contour is None:
                 raise ValueError("Click position is outside any detected contour (even with tolerance)")
-
+            print("contour found")
             # Create a mask from the specific contour
             mask = np.zeros((self.height, self.width), dtype=np.uint8)
             cv2.drawContours(mask, [target_contour], 0, 255, -1)  # Fill the contour with white
 
             # Apply morphological closing to fill small gaps based on tolerance
             # Higher tolerance = larger kernel for filling bigger gaps
-            kernel_size = min(2 + (self.view.contour_tolerance // 3), 7)  # Scale from 2 to 7
+            kernel_size = min(2 + (self.tolerance // 3), 7)  # Scale from 2 to 7
             kernel = np.ones((kernel_size, kernel_size), np.uint8)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
@@ -242,6 +245,7 @@ class ContourFilling(Core):
                     if mask[y, x] == 255:
                         filled_points.append(QPointF(float(x), float(y)))
 
+            print("filled points Ok")
             return filled_points
 
         except Exception as e:
@@ -254,16 +258,17 @@ class ContourFilling(Core):
             return None
 
         # Create a new QImage for the points overlay (using Format_Mono like MagicPen)
-        points_overlay_image = QImage(self.width, self.height, QImage.Format.Format_Mono)
-        points_overlay_image.fill(Qt.GlobalColor.color0)
+        #points_overlay_image = QImage(self.width, self.height, QImage.Format.Format_Mono)
+        #points_overlay_image.fill(Qt.GlobalColor.color0)
 
         # Set each filled point in the image
         for point in self.filled_points:
             x, y = int(point.x()), int(point.y())
             if 0 <= x < self.width and 0 <= y < self.height:
-                points_overlay_image.setPixel(x, y, 1)
+                self.labeling_overlay_painter.drawPoint(x, y)
+                #points_overlay_image.setPixel(x, y, 1)
 
-        return points_overlay_image
+        #return points_overlay_image
 
     def _handle_fill_contour_complete(self, new_points, progress):
         """Handles the completion of the fill operation using the new overlay system."""
@@ -286,8 +291,8 @@ class ContourFilling(Core):
             self.points_history.append(new_points)
 
             # Create and update the overlay using the external update_overlay function
-            new_overlay_image = self.create_points_overlay()
-            self.update_overlay(new_overlay_image)
+            self.create_points_overlay()
+            self.update_labeling_overlay()
 
             QMessageBox.information(self.view, "Fill Complete", f"Filled {len(new_points)} points.")
 
@@ -295,10 +300,6 @@ class ContourFilling(Core):
             QMessageBox.warning(self.view, "Rendering Error", f"Failed to render fill: {str(e)}")
             print(f"Fill rendering error: {traceback.format_exc()}")
 
-    def update_points_overlay(self):
-        """Update method using the external overlay system."""
-        new_overlay_image = self.create_points_overlay()
-        self.update_overlay(new_overlay_image)
 
     def _handle_fill_contour_error(self, error, progress):
         """Handles any errors that occur during the fill operation."""

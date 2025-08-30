@@ -6,7 +6,6 @@ from PyQt6.QtCore import Qt
 class QLabelSettingForm(QDialog):
 
     def __init__(self, parent, builder, name="", color=QColor(246, 97, 81)):
-        print("HERE")
         super().__init__(parent)
         self.builder = builder
         self.name = name

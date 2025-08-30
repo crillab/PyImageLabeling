@@ -1,12 +1,15 @@
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt
 
+from PyImageLabeling.model.Utils import Utils
+
 class ContourFillingSetting(QDialog):
-    def __init__(self, parent, current_contour_tolerance=3):
+    def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Paint Brush Settings")
+        self.resize(500, 100)
 
-        self.tolerance = current_contour_tolerance
+        self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"] 
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
@@ -88,4 +91,8 @@ class ContourFillingSetting(QDialog):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
         self.tolerance = self.tolerance_slider.value()
+        data = Utils.load_parameters()
+        data["contour_filling"]["tolerance"] = self.tolerance
+        Utils.save_parameters(data) 
         return super().accept()
+    

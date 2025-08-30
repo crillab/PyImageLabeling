@@ -45,7 +45,7 @@ class View(QMainWindow):
                 # The button have not to be the same that clicked
                 # The button have to be checked 
                 # The clicked button have to be checkable 
-                print("button:",button)
+                #print("button:",button)
                 if button != clicked and buttons_bar[button].isChecked() is True:
                     buttons_bar[button].setChecked(False)
                 if button == clicked:
@@ -61,8 +61,8 @@ class View(QMainWindow):
         if category_key_selected is None:
             raise ValueError("Bad category_key in the dictionnary `self.config[labeling_bar]` for " + str(labeling_mode)+ ".")
 
-        print("ess:", self.buttons_labeling_bar)
-        print("category_key_selected:", category_key_selected)
+        #print("ess:", self.buttons_labeling_bar)
+        #print("Labeling Type:", category_key_selected)
 
         for button_key in self.buttons_labeling_bar.keys():
             self.buttons_labeling_bar[button_key].setEnabled(False)

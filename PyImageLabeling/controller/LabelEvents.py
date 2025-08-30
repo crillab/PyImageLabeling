@@ -12,12 +12,11 @@ class LabelEvents(Events):
     def new_label(self):
         self.all_events(self.new_label.__name__)
         self.view.build_label_setting_form()
-
+        
         print("new_label")
 
     def new_label_end(self, data_new_label):  
-        self.model.new_label(data_new_label)      
-        print("new_label_end:", data_new_label)
+        self.model.new_label(data_new_label)   
 
 
     def load_labels(self):
