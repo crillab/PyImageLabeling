@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
-from PyQt6.QtCore import Qt, QPointF, QPoint
+from PyQt6.QtCore import Qt, QPointF, QPoint, QLine
 from PyQt6.QtGui import QPixmap, QImage, QColor,  QPainter, QPen
 from PyImageLabeling.model.Core import Core
 import numpy as np
@@ -8,11 +8,27 @@ import traceback
 
 from PyImageLabeling.model.Utils import Utils
 
+import time
+
+TOLERENCE_PARAMETERS = {
+            1: {'canny_low': 100, 'canny_high': 200, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 50},
+            2: {'canny_low': 80, 'canny_high': 180, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 30},
+            3: {'canny_low': 70, 'canny_high': 160, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 20},
+            4: {'canny_low': 60, 'canny_high': 140, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 15},
+            5: {'canny_low': 50, 'canny_high': 150, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 10}, 
+            6: {'canny_low': 40, 'canny_high': 120, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 8},
+            7: {'canny_low': 30, 'canny_high': 100, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 5},
+            8: {'canny_low': 25, 'canny_high': 80, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 3},
+            9: {'canny_low': 20, 'canny_high': 60, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
+            10: {'canny_low': 15, 'canny_high': 40, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 1}
+        }
+
 class ContourFilling(Core):
     def __init__(self):
         super().__init__()
         self.contour_layer_applied = False
         self.contours = []
+        self.line_items = []
         # Separate overlay items for contours and filled shapes
         self.overlay_pixmap_item_contour = None  
         self.overlay_pixmap_contour = None  
@@ -62,8 +78,8 @@ class ContourFilling(Core):
         # Create or update the contour overlay pixmap item
         if self.overlay_pixmap_item_contour is None:
             self.overlay_pixmap_item_contour = self.view.zoomable_graphics_view.scene.addPixmap(self.overlay_pixmap_contour)
-            if hasattr(self.view, 'pixmap_item'):
-                self.overlay_pixmap_item_contour.setPos(self.view.pixmap_item.pos())
+            #if hasattr(self.view, 'pixmap_item'):
+            #    self.overlay_pixmap_item_contour.setPos(self.view.pixmap_item.pos())
             self.overlay_pixmap_item_contour.setZValue(1)  # Set Z-value to be above the base image
         else:
             self.overlay_pixmap_item_contour.setPixmap(self.overlay_pixmap_contour)
@@ -82,8 +98,45 @@ class ContourFilling(Core):
             self.overlay_pixmap_contour = None
             self.contour_layer_applied = False
             self.view.zoomable_graphics_view.scene.update()
+    
+    def get_contours(self):
+        # Convert to grayscale (use OpenCV)
+        image_numpy_pixels_gray = cv2.cvtColor(self.image_numpy_pixels_rgb, cv2.COLOR_RGB2GRAY)
+        # Apply Gaussian blur to reduce noise (kernel size based on tolerance)
+        image_numpy_pixels_blurred = cv2.GaussianBlur(image_numpy_pixels_gray, (self.tolerance_parameters["blur_kernel"], self.tolerance_parameters["blur_kernel"]), 0)
+        # Apply Canny edge detection with tolerance-based parameters
+        image_numpy_pixels_canny = cv2.Canny(image_numpy_pixels_blurred, self.tolerance_parameters["canny_low"], self.tolerance_parameters["canny_high"]) 
+        # Apply dilation to connect nearby edges (iterations based on tolerance)
+        if self.tolerance_parameters['dilate_iter'] > 0:
+            image_numpy_pixels_canny = cv2.dilate(image_numpy_pixels_canny, np.ones((2, 2), np.uint8), iterations=self.tolerance_parameters['dilate_iter'])
+        # Find contours with hierarchy to better handle nested shapes
+        contours, _ = cv2.findContours(image_numpy_pixels_canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_L1)
+        # Filter out small contours based on tolerance level
+        contours = [cnt for cnt in contours if cv2.contourArea(cnt) > self.tolerance_parameters["min_area"]]
+        return contours
 
     def apply_contour(self):
+        start = time.time()
+        self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"]
+        self.tolerance_parameters = TOLERENCE_PARAMETERS[self.tolerance]
+        self.contours = self.get_contours() # It is in list of contours. A contour is a list of points (x, y). 
+
+        # It is more faster to do that because cv2 loop into the points of contours in c++, not python
+        contour_numpy_pixels = np.zeros((self.height, self.width, 4), dtype=np.uint8)
+        cv2.drawContours(contour_numpy_pixels, self.contours, -1, self.labels[self.current_label]["color"].darker(200).getRgb(), 1)
+        self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.width, self.height, self.width * 4, QImage.Format.Format_RGBA8888))
+        self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
+        self.coutour_filling_item.setZValue(3)
+
+        end = time.time()
+        length = end - start
+        print("It took", length, "seconds!")
+        print("end apply_contour")
+
+        
+
+    def apply_contour_n(self):
+        start = time.time()
         """Detects contours from the base image using tolerance-based parameters."""
         if self.image_pixmap is None:
             msg_box = QMessageBox()
@@ -123,7 +176,8 @@ class ContourFilling(Core):
         buffer = image.constBits()
         buffer.setsize(self.height * self.width * 4)  # 4 channels (RGBA)
         img_array = np.frombuffer(buffer, dtype=np.uint8).reshape((self.height, self.width, 4))
-
+        img_array = self.image_numpy_pixels_rgb
+        
         # Convert to grayscale (use OpenCV)
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
 
@@ -148,6 +202,7 @@ class ContourFilling(Core):
 
         # Save contours for later use
         self.contours = contours
+        print("self.contours:", self.contours[0])
 
         # Create a transparent layer to visualize the contours (Blue lines)
         contour_layer = np.zeros((self.height, self.width, 4), dtype=np.uint8)
@@ -162,7 +217,9 @@ class ContourFilling(Core):
 
         # Mark that the contour layer is applied
         self.contour_layer_applied = True
-
+        end = time.time()
+        length = end - start
+        print("It took", length, "seconds!")
         print(f"Applied contours with tolerance level {self.tolerance}: {len(contours)} contours found")
 
     def fill_contour(self, scene_pos):

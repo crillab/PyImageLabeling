@@ -1,5 +1,5 @@
 
-from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush
+from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtCore import Qt, QSize
 
 from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
@@ -25,6 +25,9 @@ class Core():
         self.labeling_overlay_pixmap = None # The current pixmap of labeling_overlay
         self.labeling_overlay_item = None # The current pixmap item of labeling_overlay
         self.labeling_overlay_painter = None # The painter of labeling_overlay
+
+        self.coutour_filling_pixmap = None
+        self.coutour_filling_item = None
 
         self.image_qrectf = None # Float size in QRectF
         self.image_qrect = None # Integer size in Qrect
@@ -65,6 +68,7 @@ class Core():
 
         #save a numpy matrix of colors
         self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
+
        
         print("load_image:", self.image_pixmap)
         
@@ -99,8 +103,8 @@ class Core():
             self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
-        self.labeling_overlay_painter.setPen(self.labels[self.current_label]["color"])
-
+        self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
         
     def set_current_label(self, name):
         self.current_label = name
