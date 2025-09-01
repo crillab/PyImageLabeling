@@ -32,6 +32,28 @@ class Builder:
         self.build_file_bar()
         self.build_status_bar()
 
+        #self.build_apply_cancel_bar()
+
+    # def build_apply_cancel_bar(self):
+    #     self.apply_cancel_bar_container = QWidget()
+    #     apply_cancel_bar_layout = QHBoxLayout(self.apply_cancel_bar_container)
+
+    #     for button in self.view.config["apply_cancel_bar"]:
+    #         button_name = button["name"]
+    #         self.view.buttons_apply_cancel_bar[button_name] = QPushButton()
+    #         self.view.buttons_apply_cancel_bar[button_name].setToolTip(button["tooltip"]) # Detailed tooltip
+    #         self.view.buttons_apply_cancel_bar[button_name].setObjectName("permanent")
+    #         icon_path = Utils.get_icon_path(button["icon"])
+    #         if os.path.exists(icon_path):
+    #             self.view.buttons_apply_cancel_bar[button_name].setIcon(QIcon(icon_path))
+    #             self.view.buttons_apply_cancel_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+    #         self.view.buttons_apply_cancel_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
+    #         self.view.buttons_apply_cancel_bar[button_name].setCheckable(button["checkable"])
+
+    #         apply_cancel_bar_layout.addWidget(self.view.buttons_apply_cancel_bar[button_name])
+    #     self.apply_cancel_bar_container.setGeometry(QRect(0, 0, 200, 220))
+    #     self.view.main_layout.addWidget(self.apply_cancel_bar_container)
+
     def build_status_bar(self):
         self.view.statusBar().showMessage('Ready')
         self.view.progressBar = QProgressBar()

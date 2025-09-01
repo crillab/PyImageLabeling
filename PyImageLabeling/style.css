@@ -3,6 +3,14 @@ QWidget {
     /*border: 1px solid #000000;*/
 }
 
+QWidget#apply_cancel_bar {
+    background-color: #616161;
+    border: 2px solid #000000;
+    padding: 0px;
+    margin: 0px;
+    
+}
+
 
 QMessageBox {
     color: white; 
@@ -219,6 +227,40 @@ QPushButton:disabled {
     background-color: #808080;
     color: #a0a0a0;
     border: 1px solid #666666;
+}
+QPushButton#dialog {
+    border: 1px solid #bbb;
+    background-color: #cccccc;
+    color: black;
+    text-align: left;
+    padding-left: 10px;
+    min-height: 20px;
+    max-height: 20px;
+    min-width: 125px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+QPushButton#dialog:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#dialog:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton#dialog:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
+}
+
+QPushButton#dialog:checked {
+    background-color: #fcfcfc;
+    border: 3px inset #bbb;
 }
 
 QPushButton#without_parameters {

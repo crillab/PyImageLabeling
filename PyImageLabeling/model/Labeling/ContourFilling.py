@@ -7,6 +7,7 @@ import cv2
 import traceback
 
 from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.controller.settings.ContourFillinApplyCancel import ContourFillinApplyCancel
 
 import time
 
@@ -116,7 +117,6 @@ class ContourFilling(Core):
         return contours
 
     def apply_contour(self):
-        start = time.time()
         self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"]
         self.tolerance_parameters = TOLERENCE_PARAMETERS[self.tolerance]
         self.contours = self.get_contours() # It is in list of contours. A contour is a list of points (x, y). 
@@ -128,9 +128,9 @@ class ContourFilling(Core):
         self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
         self.coutour_filling_item.setZValue(3)
 
-        end = time.time()
-        length = end - start
-        print("It took", length, "seconds!")
+        contourfillingsetting = ContourFillinApplyCancel(self.view)
+        contourfillingsetting.show()
+
         print("end apply_contour")
 
         

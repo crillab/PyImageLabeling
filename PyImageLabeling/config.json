@@ -19,6 +19,22 @@
             "width": 250
         }
     },
+    "apply_cancel_bar":[
+        {
+            "name": "apply",
+            "name_view": "Apply",
+            "icon": "apply",
+            "checkable": false,
+            "tooltip": "Apply an operation."
+        },
+        {
+            "name": "cancel",
+            "name_view": "Cancel",
+            "icon": "cancel",
+            "checkable": false,
+            "tooltip": "Cancel an operation."
+        }
+    ],
     "file_bar":[
         {
             "name": "load_images",

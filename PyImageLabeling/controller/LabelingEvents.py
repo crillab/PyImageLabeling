@@ -11,6 +11,13 @@ class LabelingEvents(Events):
 
     ### Buttons events
 
+    def apply(self):
+        print("apply")
+
+    def cancel(self):
+        print("cancel")
+
+
     def contour_filling(self):
         self.desactivate_buttons_labeling_image_bar(self.contour_filling.__name__)
         self.all_events(self.contour_filling.__name__)
@@ -59,6 +66,7 @@ class LabelingEvents(Events):
         self.model.clear_all()
 
     ### Setting Buttons events
+
 
     def contour_filling_setting(self):
         self.all_events(self.contour_filling_setting.__name__)
