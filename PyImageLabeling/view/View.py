@@ -53,6 +53,8 @@ class View(QMainWindow):
                 if button == clicked:
                     buttons_bar[button].setChecked(True)
 
+   
+
     def update_labeling_buttons(self, labeling_mode):
         print("labeling_mode", labeling_mode)
         category_key_selected = None

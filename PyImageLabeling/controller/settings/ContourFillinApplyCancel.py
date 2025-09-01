@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout
-from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtCore import Qt, QRect, QPoint
 
 from PyImageLabeling.model.Utils import Utils
 
@@ -9,8 +9,8 @@ class ContourFillinApplyCancel(QDialog):
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         #self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setObjectName("apply_cancel_bar")
-        self.setGeometry(QRect(100,100, 300, 70))
-        self.move(100,100)
+        #self.setGeometry(QRect(100,100, 300, 70))
+        self.move(parent.mapToGlobal(QPoint(10,10)))
         layout = QVBoxLayout()
         form_layout = QFormLayout()
 

@@ -36,12 +36,8 @@ class eventEater(QObject):
             elif self.model.checked_button == "magic_pen":
                 self.model.start_magic_pen(event.scenePos())
             elif self.model.checked_button == "contour_filling":
-                if self.view.layer_activation == True :
-                    self.model.remove_overlay()
-                    self.view.layer_activation = False
-                elif self.view.layer_activation == False :
-                    self.model.start_contour_filling()
-                    self.view.layer_activation = True
+                # Fill the contour clicked
+                self.model.fill_contour(event.scenePos())
             elif self.model.checked_button == "eraser":
                 self.model.start_eraser(event.scenePos())
 
@@ -59,15 +55,18 @@ class eventEater(QObject):
                 self.model.end_paint_brush()
             elif self.model.checked_button == "move_image":
                 self.model.end_move_tool()
+            elif self.model.checked_button == "contour_filling":
+                self.model.end_contour_filling()
             elif self.model.checked_button == "magic_pen":
+                
                 self.view.zoomable_graphics_view.change_cursor("magic")
             elif self.model.checked_button == "eraser":
                 self.model.end_eraser()
 
-        elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
-            if self.model.checked_button == "contour_filling":
-                if self.view.layer_activation == True :
-                    self.model.fill_contour(event.scenePos())
+        #elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
+        #    if self.model.checked_button == "contour_filling":
+        #        if self.view.layer_activation == True :
+        #            self.model.fill_contour(event.scenePos())
         
         #MouseButton.MiddleButton: move tool
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.MiddleButton:

@@ -19,18 +19,24 @@ class LabelingEvents(Events):
 
 
     def contour_filling(self):
+        self.model.remove_contour()
         self.desactivate_buttons_labeling_image_bar(self.contour_filling.__name__)
         self.all_events(self.contour_filling.__name__)
         self.view.zoomable_graphics_view.change_cursor("filling")
         self.model.contour_filling()
+        self.model.start_contour_filling()
         
     def paintbrush(self):
+        self.model.remove_contour()
+        
         self.desactivate_buttons_labeling_image_bar(self.paintbrush.__name__)
         self.all_events(self.paintbrush.__name__)
         self.view.zoomable_graphics_view.change_cursor("paint")
         self.model.paint_brush()
     
     def magic_pen(self):
+        self.model.remove_contour()
+        
         self.desactivate_buttons_labeling_image_bar(self.magic_pen.__name__)
         self.all_events(self.magic_pen.__name__)
         self.view.zoomable_graphics_view.change_cursor("magic")
@@ -56,6 +62,8 @@ class LabelingEvents(Events):
         self.model.undo()
         
     def eraser(self):
+        self.model.remove_contour()
+        
         self.desactivate_buttons_labeling_image_bar(self.eraser.__name__)
         self.all_events(self.eraser.__name__)
         self.view.zoomable_graphics_view.change_cursor("eraser")
@@ -71,17 +79,25 @@ class LabelingEvents(Events):
     def contour_filling_setting(self):
         self.all_events(self.contour_filling_setting.__name__)
         contourfillingsetting = ContourFillingSetting(self.view.zoomable_graphics_view)
-        contourfillingsetting.open()
-        
+        if contourfillingsetting.exec():
+            self.view.desactivate_buttons(self.contour_filling.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
+            self.contour_filling()
+
     def paintbrush_setting(self):
+        
         self.all_events(self.paintbrush_setting.__name__)
         paintbrushsetting = PaintBrushSetting(self.view.zoomable_graphics_view, self.model)
-        paintbrushsetting.open()
+        if paintbrushsetting .exec():
+            self.view.desactivate_buttons(self.paintbrush.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
+            self.paintbrush()
     
     def magic_pen_setting(self):
+        
         self.all_events(self.magic_pen_setting.__name__)
         magicpensetting = MagicPenSetting(self.view.zoomable_graphics_view)
-        magicpensetting.open()
+        if magicpensetting.exec():
+            self.view.desactivate_buttons(self.magic_pen.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
+            self.magic_pen()
         
     def ellipse_setting(self):
         self.all_events(self.ellipse_setting.__name__)
@@ -98,5 +114,7 @@ class LabelingEvents(Events):
     def eraser_setting(self):
         self.all_events(self.eraser_setting.__name__)
         erasersetting = EraserSetting(self.view.zoomable_graphics_view)
-        erasersetting.open()
+        if erasersetting.exec():
+            self.view.desactivate_buttons(self.eraser.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
+            self.eraser()
    

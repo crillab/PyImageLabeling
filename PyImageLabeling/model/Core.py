@@ -6,6 +6,7 @@ from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
 import numpy
+from collections import deque
 
 class Core():
 
@@ -25,12 +26,12 @@ class Core():
         self.labeling_overlay_pixmap = None # The current pixmap of labeling_overlay
         self.labeling_overlay_item = None # The current pixmap item of labeling_overlay
         self.labeling_overlay_painter = None # The painter of labeling_overlay
-
-        self.coutour_filling_pixmap = None
-        self.coutour_filling_item = None
+        self.previous_labeling_overlay_pixmap = None
 
         self.image_qrectf = None # Float size in QRectF
         self.image_qrect = None # Integer size in Qrect
+
+        self.undo_deque = deque()
 
     def set_view(self, view):
         self.view = view
@@ -87,24 +88,34 @@ class Core():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     def update_labeling_overlay(self):
-        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
+        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
+        if self.previous_labeling_overlay_pixmap is not None:
+            self.undo_deque.append(self.previous_labeling_overlay_pixmap)
+
+        self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
+
+
     def new_label(self, data_new_label):
         self.labels[data_new_label["name"]] = data_new_label
         self.set_current_label(data_new_label["name"])
 
         self.labeling_overlay_pixmap = QPixmap(QSize(self.image_qrect.width(), self.image_qrect.height()))
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
+        self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
 
         if self.labeling_overlay_item is None:
             self.labeling_overlay_item = self.view.zoomable_graphics_view.scene.addPixmap(self.labeling_overlay_pixmap)
-            self.labeling_overlay_item.setZValue(2)  
+            self.labeling_overlay_item.setZValue(3)  
         else:
             self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
-        
+
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
         self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
+        
+
+    
         
     def set_current_label(self, name):
         self.current_label = name
