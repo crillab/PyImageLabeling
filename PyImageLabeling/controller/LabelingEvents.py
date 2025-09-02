@@ -1,8 +1,8 @@
-from PyImageLabeling.controller.Events import Events
-from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
-from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
-from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
-from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
+from controller.Events import Events
+from controller.settings.MagicPenSetting import MagicPenSetting
+from controller.settings.PaintBrushSetting import PaintBrushSetting
+from controller.settings.EraserSetting import EraserSetting
+from controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
@@ -50,12 +50,14 @@ class LabelingEvents(Events):
     def rectangle(self):
         self.desactivate_buttons_labeling_image_bar(self.rectangle.__name__)
         self.all_events(self.rectangle.__name__)
-        print("rectangle")
+        self.view.zoomable_graphics_view.change_cursor("rectangle")
+        self.model.rectangle()
     
     def polygon(self):
         self.desactivate_buttons_labeling_image_bar(self.polygon.__name__)
         self.all_events(self.polygon.__name__)
-        print("polygon")
+        self.view.zoomable_graphics_view.change_cursor("polygon")
+        self.model.polygon()
 
     def undo(self):
         self.all_events(self.undo.__name__)

@@ -4,7 +4,7 @@ from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor
 from PyQt6.QtWidgets import QLabel
 import os
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 
 
@@ -40,6 +40,10 @@ class eventEater(QObject):
                 self.model.fill_contour(event.scenePos())
             elif self.model.checked_button == "eraser":
                 self.model.start_eraser(event.scenePos())
+            elif self.model.checked_button == "rectangle":
+                self.model.start_rectangle_tool(event.scenePos())
+            elif self.model.checked_button == "polygon":
+                self.model.start_polygon_tool(event.scenePos())
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
@@ -48,6 +52,8 @@ class eventEater(QObject):
                 self.model.move_move_tool(event)
             elif self.model.checked_button == "eraser":
                 self.model.move_eraser(event.scenePos())
+            elif self.model.checked_button == "rectangle":
+                self.model.move_rectangle_tool(event.scenePos())
                 
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
@@ -62,6 +68,8 @@ class eventEater(QObject):
                 self.view.zoomable_graphics_view.change_cursor("magic")
             elif self.model.checked_button == "eraser":
                 self.model.end_eraser()
+            elif self.model.checked_button == "rectangle":
+                self.model.end_rectangle_tool()
 
         #elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
         #    if self.model.checked_button == "contour_filling":
@@ -85,6 +93,7 @@ class eventEater(QObject):
 
         return True
 
+        
 class Events:
     def __init__(self):
         self.view = None

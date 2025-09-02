@@ -1,8 +1,8 @@
 
-from PyImageLabeling.controller.FileEvents import FileEvents
-from PyImageLabeling.controller.LabelingEvents import LabelingEvents
-from PyImageLabeling.controller.ImageEvents import ImageEvents
-from PyImageLabeling.controller.LabelEvents import LabelEvents
+from controller.FileEvents import FileEvents
+from controller.LabelingEvents import LabelingEvents
+from controller.ImageEvents import ImageEvents
+from controller.LabelEvents import LabelEvents
 
 
 class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):

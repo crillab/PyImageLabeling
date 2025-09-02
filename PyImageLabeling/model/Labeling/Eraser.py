@@ -1,9 +1,9 @@
 from PyQt6.QtCore import Qt, QPointF, QRectF, QPoint, QRect
 from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPainterPath, QPen
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 import math
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 class EraserBrushItem(QGraphicsItem):
 

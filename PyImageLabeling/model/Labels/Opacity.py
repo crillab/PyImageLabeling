@@ -1,7 +1,7 @@
 
 
 
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 
 class Opacity(Core):
     def __init__(self):

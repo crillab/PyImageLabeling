@@ -2,13 +2,13 @@
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtCore import Qt, QSize
 
-from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
+from view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
 import numpy
 from collections import deque
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 class Core():
 

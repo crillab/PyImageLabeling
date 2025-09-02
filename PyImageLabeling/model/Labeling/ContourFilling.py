@@ -1,13 +1,13 @@
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QGraphicsItem
 from PyQt6.QtCore import Qt, QPointF, QPoint, QLine, QRectF, QRect
 from PyQt6.QtGui import QPixmap, QImage, QColor,  QPainter, QPen
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 import numpy as np
 import cv2
 import traceback
 
-from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.controller.settings.ContourFillinApplyCancel import ContourFillinApplyCancel
+from model.Utils import Utils
+from controller.settings.ContourFillinApplyCancel import ContourFillinApplyCancel
 
 import time
 
