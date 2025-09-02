@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt, QRect, QPoint
 
-from model.Utils import Utils
+from PyImageLabeling.model.Utils import Utils
 
 class ContourFillinApplyCancel(QDialog):
     def __init__(self, parent):

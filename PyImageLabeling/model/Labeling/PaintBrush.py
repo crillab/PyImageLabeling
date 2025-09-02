@@ -1,10 +1,10 @@
-from model.Core import Core
+from PyImageLabeling.model.Core import Core
 import numpy as np
 from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene, QGraphicsItem
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter, QPixmap 
 from PyQt6.QtCore import QPointF, Qt, QRectF
 
-from model.Utils import Utils
+from PyImageLabeling.model.Utils import Utils
 
 class PaintBrushItem(QGraphicsItem):
 

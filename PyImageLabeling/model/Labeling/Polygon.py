@@ -1,4 +1,4 @@
-from model.Core import Core
+from PyImageLabeling.model.Core import Core
 from PyQt6.QtWidgets import QGraphicsPolygonItem
 from PyQt6.QtGui import QPen, QPolygonF
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF

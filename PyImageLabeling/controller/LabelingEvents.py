@@ -1,8 +1,8 @@
-from controller.Events import Events
-from controller.settings.MagicPenSetting import MagicPenSetting
-from controller.settings.PaintBrushSetting import PaintBrushSetting
-from controller.settings.EraserSetting import EraserSetting
-from controller.settings.ContourFillinSetting import ContourFillingSetting
+from PyImageLabeling.controller.Events import Events
+from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
+from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
+from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
+from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
 class LabelingEvents(Events):
