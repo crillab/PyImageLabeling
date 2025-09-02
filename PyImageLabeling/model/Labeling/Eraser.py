@@ -1,169 +1,125 @@
-from PyQt6.QtCore import Qt, QPointF, QRectF
-from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPainterPath
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem
+from PyQt6.QtCore import Qt, QPointF, QRectF, QPoint, QRect
+from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPainterPath, QPen
+from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem
 from PyImageLabeling.model.Core import Core
 import math
 from PyImageLabeling.model.Utils import Utils
 
+class EraserBrushItem(QGraphicsItem):
+
+    def __init__(self, x, y, color, size, labeling_overlay_painter, image_pixmap):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.color = color
+        self.size = size
+        self.labeling_overlay_painter = labeling_overlay_painter
+        self.image_pixmap = image_pixmap
+
+        #print("image_pixmap.width(), image_pixmap.height()", image_pixmap.width(), image_pixmap.height())
+        #self.image_pixmap = QPixmap(image_pixmap.width(), image_pixmap.height()) 
+        #self.image_pixmap.fill(Qt.GlobalColor.blue)
+
+        self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
+        self.qrectf = self.qrectf.intersected(image_pixmap.rect().toRectF())
+        alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
+        #print("self.qrectf:", self.qrectf)
+
+        self.eraser_texture = QPixmap(self.size, self.size) 
+        self.eraser_texture.fill(QColor(*alpha_color))
+        
+        painter = QPainter(self.eraser_texture)
+        #self.pen = QPen(color, self.size)
+        #self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
+        #painter.setPen(self.pen)
+        #painter.drawRect(0 , 0, 10 ,10)
+       
+        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.image_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
+        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        #painter.drawPoint(int(self.size/2), int(self.size/2))
+        painter.end()
+
+        
+        self.eraser_pixmap = QPixmap(self.size, self.size) 
+        self.eraser_pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(self.eraser_pixmap)
+        self.qbrush = QBrush()
+        self.qbrush.setTexture(self.eraser_texture)
+        self.pen = QPen(self.qbrush, self.size)
+        self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
+        painter.setPen(self.pen)
+        #painter.setBrush(self.qbrush)
+        painter.drawPoint(int(self.size/2), int(self.size/2))
+        painter.end()
+
+
+
+    def boundingRect(self):
+        return self.qrectf
+
+    def paint(self, painter, option, widget):
+        #print("coucou")
+        
+        painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.eraser_pixmap) 
+        #painter.drawPixmap(self.qrectf, self.image_pixmap, self.qrectf)
+        #self.labeling_overlay_painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.eraser_pixmap) 
+        
+        pen = QPen(Qt.GlobalColor.black, self.size)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
+        self.labeling_overlay_painter.setPen(pen)
+        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        self.labeling_overlay_painter.drawPoint(int(self.x), int(self.y))
+        
 class Eraser(Core):
     def __init__(self):
         super().__init__()
-        self.erasing_active = False
-        self.last_pos = None
+        self.last_position_x, self.last_position_y = None, None
+        self.point_spacing = 2
+        self.eraser_brush_items = []
 
     def eraser(self):
-        self.checked_button = self.eraser.__name__
+        self.checked_button = self.eraser.__name__      
 
-    def start_eraser(self, scene_pos):
-        self.eraser_size = Utils.load_parameters()["eraser"]["size"] 
+    def start_eraser(self, current_position):
         self.view.zoomable_graphics_view.change_cursor("eraser")
-        self.erasing_active = True
-        self.last_pos = scene_pos
-        self.erase_at_position(scene_pos)
-
-    def move_eraser(self, scene_pos):
-        if self.erasing_active:
-            if self.last_pos:
-                self.erase_line(self.last_pos, scene_pos)
-            else:
-                self.erase_at_position(scene_pos)
-            self.last_pos = scene_pos
-
-    def end_eraser(self):
-        self.erasing_active = False
-        self.last_pos = None
-
-    def erase_at_position(self, scene_pos):
-        """Erase all drawing elements at the given position"""
-        self._erase_paint_brush_items(scene_pos)
-        self._erase_magic_pen_overlay(scene_pos)
-        self._erase_contour_filling_overlays(scene_pos)
-
-    def erase_line(self, start_pos, end_pos):
-        """Smooth erasing between two points"""
-        distance = self._calculate_distance(start_pos, end_pos)
-        steps = max(1, int(distance / (self.eraser_size/ 2)))
-        for i in range(steps + 1):
-            t = i / steps
-            interp_x = start_pos.x() + (end_pos.x() - start_pos.x()) * t
-            interp_y = start_pos.y() + (end_pos.y() - start_pos.y()) * t
-            self.erase_at_position(QPointF(interp_x, interp_y))
-
-    def _erase_paint_brush_items(self, scene_pos):
-        """Erase QGraphicsItems from PaintBrush strokes"""
-        scene = self.view.zoomable_graphics_view.scene
-        eraser_rect = QRectF(
-            scene_pos.x() - self.eraser_size,
-            scene_pos.y() - self.eraser_size,
-            self.eraser_size * 2,
-            self.eraser_size * 2
-        )
-
-        items_in_area = scene.items(eraser_rect)
-        items_to_remove = []
-        items_to_modify = []
-
-        for item in items_in_area:
-            if isinstance(item, QGraphicsEllipseItem):
-                center = item.rect().center()
-                scene_center = item.mapToScene(center)
-                if self._calculate_distance(scene_pos, scene_center) <= self.eraser_size:
-                    items_to_remove.append(item)
-            elif isinstance(item, QGraphicsPathItem):
-                new_paths = self._erase_path_portion(item.path(), scene_pos, self.eraser_size)
-                if not new_paths:
-                    items_to_remove.append(item)
-                else:
-                    items_to_modify.append((item, new_paths))
-
-        for item in items_to_remove:
-            scene.removeItem(item)
-        for item, new_paths in items_to_modify:
-            scene.removeItem(item)
-            for segment in new_paths:
-                if not segment.isEmpty():
-                    new_item = QGraphicsPathItem(segment)
-                    new_item.setPen(item.pen())
-                    new_item.setBrush(item.brush())
-                    new_item.setZValue(item.zValue())
-                    new_item.setOpacity(item.opacity())
-                    scene.addItem(new_item)
-
-    def _erase_path_portion(self, path: QPainterPath, eraser_center: QPointF, eraser_radius: float):
-        """Remove portions of a path intersecting the eraser circle"""
-        if path.length() == 0:
-            return []
-
-        sample_distance = min(2.0, eraser_radius / 4)
-        num_samples = max(int(path.length() / sample_distance), 1)
-        sampled_points = []
-
-        for i in range(num_samples + 1):
-            t = i / num_samples
-            point = path.pointAtPercent(t)
-            keep = self._calculate_distance(eraser_center, point) > eraser_radius
-            sampled_points.append((point, keep))
-
-        path_segments = []
-        current_segment = []
-
-        for point, keep in sampled_points:
-            if keep:
-                current_segment.append(point)
-            elif current_segment:
-                if len(current_segment) > 1:
-                    segment = QPainterPath()
-                    segment.moveTo(current_segment[0])
-                    for p in current_segment[1:]:
-                        segment.lineTo(p)
-                    path_segments.append(segment)
-                current_segment = []
-
-        if current_segment and len(current_segment) > 1:
-            segment = QPainterPath()
-            segment.moveTo(current_segment[0])
-            for p in current_segment[1:]:
-                segment.lineTo(p)
-            path_segments.append(segment)
-
-        return path_segments
-
-    def _erase_magic_pen_overlay(self, scene_pos):
-        if self.overlayers_pixmap and self.overlayer_pixmap_item:
-            self._erase_from_pixmap_overlay(self.overlayers_pixmap, self.overlayer_pixmap_item, scene_pos)
-
-    def _erase_contour_filling_overlays(self, scene_pos):
-        if self.overlayers_pixmap and self.overlayer_pixmap_item:
-            self._erase_from_pixmap_overlay(self.overlayers_pixmap, self.overlayer_pixmap_item, scene_pos)
-
-    def _erase_from_pixmap_overlay(self, overlay_pixmaps, overlay_item, scene_pos):
-        """Erase from a pixmap overlay by painting transparent pixels"""
-        if not overlay_pixmaps or not overlay_item:
-            return
-
-        # Take the topmost overlay for painting
-        overlay_image = overlay_pixmaps[-1]
-
-        # Paint eraser on the image
-        painter = QPainter(overlay_image)
-        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-        painter.setBrush(QBrush(Qt.GlobalColor.color1))
         
-        painter.setPen(Qt.PenStyle.NoPen)
+        self.current_position_x = int(current_position.x())
+        self.current_position_y = int(current_position.y())
 
-        erase_x = int(scene_pos.x() - self.eraser_size)
-        erase_y = int(scene_pos.y() - self.eraser_size)
-        erase_diameter = int(self.eraser_size * 2)
+        self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
+        self.color = self.labels[self.current_label]["color"]
+        
+        eraser_brush_item = EraserBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.labeling_overlay_painter, self.image_pixmap)
+        eraser_brush_item.setZValue(3) # To place in the top of the item
+        self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
+        self.eraser_brush_items.append(eraser_brush_item)
+        
+        self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
-        painter.drawEllipse(erase_x, erase_y, erase_diameter, erase_diameter)
-        painter.end()
+    def move_eraser(self, current_position):
+        self.current_position_x = int(current_position.x())
+        self.current_position_y = int(current_position.y())
 
-        # Convert QImage to QPixmap before setting
-        self.view.zoomable_graphics_view.update()
-        self.view.zoomable_graphics_view.scene.update()
-        self.update_overlay(overlay_image)
+        if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
+            return 
+        
+        eraser_brush_item = EraserBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.labeling_overlay_painter, self.image_pixmap)
+        eraser_brush_item.setZValue(3) # To place in the top of the item
+        self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
+        self.eraser_brush_items.append(eraser_brush_item)
+        
+        self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
-    def _calculate_distance(self, pos1, pos2):
-        dx = pos1.x() - pos2.x()
-        dy = pos1.y() - pos2.y()
-        return math.sqrt(dx * dx + dy * dy)
+    def end_eraser(self):  
+        # Remove the dislay of all these item
+        for item in self.eraser_brush_items:
+            self.zoomable_graphics_view.scene.removeItem(item)
+        self.eraser_brush_items.clear()
+
+        # Display the good pixmap :) 
+        self.update_labeling_overlay()
+
+        self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
+        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)

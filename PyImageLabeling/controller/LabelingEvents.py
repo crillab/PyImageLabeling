@@ -87,7 +87,7 @@ class LabelingEvents(Events):
         
         self.all_events(self.paintbrush_setting.__name__)
         paintbrushsetting = PaintBrushSetting(self.view.zoomable_graphics_view, self.model)
-        if paintbrushsetting .exec():
+        if paintbrushsetting.exec():
             self.view.desactivate_buttons(self.paintbrush.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
             self.paintbrush()
     

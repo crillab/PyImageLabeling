@@ -8,7 +8,7 @@ from PyImageLabeling.model.Utils import Utils
 
 class PaintBrushItem(QGraphicsItem):
 
-    def __init__(self, x, y, color, size, labeling_overlay_painter):
+    def __init__(self, x, y, color, size, labeling_overlay_painter, image_qrectf):
         super().__init__()
         self.x = x
         self.y = y
@@ -16,6 +16,7 @@ class PaintBrushItem(QGraphicsItem):
         self.size = size
         self.labeling_overlay_painter = labeling_overlay_painter
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
+        self.qrectf = self.qrectf.intersected(image_qrectf)
         
         self.image_pixmap = QPixmap(self.size, self.size) 
         self.image_pixmap.fill(Qt.GlobalColor.transparent)
@@ -53,7 +54,7 @@ class PaintBrush(Core):
         self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
         self.color = self.labels[self.current_label]["color"]
         
-        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter, self.image_qrectf)
         paint_brush_item.setZValue(2) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
         self.paint_brush_items.append(paint_brush_item)
@@ -67,7 +68,7 @@ class PaintBrush(Core):
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
-        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter, self.image_qrectf)
         paint_brush_item.setZValue(2) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
         self.paint_brush_items.append(paint_brush_item)
@@ -82,5 +83,6 @@ class PaintBrush(Core):
 
         # Display the good pixmap :) 
         self.update_labeling_overlay()
+
         
 

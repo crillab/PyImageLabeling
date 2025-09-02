@@ -1,30 +1,24 @@
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap
 from PyImageLabeling.model.Core import Core
+from PyQt6.QtWidgets import QMessageBox
 
 class ClearAll(Core):
     def __init__(self):
         super().__init__()
 
     def clear_all(self):
-        if not self.overlayers_pixmap:
-            print("No overlays to clear")
-            return False
+        msgBox = QMessageBox(self.view.zoomable_graphics_view)
+        msgBox.setWindowTitle("Clear All")
+        msgBox.setText("Are you sure you want to delete all labels ?")
+        msgBox.setInformativeText("The `Undo` method will be reset.")
+        msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+        msgBox.setDefaultButton(QMessageBox.StandardButton.No)
+        msgBox.setModal(True)
+        result = msgBox.exec()
+        if result == QMessageBox.StandardButton.Yes:
+            self.labeling_overlay_painter.end()
+            self.undo_deque.clear()
+            self.initialyse_labeling_overlay()
+        
     
-        # Clear the entire overlay list
-        self.overlayers_pixmap.clear()
-
-        # Hide overlay display since none are left
-        self._hide_overlay_display()
-
-        return True
-
-    def _hide_overlay_display(self):
-        """Remove overlay pixmap item from the scene and update the view."""
-        if self.overlayer_pixmap_item is not None:
-            self.view.zoomable_graphics_view.scene.removeItem(self.overlayer_pixmap_item)
-            self.overlayer_pixmap_item = None
-
-        # Refresh the scene
-        self.view.zoomable_graphics_view.scene.update()
-        self.view.zoomable_graphics_view.update()
 

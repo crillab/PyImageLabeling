@@ -8,6 +8,8 @@ from PIL import Image
 import numpy
 from collections import deque
 
+from PyImageLabeling.model.Utils import Utils
+
 class Core():
 
     def __init__(self):
@@ -59,7 +61,8 @@ class Core():
         self.zoomable_graphics_view.centerOn(self.image_qrect.width()/2,self.image_qrect.height()/2)
         
         # Add the background item
-        self.backgroung_item = QBackgroundItem(self.image_qrectf, self.controller)
+        alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
+        self.backgroung_item = QBackgroundItem(self.image_qrectf, self.controller, alpha_color)
         self.backgroung_item.setZValue(0) # Base layer
         self.view.zoomable_graphics_view.scene.addItem(self.backgroung_item)
         self.image_item.installSceneEventFilter(self.backgroung_item)
@@ -99,7 +102,9 @@ class Core():
     def new_label(self, data_new_label):
         self.labels[data_new_label["name"]] = data_new_label
         self.set_current_label(data_new_label["name"])
-
+        self.initialyse_labeling_overlay()
+        
+    def initialyse_labeling_overlay(self):
         self.labeling_overlay_pixmap = QPixmap(QSize(self.image_qrect.width(), self.image_qrect.height()))
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
@@ -113,9 +118,7 @@ class Core():
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
         self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
-        
-
-    
+        self.previous_labeling_overlay_pixmap = None
         
     def set_current_label(self, name):
         self.current_label = name
