@@ -1,5 +1,5 @@
 
-from PyImageLabeling.mview.Builder import Builder
+from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem

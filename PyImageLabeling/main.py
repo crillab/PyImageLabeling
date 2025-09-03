@@ -1,5 +1,5 @@
 from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.mview.View import View
+from PyImageLabeling.view.View import View
 from PyImageLabeling.controller.Controller import Controller
 from PyImageLabeling.model.Model import Model
 

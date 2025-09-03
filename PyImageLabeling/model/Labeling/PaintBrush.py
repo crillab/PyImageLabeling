@@ -52,9 +52,9 @@ class PaintBrush(Core):
         self.current_position_y = int(current_position.y())
 
         self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
-        self.color = self.labels[self.current_label]["color"]
+        self.color = self.get_labeling_overlay().get_color()
         
-        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter, self.image_qrectf)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.get_labeling_overlay().get_painter(), self.image_qrectf)
         paint_brush_item.setZValue(2) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
         self.paint_brush_items.append(paint_brush_item)
@@ -68,7 +68,7 @@ class PaintBrush(Core):
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
-        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.labeling_overlay_painter, self.image_qrectf)
+        paint_brush_item = PaintBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_paint_brush, self.get_labeling_overlay().get_painter(), self.image_qrectf)
         paint_brush_item.setZValue(2) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(paint_brush_item) # update is already call in this method
         self.paint_brush_items.append(paint_brush_item)

@@ -2,13 +2,68 @@
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtCore import Qt, QSize
 
-from PyImageLabeling.mview.QBackgroundItem import QBackgroundItem
+from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
 import numpy
 from collections import deque
 
 from PyImageLabeling.model.Utils import Utils
+
+
+class LabelingOverlay():
+    ###
+    # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
+    ###
+
+    def __init__(self, scene, width, height, color):
+        self.scene = scene # The associated QGraphicScene of the QGraphicsView
+        self.width = width # The width of the Labeling Overlay QPixmap 
+        self.height = height # The height of the Labeling Overlay QPixmap
+        self.zvalue = 3 # The default ZValue 
+        self.color = QColor(color) # The color of labels in the Labeling Overlay
+
+        # Initialize the QPixmap
+        self.labeling_overlay_pixmap = QPixmap(QSize(self.width, self.height))
+        self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
+        
+        # Initialize the deque for the `undo` feature
+        self.undo_deque = deque()
+        self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
+        
+        # Initialize the QGraphicItem
+        self.labeling_overlay_item = self.scene.addPixmap(self.labeling_overlay_pixmap)
+        self.labeling_overlay_item.setZValue(self.zvalue)  
+
+        # Initialize the associated QPainter
+        self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
+        self.labeling_overlay_painter.setPen(QPen(self.color, 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        self.labeling_overlay_painter.setBrush(self.color)
+
+        # Initialize the previous pixmap for the `undo` feature
+        self.previous_labeling_overlay_pixmap = None
+        
+    def update(self):
+        # Change and update the QPixmap 
+        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap) 
+        
+        # For the `undo` feature, if we have a previous, add it in the deque 
+        if self.previous_labeling_overlay_pixmap is not None:
+            self.undo_deque.append(self.previous_labeling_overlay_pixmap)
+
+        # Create a copy to keep it in the previous pixmap variable
+        self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
+
+    def get_color(self):
+        return self.color
+    
+    def get_painter(self):
+        return self.labeling_overlay_painter
+
+    def set_zvalue(self, zvalue):
+        self.zvalue = zvalue
+        self.labeling_overlay_item.setZValue(self.zvalue)
+
 
 class Core():
 
@@ -25,10 +80,8 @@ class Core():
         self.image_item = None # The current pixmap item of the image in the scene
         self.image_numpy_pixels_rgb = None # The current RGB numpy matrix of the image  
 
-        self.labeling_overlay_pixmap = None # The current pixmap of labeling_overlay
-        self.labeling_overlay_item = None # The current pixmap item of labeling_overlay
-        self.labeling_overlay_painter = None # The painter of labeling_overlay
-        self.previous_labeling_overlay_pixmap = None
+        self.labeling_overlays = dict() # dict of LabelingOverlay instance 
+        self.current_labeling_overlay = None # The current selected LabelingOverlay
 
         self.image_qrectf = None # Float size in QRectF
         self.image_qrect = None # Integer size in Qrect
@@ -90,39 +143,43 @@ class Core():
         self.view.max_zoom = diagonal_pixmap/self.view.max_zoom        
         self.view.initial_zoom_factor = self.view.zoom_factor
 
-    def update_labeling_overlay(self):
-        
-        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
-        if self.previous_labeling_overlay_pixmap is not None:
-            self.undo_deque.append(self.previous_labeling_overlay_pixmap)
-
-        self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
-
-
-    def new_label(self, data_new_label):
+    # Add a new labeling overlay 
+    def new_labeling_overlay(self, data_new_label):
+        # Add the data of this new label in the label dictionnary
         self.labels[data_new_label["name"]] = data_new_label
-        self.set_current_label(data_new_label["name"])
-        self.initialyse_labeling_overlay()
-        
-    def initialyse_labeling_overlay(self):
-        self.labeling_overlay_pixmap = QPixmap(QSize(self.image_qrect.width(), self.image_qrect.height()))
-        self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
-        self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
 
-        if self.labeling_overlay_item is None:
-            self.labeling_overlay_item = self.view.zoomable_graphics_view.scene.addPixmap(self.labeling_overlay_pixmap)
-            self.labeling_overlay_item.setZValue(3)  
-        else:
-            self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
+        # Set the name of the current label 
+        self.current_label = data_new_label["name"]
 
-        self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)        
-        self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
-        self.previous_labeling_overlay_pixmap = None
+        # Create a new LabelingOverlay instance and add this in the list
+        self.current_labeling_overlay = LabelingOverlay(self.view.zoomable_graphics_view.scene, self.image_qrect.width(), self.image_qrect.height(), self.labels[self.current_label]["color"])
+        self.labeling_overlays[self.current_label] = self.current_labeling_overlay 
+        self.foreground_current_labeling_overlay()
+
+    # Change the current labeling overlay
+    def select_labeling_overlay(self, label_name):
+        self.current_labeling_overlay = self.labeling_overlays[label_name]
+        self.foreground_current_labeling_overlay()
+
+    def get_labeling_overlay(self):
+        return self.current_labeling_overlay
+
+    # Update the current labeling overlay 
+    def update_labeling_overlay(self):
+        self.current_labeling_overlay.update()
+
+    # Put at the foreground the current labeling overlay 
+    def foreground_current_labeling_overlay(self):
+        for name in self.labeling_overlays.keys():
+            if name == self.current_label:
+                self.labeling_overlays[name].set_zvalue(3)
+            else:
+                self.labeling_overlays[name].set_zvalue(2)
+        self.view.zoomable_graphics_view.scene.update()
+
         
-    def set_current_label(self, name):
-        self.current_label = name
-        print("current_label:", self.current_label)
+        
+        
         
     
 

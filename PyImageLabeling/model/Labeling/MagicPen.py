@@ -29,21 +29,11 @@ class MagicPen(Core):
         # Create progress dialog
         self.view.progressBar.reset()
 
-        #progress = QProgressDialog("Processing magic pen fill...", "Cancel", 0, 0, self.view)
-        #progress.setWindowModality(Qt.WindowModality.WindowModal)
-        #progress.show()
-
-        try:
-            self._fill_shape_worker(scene_pos)
-            self.update_labeling_overlay() 
-            #self._handle_fill_complete(new_overlay_pixmap, self.view.progressBar)
-        except Exception as e:
-            self._handle_fill_error(str(e), self.view.progressBar)
-
+        self._fill_shape_worker(scene_pos)
+        self.update_labeling_overlay() 
+    
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
-
-        
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
         print("self.image_pixmap:", self.image_pixmap)
         width, height = self.image_pixmap.width(), self.image_pixmap.height()
@@ -86,7 +76,7 @@ class MagicPen(Core):
             
             #Color the new_overlay
             #self.labeling_overlay.setPixel(x, y, 1)
-            self.labeling_overlay_painter.drawPoint(x, y)
+            self.get_labeling_overlay().labeling_overlay_painter.drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -122,7 +112,7 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            self.labeling_overlay_painter.drawPoint(x, y)
+            self.get_labeling_overlay().labeling_overlay_painter.drawPoint(x, y)
             n_pixels += 1
             
             # Add neighbors
@@ -134,73 +124,7 @@ class MagicPen(Core):
         print("MagicPen: end n_pixels:", n_pixels)
    
     
-    def _handle_fill_complete(self, new_overlay_pixmap, progress):
-        """Handle completion of fill operation"""
-        if progress:
-            progress.close()
-
-        if new_overlay_pixmap is None:
-            return
-
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-
-        try:
-            # Merge the new overlay with the existing overlay
-            if self.overlay_pixmap is None:
-                self.overlay_pixmap = new_overlay_pixmap
-            else:
-                # Create a painter to merge the new overlay with the existing one
-                painter = QPainter(self.overlay_pixmap)
-                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-                painter.drawPixmap(0, 0, new_overlay_pixmap)
-                painter.end()
-
-            # Add or update the overlay in the scene
-            self.add_or_update_overlay()
-
-            # Update the view
-            self.view.zoomable_graphics_view.update()
-            
-
-        except Exception as e:
-            print(f"Error during fill completion: {e}")
-        finally:
-            QApplication.restoreOverrideCursor()
-
-    def _handle_fill_error(self, error, progress):
-        """Handle errors during fill operation"""
-        if progress:
-            progress.close()
-        QMessageBox.warning(self.view, "Error", f"Magic pen fill operation failed: {error}")
-
-    def add_or_update_overlay(self):
-        """
-        Add or update the overlay layer on top of the base image.
-        """
-        if self.overlay_pixmap is None:
-            return False
-
-        # Scale the overlay to match the base image size if needed
-        if self.view.pixmap and self.overlay_pixmap.size() != self.view.pixmap.size():
-            self.overlay_pixmap = self.overlay_pixmap.scaled(
-                self.view.pixmap.size(),
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-
-        # Create or update the overlay pixmap item
-        if self.overlay_pixmap_item is None:
-            self.overlay_pixmap_item = self.view.zoomable_graphics_view.scene.addPixmap(self.overlay_pixmap)
-            if hasattr(self.view, 'pixmap_item'):
-                self.overlay_pixmap_item.setPos(self.view.pixmap_item.pos())
-            self.overlay_pixmap_item.setZValue(1)  # Set Z-value to be above the base image
-        else:
-            self.overlay_pixmap_item.setPixmap(self.overlay_pixmap)
-
-        # Update the scene
-        self.view.zoomable_graphics_view.scene.update()
-
-        return True
+    
     
     
 

@@ -23,54 +23,30 @@ TOLERENCE_PARAMETERS = {
             9: {'canny_low': 20, 'canny_high': 60, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
             10: {'canny_low': 15, 'canny_high': 40, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 1}
         }
-class ContourItem(QGraphicsItem):
+class ContourItem():
 
-    def __init__(self, points, color, labeling_overlay_painter):
+    def __init__(self, points, color):
         super().__init__()
         self.points = points
         self.color = color
-        self.labeling_overlay_painter = labeling_overlay_painter
         
-        print("points", self.points[0])
         self.qrectf = QRectF(points[0][0][0], points[0][0][1], 1, 1)
         for point in points:   
             self.qrectf = self.qrectf.united(QRectF(point[0][0], point[0][1], 1, 1))
         
         self.qrect = self.qrectf.toRect()
-        print("self.qrectf:", self.qrectf)
         contour_numpy_pixels = np.zeros((self.qrect.height(), self.qrect.width(), 4), dtype=np.uint8)
         
-        print("self.qrect:", self.qrect)
         for point in self.points:
             point[0][0], point[0][1] = point[0][0]-self.qrect.x(), point[0][1]-self.qrect.y()
         
-        print("points", self.points[0])
         cv2.drawContours(contour_numpy_pixels, [self.points], -1, self.color.getRgb(), -1)
         cv2.drawContours(contour_numpy_pixels, [self.points], 0, self.color.getRgb(), 1)
         
         self.image_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.qrect.width(), self.qrect.height(), self.qrect.width() * 4, QImage.Format.Format_RGBA8888))
-        
-        
-        #QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
-        
-        #self.image_pixmap = QPixmap(self.size, self.size) 
-        #self.image_pixmap.fill(Qt.GlobalColor.transparent)
-        
-        #painter = QPainter(self.image_pixmap)
-        #self.pen = QPen(color, self.size)
-        #self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
-        #painter.setPen(self.pen)
-        #painter.drawPoint(int(self.size/2), int(self.size/2))
-        #painter.end()
-        
-    def boundingRect(self):
-        return self.qrectf
     
-    def paint(self, painter, option, widget):
-        pass
-    
-    def paint_labeling_overlay(self):
-        self.labeling_overlay_painter.drawPixmap(self.qrect.x(), self.qrect.y(), self.image_pixmap) 
+    def paint_labeling_overlay(self, labeling_overlay_painter):
+        labeling_overlay_painter.drawPixmap(self.qrect.x(), self.qrect.y(), self.image_pixmap) 
 
         
 
@@ -132,11 +108,6 @@ class ContourFilling(Core):
         self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.image_qrect.width(), self.image_qrect.height(), self.image_qrect.width() * 4, QImage.Format.Format_RGBA8888))
         self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
         self.coutour_filling_item.setZValue(2)
-
-
-        
-        #self.contourfillingsetting = ContourFillinApplyCancel(self.view.zoomable_graphics_view)
-        #self.contourfillingsetting.show()
         print("end apply_contour")
 
     def find_closest_contour(self, position_x, position_y):
@@ -146,16 +117,18 @@ class ContourFilling(Core):
         return None
             
     def fill_contour(self, position):
+        # Find the good contour
         self.color = self.labels[self.current_label]["color"]
         position_x, position_y = int(position.x()), int(position.y()) 
         closest_contour = self.find_closest_contour(position_x, position_y)
         if closest_contour is None: return # We are not cliked inside of a contour
 
-        coutour_item = ContourItem(closest_contour, self.color, self.labeling_overlay_painter)
-        self.zoomable_graphics_view.scene.addItem(coutour_item) # update is already call in this method
-        coutour_item.setZValue(3) # To place in the top of the item
-        self.contour_items.append(coutour_item)
+        # Create a little QPixmap of this contour with cv2 
+        coutour_item = ContourItem(closest_contour, self.color, )
         
-        coutour_item.paint_labeling_overlay()
+        # Draw the contour QPixmap on the good labeling overlay 
+        coutour_item.paint_labeling_overlay(self.get_labeling_overlay().labeling_overlay_painter)
+        
+        # Update the labeling overlay
         self.update_labeling_overlay()
         

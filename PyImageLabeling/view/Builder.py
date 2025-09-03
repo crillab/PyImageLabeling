@@ -7,10 +7,10 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
 
-from PyImageLabeling.mview.ZoomableGraphicsView import ZoomableGraphicsView
-from PyImageLabeling.mview.QLabelSettingForm import QLabelSettingForm
+from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
+from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
 
-from PyImageLabeling.mview.QWidgets import QBlanckWidget1, QSeparator1
+from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
 import os
 
 class Builder:
@@ -246,6 +246,8 @@ class Builder:
             self.view.buttons_label_bar_permanent[button_name].setObjectName("permanent")
             self.view.buttons_label_bar_permanent[button_name].setToolTip(button["tooltip"])
             self.view.buttons_label_bar_permanent[button_name].setCheckable(button["checkable"])
+            self.view.buttons_label_bar_permanent[button_name].setEnabled(False)
+
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
                 self.view.buttons_label_bar_permanent[button_name].setIcon(QIcon(icon_path))
@@ -299,7 +301,7 @@ class Builder:
         activation_button.setObjectName('activation')
         activation_button.setCheckable(True)
         activation_button.setChecked(True)
-        activation_button.clicked.connect(lambda: self.view.controller.activation(activation_name))
+        activation_button.clicked.connect(lambda: self.view.controller.select_label(activation_name))
         self.view.buttons_label_bar_temporary[activation_name] = activation_button
         #data_new_label["button"] = activation_button
 

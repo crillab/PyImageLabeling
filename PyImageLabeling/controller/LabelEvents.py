@@ -16,7 +16,7 @@ class LabelEvents(Events):
         print("new_label")
 
     def new_label_end(self, data_new_label):  
-        self.model.new_label(data_new_label)   
+        self.model.new_labeling_overlay(data_new_label)   
 
 
     def load_labels(self):
@@ -28,19 +28,15 @@ class LabelEvents(Events):
         self.all_events(self.save_labels.__name__)
         print("save_layers")
 
-    def activation(self, activation_name):
-        label_name = activation_name.split("_")[-1]
-        #if self.model.current_label == label_name:
-        #    self.view.activate_buttons(activation_name, [self.view.buttons_label_bar_temporary])
-        #else:
-        self.desactivate_buttons_label_bar(activation_name)
-        print("activation_name:", activation_name)
+    def select_label(self, activation_name):
         self.all_events(activation_name)
-        self.model.set_current_label(label_name)
-        self.view.update_labeling_buttons(self.model.labels[self.model.current_label]["labeling_mode"])
+        
+        label_name = activation_name.split("_")[-1] #Get the label name
+        self.desactivate_buttons_label_bar(activation_name) # Deactivate the other labels
+        self.view.update_labeling_buttons(self.model.labels[self.model.current_label]["labeling_mode"]) # Active or deactivate the good labeling buttons 
+        self.model.select_labeling_overlay(label_name) # Call the model part to change the labeling overlay 
 
-
-        print("activation")
+        print("select_label")
 
     def color(self):
         self.all_events(self.color.__name__)
