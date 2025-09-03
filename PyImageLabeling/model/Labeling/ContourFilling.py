@@ -102,12 +102,13 @@ class ContourFilling(Core):
         if len(self.contours) == 0:
             raise ValueError("No contours found !")
 
+        self.color = self.get_labeling_overlay().get_color()
         # It is more faster to do that because cv2 loop into the points of contours in c++, not python
         contour_numpy_pixels = np.zeros((self.image_qrect.height(), self.image_qrect.width(), 4), dtype=np.uint8)
-        cv2.drawContours(contour_numpy_pixels, self.contours, -1, self.labels[self.current_label]["color"].darker(200).getRgb(), 1)
+        cv2.drawContours(contour_numpy_pixels, self.contours, -1, self.color.darker(200).getRgb(), 1)
         self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.image_qrect.width(), self.image_qrect.height(), self.image_qrect.width() * 4, QImage.Format.Format_RGBA8888))
         self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
-        self.coutour_filling_item.setZValue(2)
+        self.coutour_filling_item.setZValue(1)
         print("end apply_contour")
 
     def find_closest_contour(self, position_x, position_y):
@@ -118,7 +119,7 @@ class ContourFilling(Core):
             
     def fill_contour(self, position):
         # Find the good contour
-        self.color = self.labels[self.current_label]["color"]
+        self.color = self.get_labeling_overlay().get_color()
         position_x, position_y = int(position.x()), int(position.y()) 
         closest_contour = self.find_closest_contour(position_x, position_y)
         if closest_contour is None: return # We are not cliked inside of a contour
@@ -127,7 +128,7 @@ class ContourFilling(Core):
         coutour_item = ContourItem(closest_contour, self.color, )
         
         # Draw the contour QPixmap on the good labeling overlay 
-        coutour_item.paint_labeling_overlay(self.get_labeling_overlay().labeling_overlay_painter)
+        coutour_item.paint_labeling_overlay(self.get_labeling_overlay().get_painter())
         
         # Update the labeling overlay
         self.update_labeling_overlay()

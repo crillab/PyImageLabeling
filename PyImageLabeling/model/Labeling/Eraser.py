@@ -7,39 +7,33 @@ from PyImageLabeling.model.Utils import Utils
 
 class EraserBrushItem(QGraphicsItem):
 
-    def __init__(self, x, y, color, size, labeling_overlay_painter, image_pixmap):
+    def __init__(self, core, x, y, color, size):
         super().__init__()
         self.x = x
         self.y = y
         self.color = color
         self.size = size
-        self.labeling_overlay_painter = labeling_overlay_painter
-        self.image_pixmap = image_pixmap
+        self.labeling_overlay_painter = core.get_labeling_overlay().get_painter()
+        self.image_pixmap = core.image_pixmap
 
-        #print("image_pixmap.width(), image_pixmap.height()", image_pixmap.width(), image_pixmap.height())
-        #self.image_pixmap = QPixmap(image_pixmap.width(), image_pixmap.height()) 
-        #self.image_pixmap.fill(Qt.GlobalColor.blue)
-
+        # Compute the good qrect to avoid going beyond the painting area  
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
-        self.qrectf = self.qrectf.intersected(image_pixmap.rect().toRectF())
+        self.qrectf = self.qrectf.intersected(self.image_pixmap.rect().toRectF())
         alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
-        #print("self.qrectf:", self.qrectf)
 
+        # Create a fake texture with the good image inside 
         self.eraser_texture = QPixmap(self.size, self.size) 
         self.eraser_texture.fill(QColor(*alpha_color))
         
         painter = QPainter(self.eraser_texture)
-        #self.pen = QPen(color, self.size)
-        #self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
-        #painter.setPen(self.pen)
-        #painter.drawRect(0 , 0, 10 ,10)
-       
+        
         painter.drawPixmap(QRect(0, 0, self.size, self.size), self.image_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
-        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-        #painter.drawPoint(int(self.size/2), int(self.size/2))
+        for other_labeling_overlay_pixmap in core.get_labeling_overlay_pixmaps():
+            painter.drawPixmap(QRect(0, 0, self.size, self.size), other_labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
+            
         painter.end()
 
-        
+        # Use the fake texture as a QBrush texture of a draw point 
         self.eraser_pixmap = QPixmap(self.size, self.size) 
         self.eraser_pixmap.fill(Qt.GlobalColor.transparent)
 
@@ -49,7 +43,6 @@ class EraserBrushItem(QGraphicsItem):
         self.pen = QPen(self.qbrush, self.size)
         self.pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
         painter.setPen(self.pen)
-        #painter.setBrush(self.qbrush)
         painter.drawPoint(int(self.size/2), int(self.size/2))
         painter.end()
 
@@ -59,11 +52,7 @@ class EraserBrushItem(QGraphicsItem):
         return self.qrectf
 
     def paint(self, painter, option, widget):
-        #print("coucou")
-        
         painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.eraser_pixmap) 
-        #painter.drawPixmap(self.qrectf, self.image_pixmap, self.qrectf)
-        #self.labeling_overlay_painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.eraser_pixmap) 
         
         pen = QPen(Qt.GlobalColor.black, self.size)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
@@ -90,7 +79,7 @@ class Eraser(Core):
         self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
         self.color = self.labels[self.current_label]["color"]
         
-        eraser_brush_item = EraserBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.labeling_overlay_painter, self.image_pixmap)
+        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
         eraser_brush_item.setZValue(3) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
@@ -104,7 +93,7 @@ class Eraser(Core):
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
-        eraser_brush_item = EraserBrushItem(self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.labeling_overlay_painter, self.image_pixmap)
+        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
         eraser_brush_item.setZValue(3) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
@@ -120,6 +109,5 @@ class Eraser(Core):
         # Display the good pixmap :) 
         self.update_labeling_overlay()
 
-        self.labeling_overlay_painter.setPen(QPen(self.labels[self.current_label]["color"], 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        self.labeling_overlay_painter.setBrush(self.labels[self.current_label]["color"])
-        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        # Reset the pen of the good labeling overlay
+        self.get_labeling_overlay().reset_pen()

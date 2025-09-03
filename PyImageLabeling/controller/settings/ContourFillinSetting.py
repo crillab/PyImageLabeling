@@ -6,7 +6,7 @@ from PyImageLabeling.model.Utils import Utils
 class ContourFillingSetting(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle("Paint Brush Settings")
+        self.setWindowTitle("Contour Filling Settings")
         self.resize(500, 100)
 
         self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"] 
@@ -40,11 +40,6 @@ class ContourFillingSetting(QDialog):
         self.tolerance_description_label = QLabel()
         self.update_tolerance_description()
         form_layout.addRow("Description:", self.tolerance_description_label)
-
-        # Help text
-        tolerance_help = QLabel("Select the tolerance of your contouring")
-        tolerance_help.setStyleSheet("color: #666; font-style: italic;")
-        form_layout.addRow("", tolerance_help)
 
         layout.addLayout(form_layout)
 

@@ -2,14 +2,16 @@ from PyQt6.QtWidgets import QComboBox, QPushButton, QHBoxLayout, QColorDialog, Q
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
+import random
 
 class QLabelSettingForm(QDialog):
 
-    def __init__(self, parent, builder, name="", color=QColor(246, 97, 81)):
+    def __init__(self, parent, builder, name="", color=QColor(255, 255, 255)):
         super().__init__(parent)
         self.builder = builder
         self.name = name
-        self.color = color
+
+        self.color = QColor(random.choice(QColor.colorNames()))
         self.labeling_mode = self.builder.view.config["labeling_bar"]["pixel"]["name_view"]
 
         self.setWindowTitle("Label Setting")
@@ -34,7 +36,9 @@ class QLabelSettingForm(QDialog):
         #        self.label_combo.setCurrentIndex(index)
         #    else:
         #        self.label_combo.setCurrentText(self.label)
-        
+        self.name = "label "+str(parent.controller.model.n_labeling_overlays()+1)
+        self.label_combo.setCurrentText(self.name)
+
         self.label_combo.currentTextChanged.connect(self.name_update)
         label_layout.addWidget(self.label_combo)
         

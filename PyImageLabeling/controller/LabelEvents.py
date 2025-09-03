@@ -4,6 +4,8 @@ from  controller.Events import Events
 from PyQt6.QtWidgets import QFileDialog, QDialog
 from PyQt6.QtGui import QPixmap, QImage
 
+from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
+
 class LabelEvents(Events):
     def __init__(self):
         super().__init__()
@@ -52,6 +54,10 @@ class LabelEvents(Events):
             
     def opacity(self):
         self.all_events(self.opacity.__name__)
+        opacity_setting = OpacitySetting(self.view.zoomable_graphics_view)
+        if opacity_setting.exec():
+            self.model.set_opacity(opacity_setting.opacity)
+
         print("opacity")
 
 

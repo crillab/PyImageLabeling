@@ -32,6 +32,7 @@ class PaintBrushItem(QGraphicsItem):
         return self.qrectf
 
     def paint(self, painter, option, widget):
+        #painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Xor)
         painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.image_pixmap) 
         self.labeling_overlay_painter.drawPixmap(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.image_pixmap) 
 

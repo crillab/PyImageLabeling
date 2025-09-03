@@ -9,16 +9,14 @@ class ClearAll(Core):
     def clear_all(self):
         msgBox = QMessageBox(self.view.zoomable_graphics_view)
         msgBox.setWindowTitle("Clear All")
-        msgBox.setText("Are you sure you want to delete all labels ?")
+        msgBox.setText("Are you sure you want to delete the selected label ?")
         msgBox.setInformativeText("The `Undo` method will be reset.")
         msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
         msgBox.setDefaultButton(QMessageBox.StandardButton.No)
         msgBox.setModal(True)
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
-            self.labeling_overlay_painter.end()
-            self.undo_deque.clear()
-            self.initialyse_labeling_overlay()
+            self.get_labeling_overlay().reset()
         
     
 

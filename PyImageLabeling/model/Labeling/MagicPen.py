@@ -76,7 +76,7 @@ class MagicPen(Core):
             
             #Color the new_overlay
             #self.labeling_overlay.setPixel(x, y, 1)
-            self.get_labeling_overlay().labeling_overlay_painter.drawPoint(x, y)
+            self.get_labeling_overlay().get_painter().drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -112,7 +112,7 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            self.get_labeling_overlay().labeling_overlay_painter.drawPoint(x, y)
+            self.get_labeling_overlay().get_painter().drawPoint(x, y)
             n_pixels += 1
             
             # Add neighbors
