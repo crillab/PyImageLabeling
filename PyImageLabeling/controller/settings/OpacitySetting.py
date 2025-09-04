@@ -8,7 +8,7 @@ class OpacitySetting(QDialog):
         super().__init__(zoomable_graphic_view)
         self.setWindowTitle("Opacity Settings")
         self.resize(500, 100)
-        self.min_opacity = 0
+        self.min_opacity = 10
         self.max_opacity = 100
         
         self.opacity = Utils.load_parameters()["labeling_opacity"] 
@@ -16,7 +16,7 @@ class OpacitySetting(QDialog):
             self.opacity = 50
 
         layout = QVBoxLayout()
-        label = QLabel("Size of the brush in pixel:")
+        label = QLabel("Percentage (between 10 and 100):")
         layout.addWidget(label)
 
         slider_layout = QHBoxLayout()

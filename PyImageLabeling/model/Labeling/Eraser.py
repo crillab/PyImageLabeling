@@ -9,12 +9,13 @@ class EraserBrushItem(QGraphicsItem):
 
     def __init__(self, core, x, y, color, size):
         super().__init__()
+        self.core = core
         self.x = x
         self.y = y
         self.color = color
         self.size = size
-        self.labeling_overlay_painter = core.get_labeling_overlay().get_painter()
-        self.image_pixmap = core.image_pixmap
+        self.labeling_overlay_painter = self.core.get_labeling_overlay().get_painter()
+        self.image_pixmap = self.core.image_pixmap
 
         # Compute the good qrect to avoid going beyond the painting area  
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
@@ -28,7 +29,8 @@ class EraserBrushItem(QGraphicsItem):
         painter = QPainter(self.eraser_texture)
         
         painter.drawPixmap(QRect(0, 0, self.size, self.size), self.image_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
-        for other_labeling_overlay_pixmap in core.get_labeling_overlay_pixmaps():
+        painter.setOpacity(self.core.get_labeling_overlay().get_opacity())
+        for other_labeling_overlay_pixmap in self.core.get_labeling_overlay_pixmaps():
             painter.drawPixmap(QRect(0, 0, self.size, self.size), other_labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
             
         painter.end()
@@ -80,7 +82,7 @@ class Eraser(Core):
         self.color = self.labels[self.current_label]["color"]
         
         eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
-        eraser_brush_item.setZValue(3) # To place in the top of the item
+        eraser_brush_item.setZValue(4) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
         
@@ -94,7 +96,7 @@ class Eraser(Core):
             return 
         
         eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
-        eraser_brush_item.setZValue(3) # To place in the top of the item
+        eraser_brush_item.setZValue(4) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
         

@@ -56,7 +56,7 @@ class LabelEvents(Events):
         self.all_events(self.opacity.__name__)
         opacity_setting = OpacitySetting(self.view.zoomable_graphics_view)
         if opacity_setting.exec():
-            self.model.set_opacity(opacity_setting.opacity)
+            self.model.set_opacity(opacity_setting.opacity/100) # To normalize
 
         print("opacity")
 
