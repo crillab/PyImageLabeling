@@ -310,22 +310,31 @@ class Builder:
         self.view.label_bar_layout.addWidget(QSeparator1())
 
         for button in self.view.config["label_bar"]["layer"]:        
-            button_name = button["name"]
+            button_name = button["name"]+"_"+name
             self.view.buttons_label_bar_temporary[button_name] = QPushButton()
-            self.view.buttons_label_bar_temporary[button_name].setObjectName(button_name)
+            self.view.buttons_label_bar_temporary[button_name].setObjectName(button["name"])
             self.view.buttons_label_bar_temporary[button_name].setToolTip(button["tooltip"])
             self.view.buttons_label_bar_temporary[button_name].setCheckable(button["checkable"])
-            self.view.buttons_label_bar_temporary[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
+        
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
                 self.view.buttons_label_bar_temporary[button_name].setIcon(QIcon(icon_path))
                 self.view.buttons_label_bar_temporary[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
 
-            if button_name == "color":
+            if button["name"] == "color":
                 self.view.buttons_label_bar_temporary[button_name].setStyleSheet(Utils.color_to_stylesheet(color))
-            if button_name == "visibility":
+                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.color(activation_name))
+            
+            elif button["name"] == "visibility":
                 self.view.buttons_label_bar_temporary[button_name].setChecked(True)
-                
+                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.visibility(activation_name))
+            
+            elif button["name"] == "label_setting":
+                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.label_setting(activation_name))
+
+            elif button["name"] == "unload_label":
+                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.unload_label(activation_name))
+        
             new_layer_label_bar_layout.addWidget(self.view.buttons_label_bar_temporary[button_name])
         
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)

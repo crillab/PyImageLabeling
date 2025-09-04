@@ -37,21 +37,25 @@ class LabelEvents(Events):
         self.desactivate_buttons_label_bar(activation_name) # Deactivate the other labels
         self.view.update_labeling_buttons(self.model.labels[self.model.current_label]["labeling_mode"]) # Active or deactivate the good labeling buttons 
         self.model.select_labeling_overlay(label_name) # Call the model part to change the labeling overlay 
-
+        
+        self.view.buttons_label_bar_temporary["visibility_"+label_name].setChecked(True)
+        
         print("select_label")
 
-    def color(self):
+    def color(self, activation_name):
         self.all_events(self.color.__name__)
 
         print("color")
 
-    def visibility(self):
+    def visibility(self, activation_name):
         self.all_events(self.visibility.__name__)
-        if self.view.buttons_label_bar_temporary[self.visibility.__name__].isChecked() is True:
-            self.model.visibility(True)
+        label_name = activation_name.split("_")[-1] #Get the label name
+        if self.model.current_label == label_name:
+            # Do nothing 
+            self.view.buttons_label_bar_temporary["visibility_"+label_name].setChecked(True)
         else:
-            self.model.visibility(False)
-            
+            self.model.visibility(label_name)
+        
     def opacity(self):
         self.all_events(self.opacity.__name__)
         opacity_setting = OpacitySetting(self.view.zoomable_graphics_view)
@@ -61,12 +65,12 @@ class LabelEvents(Events):
         print("opacity")
 
 
-    def label_setting(self):
+    def label_setting(self, activation_name):
         self.all_events(self.label_setting.__name__)
 
         print("label_setting")
     
-    def unload_label(self):
+    def unload_label(self, activation_name):
         self.all_events(self.unload_label.__name__)
 
         print("unload_label")

@@ -48,6 +48,12 @@ class LabelingOverlay():
         # Initialize the previous pixmap for the `undo` feature
         self.previous_labeling_overlay_pixmap = None
         
+    def change_visible(self):
+        if self.labeling_overlay_item.isVisible() is True:
+            self.labeling_overlay_item.setVisible(False)
+        else:
+            self.labeling_overlay_item.setVisible(True)
+
     def reset(self):
         #self.labeling_overlay_painter.end()
 
@@ -223,6 +229,7 @@ class Core():
     def select_labeling_overlay(self, label_name):
         self.current_labeling_overlay = self.labeling_overlays[label_name]
         self.current_label = label_name
+        self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
         self.foreground_current_labeling_overlay()
 
     def n_labeling_overlays(self):
@@ -239,10 +246,8 @@ class Core():
     def foreground_current_labeling_overlay(self):        
         for name in self.labeling_overlays.keys():
             if name == self.current_label:
-                print("first plan:", name)
                 self.labeling_overlays[name].set_zvalue(3)
             else:
-                print("under plan:", name)
                 self.labeling_overlays[name].set_zvalue(2)
         self.view.zoomable_graphics_view.scene.update()
 
