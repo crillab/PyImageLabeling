@@ -70,7 +70,11 @@ class eventEater(QObject):
                 self.model.end_eraser()
             elif self.model.checked_button == "rectangle":
                 self.model.end_rectangle_tool()
-
+        
+        elif event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Delete:
+            if self.model.checked_button == "rectangle":
+                self.model.clear_rectangle()
+                
         #elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
         #    if self.model.checked_button == "contour_filling":
         #        if self.view.layer_activation == True :
@@ -90,7 +94,6 @@ class eventEater(QObject):
             #    return False  
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
-
         return True
 
         

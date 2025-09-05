@@ -5,7 +5,6 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 
 HANDLE_SIZE = 8  # Size of corner handles for resizing
-ROTATION_HANDLE_DISTANCE = 20  # Distance of rotation handle from rectangle
 HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
 class RectangleItem(QGraphicsRectItem):
@@ -38,11 +37,6 @@ class RectangleItem(QGraphicsRectItem):
     def update_handles(self):
         """Update corner handle and rotation handle positions"""
         rect = self.rect()
-        
-        # Rotation handle (positioned above the rectangle)
-        center_top = QPointF(rect.center().x(), rect.center().y())
-        rotation_pos = center_top - QPointF(0, ROTATION_HANDLE_DISTANCE)
-        self.rotation_handle = QRectF(rotation_pos - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
 
         # Corner handles for resizing
         self.handles = {
@@ -50,7 +44,7 @@ class RectangleItem(QGraphicsRectItem):
             'top_right': QRectF(rect.topRight() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'bottom_left': QRectF(rect.bottomLeft() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'bottom_right': QRectF(rect.bottomRight() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'rotation': self.rotation_handle 
+            'rotation': QRectF(QPointF(rect.center()) - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
         }
 
     def hoverEnterEvent(self, event):
@@ -81,11 +75,6 @@ class RectangleItem(QGraphicsRectItem):
                 near_handle = True
                 break
         
-        # Check rotation handle
-        if not near_handle and self.rotation_handle:
-            if self.distance_to_rect(pos, self.rotation_handle) < HANDLE_DETECTION_DISTANCE:
-                near_handle = True
-        
         # Also show handles when selected
         if self.isSelected():
             near_handle = True
@@ -105,16 +94,13 @@ class RectangleItem(QGraphicsRectItem):
         """Update cursor based on which handle is under mouse"""
         if not self.handles_visible:
             return
-            
-        # Check rotation handle first
-        if self.rotation_handle and self.rotation_handle.contains(pos):
-            self.setCursor(Qt.CursorShape.OpenHandCursor)
-            return
-            
+  
         # Check resize handles
         for name, rect in self.handles.items():
             if rect.contains(pos):
-                if name in ['top_left', 'bottom_right']:
+                if name in ['rotation']:
+                    self.setCursor(Qt.CursorShape.OpenHandCursor)
+                elif name in ['top_left', 'bottom_right']:
                     self.setCursor(Qt.CursorShape.SizeFDiagCursor)
                 elif name in ['top_right', 'bottom_left']:
                     self.setCursor(Qt.CursorShape.SizeBDiagCursor)
@@ -134,10 +120,10 @@ class RectangleItem(QGraphicsRectItem):
                 painter.drawRect(handle_rect)
             
             # Draw rotation handle (circular) at center
-            if self.rotation_handle:
+            if self.handles['rotation']:
                 painter.setPen(QPen(Qt.GlobalColor.blue, 2, Qt.PenStyle.SolidLine))
                 painter.setBrush(QBrush(Qt.GlobalColor.blue, Qt.BrushStyle.SolidPattern))
-                painter.drawEllipse(self.rotation_handle)
+                painter.drawEllipse(self.handles['rotation'])
 
     def mousePressEvent(self, event):
         self.handle_selected = None
@@ -159,6 +145,7 @@ class RectangleItem(QGraphicsRectItem):
         if self.handle_selected == 'rotation':
             # Handle rotation
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self.handles_visible = False
             rect_center = self.rect().center()
             self.setTransformOriginPoint(rect_center)
             
@@ -184,7 +171,7 @@ class RectangleItem(QGraphicsRectItem):
             # Handle resizing
             pos = event.pos()
             rect = self.rect()
-
+            self.handles_visible = False
             if self.handle_selected == 'top_left':
                 rect.setTopLeft(pos)
             elif self.handle_selected == 'top_right':
@@ -216,14 +203,14 @@ class RectangleItem(QGraphicsRectItem):
     def mouseReleaseEvent(self, event):
         if self.handle_selected == 'rotation':
             self.setCursor(Qt.CursorShape.OpenHandCursor)
-            # Accept the event to prevent propagation
             event.accept()
         self.handle_selected = None
-        
+        self.handles_visible = True
+        self.update()
+
         # Only call super if we didn't handle rotation
         if not (self.handle_selected == 'rotation' or event.isAccepted()):
             super().mouseReleaseEvent(event)
-
 
 class Rectangle(Core):
     def __init__(self):
@@ -235,7 +222,8 @@ class Rectangle(Core):
 
     def rectangle(self):
         self.checked_button = self.rectangle.__name__
-
+        self.zoomable_graphics_view.scene.selectionChanged.connect(self.update_selected_rectangle)
+        
     def cleanup_temporary_rectangles(self):
         """Remove preview rectangles"""
         if self.current_rectangle:
@@ -245,7 +233,7 @@ class Rectangle(Core):
 
     def start_rectangle_tool(self, current_position):
         """Mouse press → start drawing"""
-        self.view.zoomable_graphics_view.change_cursor("rectangle")
+        self.zoomable_graphics_view.change_cursor("rectangle")
         self.cleanup_temporary_rectangles()
 
         self.first_click_pos = QPointF(current_position.x(), current_position.y())
@@ -294,6 +282,24 @@ class Rectangle(Core):
             final_rectangle.setZValue(2)
             final_rectangle.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable, True)
             self.zoomable_graphics_view.scene.addItem(final_rectangle)
+            self.selected_rectangle = final_rectangle
 
         self.first_click_pos = None
         self.is_drawing = False
+    
+    def update_selected_rectangle(self):
+        """Update selected_rectangle when user clicks on a rectangle"""
+        selected_items = self.zoomable_graphics_view.scene.selectedItems()
+        if selected_items:
+            item = selected_items[-1]  # last selected item
+            if isinstance(item, RectangleItem):
+                self.selected_rectangle = item
+        else:
+            self.selected_rectangle = None
+
+    def clear_rectangle(self):
+        """Remove the currently selected rectangle from the scene"""
+        if self.selected_rectangle:
+            if self.selected_rectangle in self.zoomable_graphics_view.scene.items():
+                self.view.zoomable_graphics_view.scene.removeItem(self.selected_rectangle)
+            self.selected_rectangle = None
