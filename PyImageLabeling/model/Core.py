@@ -102,6 +102,26 @@ class LabelingOverlay():
         painter.end()
         return labeling_overlay_pixmap_opacity
 
+    def update_color(self):
+        # Apply Color
+        color_pixmap =  QPixmap(self.labeling_overlay_pixmap.width(), self.labeling_overlay_pixmap.height())
+        color_pixmap.fill(self.color)
+        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        self.labeling_overlay_painter.drawPixmap(0, 0, color_pixmap)
+        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        
+        # Update
+        labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
+        self.labeling_overlay_item.setPixmap(labeling_overlay_pixmap_opacity)
+
+        # Apply on the undo pixmap
+        painter = QPainter()
+        for pixmap in self.undo_deque:
+            painter.begin(pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.drawPixmap(0, 0, color_pixmap)
+            painter.end()
+
     def update(self):
         # Create a new pixmap for opacity
         labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
@@ -119,6 +139,9 @@ class LabelingOverlay():
     def get_color(self):
         return self.color
     
+    def set_color(self, color):
+        self.color = color
+
     def get_painter(self):
         return self.labeling_overlay_painter
 

@@ -1,11 +1,12 @@
 
 from  controller.Events import Events
 
-from PyQt6.QtWidgets import QFileDialog, QDialog
+from PyQt6.QtWidgets import QFileDialog, QDialog, QColorDialog
 from PyQt6.QtGui import QPixmap, QImage
 
 from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
 
+from PyImageLabeling.model.Utils import Utils
 class LabelEvents(Events):
     def __init__(self):
         super().__init__()
@@ -44,8 +45,15 @@ class LabelEvents(Events):
 
     def color(self, activation_name):
         self.all_events(self.color.__name__)
+        print("dd:", activation_name)
+        label_name = activation_name.split("_")[-1] 
+        print("label _name:", label_name)
+        color = QColorDialog.getColor(self.model.get_labeling_overlay().get_color())
+        self.model.get_labeling_overlay().set_color(color)
+        self.model.get_labeling_overlay().update_color()
+        self.view.buttons_label_bar_temporary["color_"+label_name].setStyleSheet(Utils.color_to_stylesheet(color))
 
-        print("color")
+        print("color:", color)
 
     def visibility(self, activation_name):
         self.all_events(self.visibility.__name__)
