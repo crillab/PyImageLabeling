@@ -44,6 +44,8 @@ class eventEater(QObject):
                 self.model.start_rectangle_tool(event.scenePos())
             elif self.model.checked_button == "polygon":
                 self.model.start_polygon_tool(event.scenePos())
+            elif self.model.checked_button == "ellipse":
+                self.model.start_ellipse_tool(event.scenePos())
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
@@ -54,6 +56,10 @@ class eventEater(QObject):
                 self.model.move_eraser(event.scenePos())
             elif self.model.checked_button == "rectangle":
                 self.model.move_rectangle_tool(event.scenePos())
+            elif self.model.checked_button == "polygon":
+                self.model.move_polygon_tool(event.scenePos())
+            elif self.model.checked_button == "ellipse":
+                self.model.move_ellipse_tool(event.scenePos())
                 
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
@@ -70,10 +76,18 @@ class eventEater(QObject):
                 self.model.end_eraser()
             elif self.model.checked_button == "rectangle":
                 self.model.end_rectangle_tool()
-        
-        elif event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Delete:
+            elif self.model.checked_button == "ellipse":
+                self.model.end_ellipse_tool()
+
+        elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
+        #elif event.type() == QEvent.Type.KeyPress:
+            #if event.key() == Qt.Key.Key_Delete:
             if self.model.checked_button == "rectangle":
                 self.model.clear_rectangle()
+            if self.model.checked_button == "polygon":
+                self.model.clear_polygon()
+            if self.model.checked_button == "ellipse":
+                self.model.clear_ellipse()
                 
         #elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
         #    if self.model.checked_button == "contour_filling":

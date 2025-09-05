@@ -45,7 +45,8 @@ class LabelingEvents(Events):
     def ellipse(self):
         self.desactivate_buttons_labeling_image_bar(self.ellipse.__name__)
         self.all_events(self.ellipse.__name__)
-        print("ellipse")
+        self.view.zoomable_graphics_view.change_cursor("ellipse")
+        self.model.ellipse()
 
     def rectangle(self):
         self.desactivate_buttons_labeling_image_bar(self.rectangle.__name__)
