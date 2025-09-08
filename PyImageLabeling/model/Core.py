@@ -47,6 +47,14 @@ class LabelingOverlay():
 
         # Initialize the previous pixmap for the `undo` feature
         self.previous_labeling_overlay_pixmap = None
+
+        # Initialize others pixmaps and painters to change the color or opacity operations
+        self.labeling_overlay_opacity_pixmap = QPixmap(self.width, self.height)
+        self.labeling_overlay_opacity_painter = QPainter(self.labeling_overlay_opacity_pixmap)
+        
+        self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
+        self.labeling_overlay_color_painter = QPainter()
+        
         
     def change_visible(self):
         if self.labeling_overlay_item.isVisible() is True:
@@ -66,11 +74,8 @@ class LabelingOverlay():
     def set_opacity(self, opacity):
         self.opacity = opacity
 
-        # Create a new pixmap for opacity
-        labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
-
         # Change and update the QPixmap 
-        self.labeling_overlay_item.setPixmap(labeling_overlay_pixmap_opacity)
+        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
         
 
     def get_opacity(self):
@@ -87,47 +92,37 @@ class LabelingOverlay():
                 self.undo_deque.append(self.labeling_overlay_pixmap.copy())
             
             # Create a new pixmap for opacity
-            labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
 
-            self.labeling_overlay_item.setPixmap(labeling_overlay_pixmap_opacity)
+            self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
             self.labeling_overlay_painter.begin(self.labeling_overlay_pixmap)
             self.reset_pen()
 
     def generate_opacity_pixmap(self):
-        labeling_overlay_pixmap_opacity = QPixmap(self.labeling_overlay_pixmap.width(), self.labeling_overlay_pixmap.height())
-        labeling_overlay_pixmap_opacity.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(labeling_overlay_pixmap_opacity)
-        painter.setOpacity(self.get_opacity())
-        painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
-        painter.end()
-        return labeling_overlay_pixmap_opacity
+        self.labeling_overlay_opacity_pixmap.fill(Qt.GlobalColor.transparent)
+        self.labeling_overlay_opacity_painter.setOpacity(self.get_opacity())
+        self.labeling_overlay_opacity_painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
+        return self.labeling_overlay_opacity_pixmap
 
     def update_color(self):
         # Apply Color
-        color_pixmap =  QPixmap(self.labeling_overlay_pixmap.width(), self.labeling_overlay_pixmap.height())
-        color_pixmap.fill(self.color)
+        self.labeling_overlay_color_pixmap.fill(self.color)
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-        self.labeling_overlay_painter.drawPixmap(0, 0, color_pixmap)
+        self.labeling_overlay_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         
         # Update
-        labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
-        self.labeling_overlay_item.setPixmap(labeling_overlay_pixmap_opacity)
+        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
 
-        # Apply on the undo pixmap
-        painter = QPainter()
+        # Apply the color on the undo pixmaps
         for pixmap in self.undo_deque:
-            painter.begin(pixmap)
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-            painter.drawPixmap(0, 0, color_pixmap)
-            painter.end()
+            self.labeling_overlay_color_painter.begin(pixmap)
+            self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
+            self.labeling_overlay_color_painter.end()
 
     def update(self):
-        # Create a new pixmap for opacity
-        labeling_overlay_pixmap_opacity = self.generate_opacity_pixmap()
-
         # Change and update the QPixmap 
-        self.labeling_overlay_item.setPixmap(labeling_overlay_pixmap_opacity) 
+        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap()) 
         
         # For the `undo` feature, if we have a previous, add it in the deque 
         if self.previous_labeling_overlay_pixmap is not None:

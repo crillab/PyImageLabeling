@@ -71,6 +71,7 @@ class PaintBrushItem(QGraphicsItem):
         self.position_x = int(self.x-(self.size/2))
         self.position_y = int(self.y-(self.size/2))
         self.bounding_rect = QRectF(self.position_x, self.position_y, self.size, self.size)
+        self.bounding_rect = self.bounding_rect.intersected(core.image_qrectf)
 
         # Create the image of the first point
         self.texture = QPixmap(self.size, self.size) 
@@ -100,6 +101,7 @@ class PaintBrushItem(QGraphicsItem):
         new_position_x = int(new_x-(self.size/2))
         new_position_y = int(new_y-(self.size/2))
         new_bounding_rect = QRectF(new_position_x, new_position_y, self.size, self.size)
+        new_bounding_rect = new_bounding_rect.intersected(self.core.image_qrectf)
 
         # Do the union of the two bounding rects 
         self.united_bounding_rect = self.bounding_rect.united(new_bounding_rect)
