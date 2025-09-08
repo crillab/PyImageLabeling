@@ -4,7 +4,7 @@ from PyQt6.QtGui import QPen, QCursor, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 
-HANDLE_SIZE = 8  # Size of corner handles for resizing
+HANDLE_SIZE = 8  # Size of handles for resizing
 HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
 class EllipseItem(QGraphicsEllipseItem):
@@ -21,7 +21,7 @@ class EllipseItem(QGraphicsEllipseItem):
             QGraphicsEllipseItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
 
-        self.handles = {}  # Dictionary to track corner handles
+        self.handles = {}  # Dictionary to track handles
         self.rotation_handle = None  # Rotation handle
         self.handle_selected = None
         self.mouse_press_pos = None
@@ -34,16 +34,41 @@ class EllipseItem(QGraphicsEllipseItem):
         
         self.update_handles()
 
-    def update_handles(self):
-        """Update corner handle and rotation handle positions"""
+    def get_ellipse_point(self, angle_degrees):
+        """Get a point on the ellipse perimeter at the given angle"""
         rect = self.rect()
+        center_x = rect.center().x()
+        center_y = rect.center().y()
+        
+        # Semi-major and semi-minor axes
+        a = rect.width() / 2  # horizontal radius
+        b = rect.height() / 2  # vertical radius
+        
+        # Convert angle to radians
+        angle_rad = math.radians(angle_degrees)
+        
+        # Parametric equations for ellipse
+        x = center_x + a * math.cos(angle_rad)
+        y = center_y + b * math.sin(angle_rad)
+        
+        return QPointF(x, y)
 
-        # Corner handles for resizing (even though it's an ellipse, we use rect corners)
+    def update_handles(self):
+        """Update handle positions on the ellipse perimeter"""
+        rect = self.rect()
+        
+        # Place handles at 0°, 90°, 180°, 270° on the ellipse perimeter
+        right_point = self.get_ellipse_point(0)      # Right (0°)
+        bottom_point = self.get_ellipse_point(90)    # Bottom (90°) 
+        left_point = self.get_ellipse_point(180)     # Left (180°)
+        top_point = self.get_ellipse_point(270)      # Top (270°)
+        
+        # Create handle rectangles centered on these points
         self.handles = {
-            'top_left': QRectF(rect.topLeft() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'top_right': QRectF(rect.topRight() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom_left': QRectF(rect.bottomLeft() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom_right': QRectF(rect.bottomRight() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'right': QRectF(right_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'bottom': QRectF(bottom_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'left': QRectF(left_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'top': QRectF(top_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'rotation': QRectF(QPointF(rect.center()) - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
         }
 
@@ -69,7 +94,7 @@ class EllipseItem(QGraphicsEllipseItem):
         """Check if mouse is near any handle and make them visible"""
         near_handle = False
         
-        # Check corner handles
+        # Check handles
         for handle_rect in self.handles.values():
             if self.distance_to_rect(pos, handle_rect) < HANDLE_DETECTION_DISTANCE:
                 near_handle = True
@@ -100,10 +125,10 @@ class EllipseItem(QGraphicsEllipseItem):
             if rect.contains(pos):
                 if name in ['rotation']:
                     self.setCursor(Qt.CursorShape.OpenHandCursor)
-                elif name in ['top_left', 'bottom_right']:
-                    self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-                elif name in ['top_right', 'bottom_left']:
-                    self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+                elif name in ['right', 'left']:
+                    self.setCursor(Qt.CursorShape.SizeHorCursor)
+                elif name in ['top', 'bottom']:
+                    self.setCursor(Qt.CursorShape.SizeVerCursor)
                 return
         
         self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -116,8 +141,10 @@ class EllipseItem(QGraphicsEllipseItem):
             painter.setPen(QPen(Qt.GlobalColor.black, 1, Qt.PenStyle.SolidLine))
             painter.setBrush(QBrush(Qt.GlobalColor.white, Qt.BrushStyle.SolidPattern))
             
-            for handle_rect in self.handles.values():
-                painter.drawRect(handle_rect)
+            # Draw square handles for resize
+            for name, handle_rect in self.handles.items():
+                if name != 'rotation':
+                    painter.drawRect(handle_rect)
             
             # Draw rotation handle (circular) at center
             if self.handles['rotation']:
@@ -133,7 +160,7 @@ class EllipseItem(QGraphicsEllipseItem):
             super().mousePressEvent(event)
             return
 
-        # Check resize handles
+        # Check handles
         for name, rect in self.handles.items():
             if rect.contains(event.pos()):
                 self.handle_selected = name
@@ -182,28 +209,35 @@ class EllipseItem(QGraphicsEllipseItem):
             pos = event.pos()
             rect = self.rect()
             self.handles_visible = False
+            center = rect.center()
             
-            if self.handle_selected == 'top':
-                rect.setTop(pos.y())
-            elif self.handle_selected == 'bottom':
-                rect.setBottom(pos.y())
+            if self.handle_selected == 'right':
+                # Resize horizontally from right edge
+                new_width = 2 * abs(pos.x() - center.x())
+                new_width = max(10, new_width)  # Minimum width
+                rect.setWidth(new_width)
+                rect.moveCenter(center)
+                
             elif self.handle_selected == 'left':
-                rect.setLeft(pos.x())
-            elif self.handle_selected == 'right':
-                rect.setRight(pos.x())
-
-            # Ensure minimum size
-            if rect.width() < 10:
-                if self.handle_selected == 'left':
-                    rect.setLeft(rect.right() - 10)
-                else:
-                    rect.setRight(rect.left() + 10)
-            
-            if rect.height() < 10:
-                if self.handle_selected == 'top':
-                    rect.setTop(rect.bottom() - 10)
-                else:
-                    rect.setBottom(rect.top() + 10)
+                # Resize horizontally from left edge
+                new_width = 2 * abs(pos.x() - center.x())
+                new_width = max(10, new_width)  # Minimum width
+                rect.setWidth(new_width)
+                rect.moveCenter(center)
+                
+            elif self.handle_selected == 'bottom':
+                # Resize vertically from bottom edge
+                new_height = 2 * abs(pos.y() - center.y())
+                new_height = max(10, new_height)  # Minimum height
+                rect.setHeight(new_height)
+                rect.moveCenter(center)
+                
+            elif self.handle_selected == 'top':
+                # Resize vertically from top edge
+                new_height = 2 * abs(pos.y() - center.y())
+                new_height = max(10, new_height)  # Minimum height
+                rect.setHeight(new_height)
+                rect.moveCenter(center)
 
             self.setRect(rect)
             self.update_handles()
@@ -248,7 +282,7 @@ class Ellipse(Core):
         self.cleanup_temporary_ellipses()
 
         self.first_click_pos = QPointF(current_position.x(), current_position.y())
-        self.color = self.labels[self.current_label]["color"]
+        self.color = self.get_labeling_overlay().get_color()
         self.is_drawing = True
 
         # Preview ellipse
