@@ -115,11 +115,20 @@ class LabelingOverlay():
 
         # Apply the color on the undo pixmaps
         for pixmap in self.undo_deque:
+            print("here1")
             self.labeling_overlay_color_painter.begin(pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
             self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
             self.labeling_overlay_color_painter.end()
 
+        # do not forget the previous undo pixmap :) 
+        if self.previous_labeling_overlay_pixmap is not None:
+            self.labeling_overlay_color_painter.begin(self.previous_labeling_overlay_pixmap)
+            self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
+            self.labeling_overlay_color_painter.end()
+
+        
     def update(self):
         # Change and update the QPixmap 
         self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap()) 

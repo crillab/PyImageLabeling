@@ -48,9 +48,10 @@ class LabelEvents(Events):
         print("dd:", activation_name)
         label_name = activation_name.split("_")[-1] 
         print("label _name:", label_name)
-        color = QColorDialog.getColor(self.model.get_labeling_overlay().get_color())
-        self.model.get_labeling_overlay().set_color(color)
-        self.model.get_labeling_overlay().update_color()
+        labeling_overlay = self.model.labeling_overlays[label_name]
+        color = QColorDialog.getColor(labeling_overlay.get_color())
+        labeling_overlay.set_color(color)
+        labeling_overlay.update_color()
         self.view.buttons_label_bar_temporary["color_"+label_name].setStyleSheet(Utils.color_to_stylesheet(color))
 
         print("color:", color)
