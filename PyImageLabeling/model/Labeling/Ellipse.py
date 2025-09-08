@@ -1,5 +1,5 @@
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtWidgets import QGraphicsRectItem
+from PyQt6.QtWidgets import QGraphicsEllipseItem
 from PyQt6.QtGui import QPen, QCursor, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
@@ -7,7 +7,7 @@ import math
 HANDLE_SIZE = 8  # Size of corner handles for resizing
 HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
-class RectangleItem(QGraphicsRectItem):
+class EllipseItem(QGraphicsEllipseItem):
     def __init__(self, x, y, width, height, color=Qt.GlobalColor.red):
         super().__init__(x, y, width, height)
 
@@ -16,9 +16,9 @@ class RectangleItem(QGraphicsRectItem):
         self.setPen(self.pen)
 
         self.setFlags(
-            QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable |
-            QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable |
-            QGraphicsRectItem.GraphicsItemFlag.ItemSendsGeometryChanges
+            QGraphicsEllipseItem.GraphicsItemFlag.ItemIsSelectable |
+            QGraphicsEllipseItem.GraphicsItemFlag.ItemIsMovable |
+            QGraphicsEllipseItem.GraphicsItemFlag.ItemSendsGeometryChanges
         )
 
         self.handles = {}  # Dictionary to track corner handles
@@ -38,7 +38,7 @@ class RectangleItem(QGraphicsRectItem):
         """Update corner handle and rotation handle positions"""
         rect = self.rect()
 
-        # Corner handles for resizing
+        # Corner handles for resizing (even though it's an ellipse, we use rect corners)
         self.handles = {
             'top_left': QRectF(rect.topLeft() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'top_right': QRectF(rect.topRight() - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
@@ -137,6 +137,16 @@ class RectangleItem(QGraphicsRectItem):
         for name, rect in self.handles.items():
             if rect.contains(event.pos()):
                 self.handle_selected = name
+                if name == 'rotation':
+                    # Store initial rotation data for rotation handle
+                    rect_center = self.rect().center()
+                    rect_center_scene = self.mapToScene(rect_center)
+                    mouse_scene_pos = self.mapToScene(event.pos())
+                    self.initial_rotation = math.atan2(
+                        mouse_scene_pos.y() - rect_center_scene.y(),
+                        mouse_scene_pos.x() - rect_center_scene.x()
+                    )
+                    self.initial_angle = self.rotation()
                 break
 
         super().mousePressEvent(event)
@@ -152,7 +162,7 @@ class RectangleItem(QGraphicsRectItem):
             # Map center to scene coordinates
             rect_center_scene = self.mapToScene(rect_center)
             
-            # Calculate current mouse angle relative to rectangle center
+            # Calculate current mouse angle relative to ellipse center
             mouse_scene_pos = self.mapToScene(event.pos())
             current_mouse_angle = math.atan2(
                 mouse_scene_pos.y() - rect_center_scene.y(),
@@ -172,24 +182,25 @@ class RectangleItem(QGraphicsRectItem):
             pos = event.pos()
             rect = self.rect()
             self.handles_visible = False
-            if self.handle_selected == 'top_left':
-                rect.setTopLeft(pos)
-            elif self.handle_selected == 'top_right':
-                rect.setTopRight(pos)
-            elif self.handle_selected == 'bottom_left':
-                rect.setBottomLeft(pos)
-            elif self.handle_selected == 'bottom_right':
-                rect.setBottomRight(pos)
+            
+            if self.handle_selected == 'top':
+                rect.setTop(pos.y())
+            elif self.handle_selected == 'bottom':
+                rect.setBottom(pos.y())
+            elif self.handle_selected == 'left':
+                rect.setLeft(pos.x())
+            elif self.handle_selected == 'right':
+                rect.setRight(pos.x())
 
             # Ensure minimum size
             if rect.width() < 10:
-                if self.handle_selected in ['top_left', 'bottom_left']:
+                if self.handle_selected == 'left':
                     rect.setLeft(rect.right() - 10)
                 else:
                     rect.setRight(rect.left() + 10)
             
             if rect.height() < 10:
-                if self.handle_selected in ['top_left', 'top_right']:
+                if self.handle_selected == 'top':
                     rect.setTop(rect.bottom() - 10)
                 else:
                     rect.setBottom(rect.top() + 10)
@@ -212,49 +223,49 @@ class RectangleItem(QGraphicsRectItem):
         if not (self.handle_selected == 'rotation' or event.isAccepted()):
             super().mouseReleaseEvent(event)
 
-class Rectangle(Core):
+class Ellipse(Core):
     def __init__(self):
         super().__init__()
         self.first_click_pos = None
-        self.current_rectangle = None
+        self.current_ellipse = None
         self.is_drawing = False
-        self.selected_rectangle = None  
+        self.selected_ellipse = None  
 
-    def rectangle(self):
-        self.checked_button = self.rectangle.__name__
-        self.zoomable_graphics_view.scene.selectionChanged.connect(self.update_selected_rectangle)
+    def ellipse(self):
+        self.checked_button = self.ellipse.__name__
+        self.zoomable_graphics_view.scene.selectionChanged.connect(self.update_selected_ellipse)
         
-    def cleanup_temporary_rectangles(self):
-        """Remove preview rectangles"""
-        if self.current_rectangle:
-            if self.current_rectangle in self.zoomable_graphics_view.scene.items():
-                self.zoomable_graphics_view.scene.removeItem(self.current_rectangle)
-            self.current_rectangle = None
+    def cleanup_temporary_ellipses(self):
+        """Remove preview ellipses"""
+        if self.current_ellipse:
+            if self.current_ellipse in self.zoomable_graphics_view.scene.items():
+                self.zoomable_graphics_view.scene.removeItem(self.current_ellipse)
+            self.current_ellipse = None
 
-    def start_rectangle_tool(self, current_position):
+    def start_ellipse_tool(self, current_position):
         """Mouse press → start drawing"""
-        self.zoomable_graphics_view.change_cursor("rectangle")
-        self.cleanup_temporary_rectangles()
+        self.zoomable_graphics_view.change_cursor("ellipse")
+        self.cleanup_temporary_ellipses()
 
         self.first_click_pos = QPointF(current_position.x(), current_position.y())
         self.color = self.labels[self.current_label]["color"]
         self.is_drawing = True
 
-        # Preview rectangle
-        self.current_rectangle = QGraphicsRectItem(
+        # Preview ellipse
+        self.current_ellipse = QGraphicsEllipseItem(
             self.first_click_pos.x(),
             self.first_click_pos.y(),
             1, 1
         )
         pen = QPen(self.color, 2)
         pen.setStyle(Qt.PenStyle.DashLine)
-        self.current_rectangle.setPen(pen)
-        self.current_rectangle.setZValue(2)
-        self.zoomable_graphics_view.scene.addItem(self.current_rectangle)
+        self.current_ellipse.setPen(pen)
+        self.current_ellipse.setZValue(2)
+        self.zoomable_graphics_view.scene.addItem(self.current_ellipse)
 
-    def move_rectangle_tool(self, current_position):
-        """Mouse move → resize preview rectangle"""
-        if not self.is_drawing or not self.current_rectangle:
+    def move_ellipse_tool(self, current_position):
+        """Mouse move → resize preview ellipse"""
+        if not self.is_drawing or not self.current_ellipse:
             return
 
         current_pos = QPointF(current_position.x(), current_position.y())
@@ -263,43 +274,43 @@ class Rectangle(Core):
         w = abs(current_pos.x() - self.first_click_pos.x())
         h = abs(current_pos.y() - self.first_click_pos.y())
 
-        self.current_rectangle.setRect(x, y, w, h)
+        self.current_ellipse.setRect(x, y, w, h)
 
-    def end_rectangle_tool(self):
-        """Mouse release → finalize rectangle"""
-        if not self.is_drawing or not self.current_rectangle:
+    def end_ellipse_tool(self):
+        """Mouse release → finalize ellipse"""
+        if not self.is_drawing or not self.current_ellipse:
             return
 
-        rect = self.current_rectangle.rect()
-        self.cleanup_temporary_rectangles()
+        rect = self.current_ellipse.rect()
+        self.cleanup_temporary_ellipses()
 
         if rect.width() > 5 and rect.height() > 5:
-            final_rectangle = RectangleItem(
+            final_ellipse = EllipseItem(
                 rect.x(), rect.y(),
                 rect.width(), rect.height(),
                 self.color
             )
-            final_rectangle.setZValue(2)
-            final_rectangle.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsSelectable, True)
-            self.zoomable_graphics_view.scene.addItem(final_rectangle)
-            self.selected_rectangle = final_rectangle
+            final_ellipse.setZValue(2)
+            final_ellipse.setFlag(QGraphicsEllipseItem.GraphicsItemFlag.ItemIsSelectable, True)
+            self.zoomable_graphics_view.scene.addItem(final_ellipse)
+            self.selected_ellipse = final_ellipse
 
         self.first_click_pos = None
         self.is_drawing = False
     
-    def update_selected_rectangle(self):
-        """Update selected_rectangle when user clicks on a rectangle"""
+    def update_selected_ellipse(self):
+        """Update selected_ellipse when user clicks on an ellipse"""
         selected_items = self.zoomable_graphics_view.scene.selectedItems()
         if selected_items:
             item = selected_items[-1]  # last selected item
-            if isinstance(item, RectangleItem):
-                self.selected_rectangle = item
+            if isinstance(item, EllipseItem):
+                self.selected_ellipse = item
         else:
-            self.selected_rectangle = None
+            self.selected_ellipse = None
 
-    def clear_rectangle(self):
-        """Remove the currently selected rectangle from the scene"""
-        if self.selected_rectangle:
-            if self.selected_rectangle in self.zoomable_graphics_view.scene.items():
-                self.view.zoomable_graphics_view.scene.removeItem(self.selected_rectangle)
-            self.selected_rectangle = None
+    def clear_ellipse(self):
+        """Remove the currently selected ellipse from the scene"""
+        if self.selected_ellipse:
+            if self.selected_ellipse in self.zoomable_graphics_view.scene.items():
+                self.view.zoomable_graphics_view.scene.removeItem(self.selected_ellipse)
+            self.selected_ellipse = None

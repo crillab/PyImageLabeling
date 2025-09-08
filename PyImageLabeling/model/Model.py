@@ -13,6 +13,7 @@ from PyImageLabeling.model.Labeling.Rectangle import Rectangle
 from PyImageLabeling.model.Labeling.ClearAll import ClearAll
 from PyImageLabeling.model.Labeling.Eraser import Eraser
 from PyImageLabeling.model.Labeling.Undo import Undo
+from PyImageLabeling.model.Labeling.Ellipse import Ellipse
 
 from PyImageLabeling.model.Image.MoveImage import MoveImage
 from PyImageLabeling.model.Image.ZoomMinus import ZoomMinus
@@ -24,7 +25,7 @@ from PyImageLabeling.model.Labels.Opacity import Opacity
 from PyImageLabeling.model.Labels.Visibility import Visibility
 from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
-class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Visibility, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
+class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Visibility, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
     def __init__(self, view, controller, config):
         super().__init__()
         self.config = config
