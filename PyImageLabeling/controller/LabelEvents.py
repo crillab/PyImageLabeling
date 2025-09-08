@@ -23,7 +23,7 @@ class LabelEvents(Events):
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
           
             # Get a new id for this label
-            label_id = self.model.get_next_label_id() 
+            label_id = self.model.new_label_id() 
 
             # Display the new label bar 
             self.view.builder.build_new_layer_label_bar(label_id, label_setting.name, label_setting.labeling_mode, label_setting.color)
@@ -131,6 +131,9 @@ class LabelEvents(Events):
         msgBox.setInformativeText("All previous works done with this label will be erased.")
         msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
         msgBox.setDefaultButton(QMessageBox.StandardButton.No)
+        for button in msgBox.buttons():
+            button.setObjectName("dialog")
+
         msgBox.setModal(True)
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
@@ -139,12 +142,26 @@ class LabelEvents(Events):
             del self.model.labeling_overlays[label_id]
 
             # In the view
-            self.view.label_bar_layout.removeWidget(self.view.container_label_bar_temporary[label_id])
-            print("coucou")
-            self.view.label_bar_layout.update()
+            widget, separator = self.view.container_label_bar_temporary[label_id]
+            
+            widget.hide()
+            self.view.label_bar_layout.removeWidget(widget)
+            separator.hide()
+            self.view.label_bar_layout.removeWidget(separator)
 
-            #self.view.buttons_label_bar_temporary[label_id]["activation"]
-        print("unload_label")
+            # If there are no more labels
+            if len(self.model.labeling_overlays) == 0:
+                for button_key in self.view.buttons_labeling_bar.keys():
+                    self.view.buttons_labeling_bar[button_key].setEnabled(False)
+                self.move_image() # To deactivate the last used tool, we active the move button :)  
+
+            # Select another label if the deleted one was selected 
+            elif self.model.current_label_id == label_id:
+                first_id = list(self.model.labeling_overlays.keys())[0]
+                self.select_label(first_id)
+            
+
+            
 
     def load_labels(self):
         self.all_events(self.load_labels.__name__)

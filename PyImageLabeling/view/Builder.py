@@ -143,6 +143,7 @@ class Builder:
                     
                     # Create horizontal layout: tool button + setting button
                     h_layout = QHBoxLayout()
+                    self.view.buttons_labeling_bar[button_name].setObjectName("with_parameters")
                     h_layout.addWidget(self.view.buttons_labeling_bar[button_name])
                     
                     # Create setting button
@@ -289,8 +290,8 @@ class Builder:
         push_buttons["activation"].setChecked(True)
         push_buttons["activation"].clicked.connect(lambda: self.view.controller.select_label(label_id))    
         new_layer_label_bar_layout.addWidget(push_buttons["activation"])
-
-        self.view.label_bar_layout.addWidget(QSeparator1())
+        separator = QSeparator1()
+        self.view.label_bar_layout.addWidget(separator)
 
         # The others buttons
         for button in self.view.config["label_bar"]["layer"]:        
@@ -322,9 +323,10 @@ class Builder:
         
             new_layer_label_bar_layout.addWidget(push_buttons[type_name_button])
         
-    
-        self.view.buttons_label_bar_temporary[label_id] = push_buttons
+
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
-        self.view.container_label_bar_temporary[label_id] = new_layer_label_bar_container
+    
+        self.view.buttons_label_bar_temporary[label_id] = push_buttons # Usefull to control all buttons :)
+        self.view.container_label_bar_temporary[label_id] = (new_layer_label_bar_container, separator) # Usefull to delete these qwidget :) 
         
         

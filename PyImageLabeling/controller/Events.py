@@ -138,6 +138,9 @@ class Events:
     
     def error_message(self, title, text):
         msg_box = QMessageBox(self.view)
+        for button in msg_box.buttons():
+            button.setObjectName("dialog")
+        msg_box.setObjectName("dialog")
         msg_box.setWindowTitle("Error: "+str(title))
         msg_box.setText(text)
         msg_box.exec()

@@ -194,7 +194,7 @@ QSeparator1 {
     margin-top:0px;
 }
 
-QPushButton {
+/* QPushButton {
     border: 1px solid #bbb;
     background-color: #cccccc;
     color: black;
@@ -227,15 +227,53 @@ QPushButton:disabled {
     background-color: #808080;
     color: #a0a0a0;
     border: 1px solid #666666;
-}
-QPushButton#dialog {
+} */
+
+QPushButton#with_parameters {
     border: 1px solid #bbb;
     background-color: #cccccc;
     color: black;
     text-align: left;
     padding-left: 10px;
-    min-height: 20px;
-    max-height: 20px;
+    min-height: 40px;
+    max-height: 40px;
+    min-width: 125px;
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 0px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 0px;
+}
+
+QPushButton#with_parameters:hover {
+    background-color: #8ba1ff;
+}
+
+QPushButton#with_parameters:pressed {
+    background-color: #fcfcfc;
+    border: 1px solid #bbb;
+}
+
+QPushButton#with_parameters:checked {
+    background-color: #728cff;
+    border: 3px inset #bbb;
+}
+
+QPushButton#with_parameters:disabled {
+    background-color: #808080;
+    color: #a0a0a0;
+    border: 1px solid #666666;
+} 
+
+
+
+QPushButton {
+    border: 1px solid #bbb;
+    background-color: #cccccc;
+    color: black;
+    text-align: left;
+    padding-left: 10px;
+    min-height: 25px;
+    max-height: 25px;
     min-width: 125px;
     border-bottom-left-radius: 5px;
     border-bottom-right-radius: 5px;
@@ -243,25 +281,26 @@ QPushButton#dialog {
     border-top-right-radius: 5px;
 }
 
-QPushButton#dialog:hover {
+QPushButton:hover {
     background-color: #8ba1ff;
 }
 
-QPushButton#dialog:pressed {
+QPushButton:pressed {
     background-color: #fcfcfc;
     border: 1px solid #bbb;
 }
 
-QPushButton#dialog:disabled {
+QPushButton:disabled {
     background-color: #808080;
     color: #a0a0a0;
     border: 1px solid #666666;
 }
 
-QPushButton#dialog:checked {
+QPushButton:checked {
     background-color: #fcfcfc;
     border: 3px inset #bbb;
 }
+
 
 QPushButton#without_parameters {
     border: 1px solid #bbb;

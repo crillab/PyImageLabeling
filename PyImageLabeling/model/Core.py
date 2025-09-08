@@ -190,7 +190,7 @@ class Core():
         #self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
         
         self.current_label_id = None # The current label id selected
-        self.checked_button = None # The current button checked
+        self.checked_button = None # The current button checked => usefull to know the labelinf tool to use
         
 
         self.backgroung_item = None # The QBackgroundItem behind the images
@@ -208,7 +208,10 @@ class Core():
 
         self.undo_deque = deque()
 
-    def get_next_label_id(self):
+    def get_static_label_id(self):
+        return Core.static_label_id
+
+    def new_label_id(self):
         value = Core.static_label_id
         Core.static_label_id+=1
         return value

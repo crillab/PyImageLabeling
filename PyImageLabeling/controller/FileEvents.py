@@ -23,7 +23,8 @@ class FileEvents(Events):
             self.view.buttons_image_bar[button_names].setEnabled(True)
         for button_names in self.view.buttons_label_bar_permanent:
             self.view.buttons_label_bar_permanent[button_names].setEnabled(True)
-            
+        
+        self.move_image() # we active the move button :) 
         print("load_images")
 
     def select_image(self, item):

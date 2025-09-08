@@ -11,7 +11,7 @@ class LabelSetting(QDialog):
 
         labeling_mode_pixel = parent.view.config["labeling_bar"]["pixel"]["name_view"]
         labeling_mode_geometric = parent.view.config["labeling_bar"]["geometric"]["name_view"]
-        automatic_name = "label "+str(parent.view.controller.model.n_labeling_overlays()+1)
+        automatic_name = "label "+str(parent.view.controller.model.get_static_label_id()+1)
 
         self.name = automatic_name if name is None else name
         self.color = QColor(random.choice(QColor.colorNames())) if color is None else color
