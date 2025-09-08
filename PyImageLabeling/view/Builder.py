@@ -8,7 +8,6 @@ from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
 
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
-from PyImageLabeling.view.QLabelSettingForm import QLabelSettingForm
 
 from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
 import os
@@ -268,21 +267,12 @@ class Builder:
 
         self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 1, 4) 
 
-    
-        
-    def build_label_setting_form(self):
-        label_setting_form = QLabelSettingForm(self.view, self)
-        label_setting_form.open()
+
         
 
-    def build_new_layer_label_bar(self, name, color, labeling_mode):
-        print("build_new_layer")
-        data_new_label = dict()
-        data_new_label["name"] = name
-        data_new_label["color"] = color
-        data_new_label["labeling_mode"] = labeling_mode
-
-        self.view.update_labeling_buttons(labeling_mode)
+    def build_new_layer_label_bar(self, label_id, name, labeling_mode, color):
+        
+        push_buttons = dict() # Dictionnary of push buttons for this label 
         
         activation_name = f"activation_{name}"
     
@@ -293,6 +283,7 @@ class Builder:
         new_layer_label_bar_layout.setContentsMargins(0,0,0,0)
         new_layer_label_bar_layout.setSpacing(0)
         new_layer_label_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+        
         for button_name, button in self.view.buttons_label_bar_temporary.items():
             if button_name.startswith('activation_'):
                 button.setChecked(False)
@@ -338,7 +329,5 @@ class Builder:
             new_layer_label_bar_layout.addWidget(self.view.buttons_label_bar_temporary[button_name])
         
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
-        self.view.controller.new_label_end(data_new_label)
         
-
         

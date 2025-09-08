@@ -189,9 +189,4 @@ class View(QMainWindow):
         
         self.resize(self.window_width, self.window_height)
         
-
-    def build_label_setting_form(self): self.builder.build_label_setting_form()
-    def build_new_layer_label_bar(self): self.builder.build_new_layer_label_bar()
-
-        
    

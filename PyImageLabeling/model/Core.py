@@ -161,8 +161,11 @@ class LabelingOverlay():
 
 
 class Core():
+    static_label_id = 0
 
     def __init__(self):
+        self.next_label_id = Core.static_label_id
+
         self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
         
         self.current_label = None # The current label selected
@@ -183,6 +186,9 @@ class Core():
         self.image_qrect = None # Integer size in Qrect
 
         self.undo_deque = deque()
+
+    def get_next_label_id(self):
+        self.next_label_id
 
     def set_view(self, view):
         self.view = view
@@ -240,12 +246,14 @@ class Core():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     # Add a new labeling overlay 
-    def new_labeling_overlay(self, data_new_label):
+    def new_labeling_overlay(self, name, labeling_mode, color):
+        data_label = {"name": name, "labeling_mode": labeling_mode, "color": color}
+
         # Add the data of this new label in the label dictionnary
-        self.labels[data_new_label["name"]] = data_new_label
+        self.labels[name] = data_label
 
         # Set the name of the current label 
-        self.current_label = data_new_label["name"]
+        self.current_label = name
 
         # Create a new LabelingOverlay instance and add this in the list
         self.current_labeling_overlay = LabelingOverlay(self.view.zoomable_graphics_view.scene, self.image_qrect.width(), self.image_qrect.height(), self.labels[self.current_label]["color"])
@@ -264,6 +272,12 @@ class Core():
     
     def get_labeling_overlay(self):
         return self.current_labeling_overlay
+    
+    def change_name(self, name, new_name):
+        data_label = self.labels[name] # Get good data
+        data_label["name"] = new_name # Change the name in the data
+        self.model.labels[new_name] = data_label # Add the new key        
+        del self.model.labels[name] # Remove the old key 
 
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
