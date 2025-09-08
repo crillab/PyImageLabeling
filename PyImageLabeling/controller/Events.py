@@ -141,3 +141,4 @@ class Events:
         msg_box.setWindowTitle("Error: "+str(title))
         msg_box.setText(text)
         msg_box.exec()
+        

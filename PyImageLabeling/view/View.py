@@ -24,6 +24,7 @@ class View(QMainWindow):
         self.buttons_file_bar = dict()
         self.buttons_apply_cancel_bar = dict()
         
+        self.container_label_bar_temporary = dict()
         
         self.zoomable_graphics_view = None
 

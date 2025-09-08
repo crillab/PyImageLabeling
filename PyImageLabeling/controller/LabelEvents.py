@@ -1,7 +1,7 @@
 
 from  controller.Events import Events
 
-from PyQt6.QtWidgets import QFileDialog, QDialog, QColorDialog
+from PyQt6.QtWidgets import QMessageBox, QFileDialog, QDialog, QColorDialog
 from PyQt6.QtGui import QPixmap, QImage
 
 from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
@@ -16,49 +16,59 @@ class LabelEvents(Events):
     def new_label(self):
         self.all_events(self.new_label.__name__)
         label_setting = LabelSetting(self.view.zoomable_graphics_view)   
+        
         if label_setting.exec():
+            # Uncheck all activation buttons
+            for label_id in self.view.buttons_label_bar_temporary:
+                self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
+          
+            # Get a new id for this label
+            label_id = self.model.get_next_label_id() 
 
-            label_id = self.model.get_next_label_id() # Get a new id for this label
-            
+            # Display the new label bar 
             self.view.builder.build_new_layer_label_bar(label_id, label_setting.name, label_setting.labeling_mode, label_setting.color)
-            self.model.new_labeling_overlay(label_setting.name, label_setting.labeling_mode, label_setting.color)           
+            
+            # Add a new overlay in the model
+            self.model.new_labeling_overlay(label_id, label_setting.name, label_setting.labeling_mode, label_setting.color)           
+            
+            # Put the good labeling buttons according to the mode 
             self.view.update_labeling_buttons(label_setting.labeling_mode)
             
-    def load_labels(self):
-        self.all_events(self.load_labels.__name__)
-        print("load_layers")
+    def select_label(self, label_id):
+        self.all_events(label_id)
+        
+        # Uncheck all activation buttons except the selected label
+        for id in self.view.buttons_label_bar_temporary:
+            if id == label_id:
+                self.view.buttons_label_bar_temporary[id]["activation"].setChecked(True)
+            else:
+                self.view.buttons_label_bar_temporary[id]["activation"].setChecked(False)
+        
+        # Active or deactivate the good labeling buttons 
+        self.view.update_labeling_buttons(self.model.labeling_overlays[label_id].get_labeling_mode())
+        
+        # Call the model part to change the labeling overlay 
+        self.model.select_labeling_overlay(label_id) 
 
-    def save_labels(self):
-        self.all_events(self.save_labels.__name__)
-        print("save_layers")
+        # Ensure that the visibility button of this label is checked
+        self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)
 
-    def select_label(self, activation_name):
-        self.all_events(activation_name)
-        label_name = activation_name.split("_")[-1] #Get the label name
-        self.desactivate_buttons_label_bar(activation_name) # Deactivate the other labels
-        self.view.update_labeling_buttons(self.model.labels[self.model.current_label]["labeling_mode"]) # Active or deactivate the good labeling buttons 
-        self.model.select_labeling_overlay(label_name) # Call the model part to change the labeling overlay 
-        self.view.buttons_label_bar_temporary["visibility_"+label_name].setChecked(True)
-
-    def color(self, activation_name):
+    def color(self, label_id):
         self.all_events(self.color.__name__)
-        label_name = activation_name.split("_")[-1] 
-        labeling_overlay = self.model.labeling_overlays[label_name]
+        labeling_overlay = self.model.labeling_overlays[label_id]
         color = QColorDialog.getColor(labeling_overlay.get_color())
         if labeling_overlay.get_color() != color:
             labeling_overlay.set_color(color)
             labeling_overlay.update_color()
-            self.view.buttons_label_bar_temporary["color_"+label_name].setStyleSheet(Utils.color_to_stylesheet(color))
-            self.model.labels[label_name]["color"] = color
-
-    def visibility(self, activation_name):
+            self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(color))
+            
+    def visibility(self, label_id):
         self.all_events(self.visibility.__name__)
-        label_name = activation_name.split("_")[-1] #Get the label name
-        if self.model.current_label == label_name:
+        if self.model.current_label_id == label_id:
             # Do nothing 
-            self.view.buttons_label_bar_temporary["visibility_"+label_name].setChecked(True)
+            self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)
         else:
-            self.model.visibility(label_name)
+            self.model.labeling_overlays[label_id].change_visible()
         
     def opacity(self):
         self.all_events(self.opacity.__name__)
@@ -67,33 +77,82 @@ class LabelEvents(Events):
             self.model.set_opacity(opacity_setting.opacity/100) # To normalize
 
 
-    def label_setting(self, activation_name):
+    def label_setting(self, label_id):
         self.all_events(self.label_setting.__name__)
-        label_name = activation_name.split("_")[-1] 
-        data_label = self.model.labels[label_name]
         
-        label_setting = LabelSetting(self.view.zoomable_graphics_view, data_label["name"], data_label["labeling_mode"], data_label["color"])   
+        name = self.model.labeling_overlays[label_id].get_name()
+        labeling_mode = self.model.labeling_overlays[label_id].get_labeling_mode() 
+        color = self.model.labeling_overlays[label_id].get_color()   
+        
+        label_setting = LabelSetting(self.view.zoomable_graphics_view, name, labeling_mode, color)
+
         if label_setting.exec():
-            if data_label["name"] != label_setting.name:
+            if name != label_setting.name:
+                if self.model.name_already_in_labels(label_setting.name) is True:
+                    self.error_message("Error", "This label name already exists !")
+                    return
+
                 # Change the name in the model 
-                self.model.change_name(label_name, label_setting.name)
+                self.model.labeling_overlays[label_id].set_name(label_setting.name)
 
-                # Change the name in the buttons bar dictionnary
-                keys_to_remove = []
-                for key in self.view.buttons_label_bar_temporary:
-                    if key.endswith(label_name):
-                        new_key = key.replace(label_name, label_setting.name)
-                        self.view.buttons_label_bar_temporary[key] = self.view.buttons_label_bar_temporary[key]
-                 = self.view.buttons_label_bar_temporary["activation_"+label_setting.name]
+                # Change the name in the view 
+                self.view.buttons_label_bar_temporary[label_id]["activation"].setText(label_setting.name) 
+                
+            if labeling_mode != label_setting.labeling_mode:
+                msgBox = QMessageBox(self.view.zoomable_graphics_view)
+                msgBox.setWindowTitle("Labeling Mode")
+                msgBox.setText("Are you sure you want to change the labeling mode ?")
+                msgBox.setInformativeText("All previous works done with this label will be erased.")
+                msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+                msgBox.setDefaultButton(QMessageBox.StandardButton.No)
+                msgBox.setModal(True)
+                result = msgBox.exec()
+                if result == QMessageBox.StandardButton.Yes:
+                    # Change in the model 
+                    self.model.labeling_overlays[label_id].set_labeling_mode(label_setting.labeling_mode)
 
-        print("label_setting")
-    
-    def unload_label(self, activation_name):
-        self.all_events(self.unload_label.__name__)
+                    # Reset the labeling overlay 
+                    self.model.labeling_overlays[label_id].reset()
 
+                    # Put the good labeling buttons according to the mode 
+                    self.view.update_labeling_buttons(label_setting.labeling_mode)
+            
+            if color != label_setting.color:
+                self.model.labeling_overlays[label_id].set_color(label_setting.color)
+                self.model.labeling_overlays[label_id].update_color()
+                self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(label_setting.color))
+            
+
+    def remove_label(self, label_id):
+        self.all_events(self.remove_label.__name__)
+        msgBox = QMessageBox(self.view.zoomable_graphics_view)
+        msgBox.setWindowTitle("Remove Label")
+        msgBox.setText("Are you sure you want to delete this label ?")
+        msgBox.setInformativeText("All previous works done with this label will be erased.")
+        msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+        msgBox.setDefaultButton(QMessageBox.StandardButton.No)
+        msgBox.setModal(True)
+        result = msgBox.exec()
+        if result == QMessageBox.StandardButton.Yes:
+            # In the model
+            self.model.labeling_overlays[label_id].remove()
+            del self.model.labeling_overlays[label_id]
+
+            # In the view
+            self.view.label_bar_layout.removeWidget(self.view.container_label_bar_temporary[label_id])
+            print("coucou")
+            self.view.label_bar_layout.update()
+
+            #self.view.buttons_label_bar_temporary[label_id]["activation"]
         print("unload_label")
 
-    
+    def load_labels(self):
+        self.all_events(self.load_labels.__name__)
+        print("load_layers")
+
+    def save_labels(self):
+        self.all_events(self.save_labels.__name__)
+        print("save_layers")
 
 
 

@@ -16,16 +16,17 @@ class LabelingOverlay():
     # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
     ###
 
-    static_id = 0
 
-    def __init__(self, scene, width, height, color):
-        self.id = LabelingOverlay.static_id
-        LabelingOverlay.static_id += 1
+    def __init__(self, label_id, scene, width, height, name, labeling_mode, color):
+        self.label_id = label_id
         self.scene = scene # The associated QGraphicScene of the QGraphicsView
         self.width = width # The width of the Labeling Overlay QPixmap 
         self.height = height # The height of the Labeling Overlay QPixmap
         self.zvalue = 3 # The default ZValue 
         self.opacity = Utils.load_parameters()["labeling_opacity"]/100 # To normalize
+
+        self.name = name
+        self.labeling_mode = labeling_mode
         self.color = QColor(color) # The color of labels in the Labeling Overlay
         # Note: The color is in RGB, the alpha is set at only the end for the view part :)
        
@@ -70,6 +71,13 @@ class LabelingOverlay():
         
         self.undo_deque.clear()
         self.previous_labeling_overlay_pixmap = None
+
+    def remove(self):
+        self.scene.removeItem(self.labeling_overlay_item)
+        self.labeling_overlay_painter.end()
+        self.labeling_overlay_opacity_painter.end()
+        
+
         
     def set_opacity(self, opacity):
         self.opacity = opacity
@@ -115,7 +123,6 @@ class LabelingOverlay():
 
         # Apply the color on the undo pixmaps
         for pixmap in self.undo_deque:
-            print("here1")
             self.labeling_overlay_color_painter.begin(pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
             self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
@@ -146,6 +153,21 @@ class LabelingOverlay():
     def set_color(self, color):
         self.color = color
 
+    def get_name(self):
+        return self.name
+    
+    def set_name(self, name):
+        self.name = name
+
+    def get_labeling_mode(self):
+        return self.labeling_mode
+    
+    def set_labeling_mode(self, labeling_mode):
+        self.labeling_mode = labeling_mode
+
+    def get_label_id(self):
+        return self.label_id
+    
     def get_painter(self):
         return self.labeling_overlay_painter
 
@@ -164,11 +186,10 @@ class Core():
     static_label_id = 0
 
     def __init__(self):
-        self.next_label_id = Core.static_label_id
-
-        self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
         
-        self.current_label = None # The current label selected
+        #self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
+        
+        self.current_label_id = None # The current label id selected
         self.checked_button = None # The current button checked
         
 
@@ -188,7 +209,9 @@ class Core():
         self.undo_deque = deque()
 
     def get_next_label_id(self):
-        self.next_label_id
+        value = Core.static_label_id
+        Core.static_label_id+=1
+        return value
 
     def set_view(self, view):
         self.view = view
@@ -246,24 +269,29 @@ class Core():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     # Add a new labeling overlay 
-    def new_labeling_overlay(self, name, labeling_mode, color):
-        data_label = {"name": name, "labeling_mode": labeling_mode, "color": color}
-
+    def new_labeling_overlay(self, label_id, name, labeling_mode, color):
+        self.current_labeling_overlay = LabelingOverlay(label_id,
+                                                        self.view.zoomable_graphics_view.scene, 
+                                                        self.image_qrect.width(), 
+                                                        self.image_qrect.height(),
+                                                        name,
+                                                        labeling_mode, 
+                                                        color)
+        
         # Add the data of this new label in the label dictionnary
-        self.labels[name] = data_label
+        self.labeling_overlays[label_id] = self.current_labeling_overlay
 
-        # Set the name of the current label 
-        self.current_label = name
-
-        # Create a new LabelingOverlay instance and add this in the list
-        self.current_labeling_overlay = LabelingOverlay(self.view.zoomable_graphics_view.scene, self.image_qrect.width(), self.image_qrect.height(), self.labels[self.current_label]["color"])
-        self.labeling_overlays[self.current_label] = self.current_labeling_overlay 
+        # Set the current label
+        self.current_label_id = label_id
+        
+        # Put at the first plan the current label
         self.foreground_current_labeling_overlay()
 
     # Change the current labeling overlay
-    def select_labeling_overlay(self, label_name):
-        self.current_labeling_overlay = self.labeling_overlays[label_name]
-        self.current_label = label_name
+    def select_labeling_overlay(self, label_id):
+        self.current_label_id = label_id
+
+        self.current_labeling_overlay = self.labeling_overlays[label_id]
         self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
         self.foreground_current_labeling_overlay()
 
@@ -273,11 +301,12 @@ class Core():
     def get_labeling_overlay(self):
         return self.current_labeling_overlay
     
-    def change_name(self, name, new_name):
-        data_label = self.labels[name] # Get good data
-        data_label["name"] = new_name # Change the name in the data
-        self.model.labels[new_name] = data_label # Add the new key        
-        del self.model.labels[name] # Remove the old key 
+    def name_already_in_labels(self, name):
+        for id in self.labeling_overlays:
+            if self.labeling_overlays[id].get_name() == name:
+                return True
+        return False 
+
 
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -285,11 +314,11 @@ class Core():
 
     # Put at the foreground the current labeling overlay 
     def foreground_current_labeling_overlay(self):        
-        for name in self.labeling_overlays.keys():
-            if name == self.current_label:
-                self.labeling_overlays[name].set_zvalue(3)
+        for label_id in self.labeling_overlays:
+            if label_id == self.current_label_id:
+                self.labeling_overlays[label_id].set_zvalue(3)
             else:
-                self.labeling_overlays[name].set_zvalue(2)
+                self.labeling_overlays[label_id].set_zvalue(2)
         self.view.zoomable_graphics_view.scene.update()
 
     # Return QPixmap of all labeling overlay except the current one in a ordered list. 
@@ -297,7 +326,7 @@ class Core():
         if self.n_labeling_overlays() == 1:
             return []
         result = [labeling_overlay for labeling_overlay in self.labeling_overlays.values() if labeling_overlay != self.current_labeling_overlay]
-        result.sort(key=lambda x: x.id)
+        result.sort(key=lambda x: x.label_id)
         return [element.labeling_overlay_pixmap for element in result]
         
     def set_opacity(self, opacity):

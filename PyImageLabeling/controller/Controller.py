@@ -4,6 +4,7 @@ from PyImageLabeling.controller.LabelingEvents import LabelingEvents
 from PyImageLabeling.controller.ImageEvents import ImageEvents
 from PyImageLabeling.controller.LabelEvents import LabelEvents
 
+from PyQt6.QtWidgets import QMessageBox
 
 class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):
     def __init__(self, config):
@@ -20,4 +21,5 @@ class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):
     def set_model(self, model):
         super().set_model(model)
         self.model = model
-        
+
+    

@@ -7,7 +7,6 @@ import cv2
 import traceback
 
 from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.controller.settings.ContourFillinApplyCancel import ContourFillinApplyCancel
 
 import time
 
@@ -64,8 +63,6 @@ class ContourFilling(Core):
 
     def start_contour_filling(self):
         self.view.zoomable_graphics_view.change_cursor("filling")
-        self.view.point_color = self.labels[self.current_label]["color"]
-        self.view.point_label = self.labels[self.current_label]["name"]
         self.apply_contour()
     
     def end_contour_filling(self):

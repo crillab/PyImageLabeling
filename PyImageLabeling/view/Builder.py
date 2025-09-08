@@ -274,8 +274,6 @@ class Builder:
         
         push_buttons = dict() # Dictionnary of push buttons for this label 
         
-        activation_name = f"activation_{name}"
-    
         new_layer_label_bar_container = QWidget()
         new_layer_label_bar_container.setObjectName("label_bar_new")
 
@@ -284,50 +282,49 @@ class Builder:
         new_layer_label_bar_layout.setSpacing(0)
         new_layer_label_bar_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
-        for button_name, button in self.view.buttons_label_bar_temporary.items():
-            if button_name.startswith('activation_'):
-                button.setChecked(False)
-
-        activation_button = QPushButton(name)
-        activation_button.setObjectName('activation')
-        activation_button.setCheckable(True)
-        activation_button.setChecked(True)
-        activation_button.clicked.connect(lambda: self.view.controller.select_label(activation_name))
-        self.view.buttons_label_bar_temporary[activation_name] = activation_button
-        #data_new_label["button"] = activation_button
-
-        new_layer_label_bar_layout.addWidget(self.view.buttons_label_bar_temporary[activation_name])
+        # Activation button
+        push_buttons["activation"] = QPushButton(name)
+        push_buttons["activation"].setObjectName('activation')
+        push_buttons["activation"].setCheckable(True)
+        push_buttons["activation"].setChecked(True)
+        push_buttons["activation"].clicked.connect(lambda: self.view.controller.select_label(label_id))    
+        new_layer_label_bar_layout.addWidget(push_buttons["activation"])
 
         self.view.label_bar_layout.addWidget(QSeparator1())
 
+        # The others buttons
         for button in self.view.config["label_bar"]["layer"]:        
-            button_name = button["name"]+"_"+name
-            self.view.buttons_label_bar_temporary[button_name] = QPushButton()
-            self.view.buttons_label_bar_temporary[button_name].setObjectName(button["name"])
-            self.view.buttons_label_bar_temporary[button_name].setToolTip(button["tooltip"])
-            self.view.buttons_label_bar_temporary[button_name].setCheckable(button["checkable"])
+            type_name_button = button["name"]
+            
+            push_buttons[type_name_button] = QPushButton()
+            push_buttons[type_name_button].setObjectName(button["name"])
+            push_buttons[type_name_button].setToolTip(button["tooltip"])
+            push_buttons[type_name_button].setCheckable(button["checkable"])
         
             icon_path = Utils.get_icon_path(button["icon"])
             if os.path.exists(icon_path):
-                self.view.buttons_label_bar_temporary[button_name].setIcon(QIcon(icon_path))
-                self.view.buttons_label_bar_temporary[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
+                push_buttons[type_name_button].setIcon(QIcon(icon_path))
+                push_buttons[type_name_button].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
 
-            if button["name"] == "color":
-                self.view.buttons_label_bar_temporary[button_name].setStyleSheet(Utils.color_to_stylesheet(color))
-                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.color(activation_name))
+            if type_name_button == "color":
+                push_buttons[type_name_button].setStyleSheet(Utils.color_to_stylesheet(color))
+                push_buttons[type_name_button].clicked.connect(lambda: self.view.controller.color(label_id))
             
-            elif button["name"] == "visibility":
-                self.view.buttons_label_bar_temporary[button_name].setChecked(True)
-                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.visibility(activation_name))
+            elif type_name_button == "visibility":
+                push_buttons[type_name_button].setChecked(True)
+                push_buttons[type_name_button].clicked.connect(lambda: self.view.controller.visibility(label_id))
             
-            elif button["name"] == "label_setting":
-                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.label_setting(activation_name))
+            elif type_name_button == "label_setting":
+                push_buttons[type_name_button].clicked.connect(lambda: self.view.controller.label_setting(label_id))
 
-            elif button["name"] == "unload_label":
-                self.view.buttons_label_bar_temporary[button_name].clicked.connect(lambda: self.view.controller.unload_label(activation_name))
+            elif type_name_button == "remove_label":
+                push_buttons[type_name_button].clicked.connect(lambda: self.view.controller.remove_label(label_id))
         
-            new_layer_label_bar_layout.addWidget(self.view.buttons_label_bar_temporary[button_name])
+            new_layer_label_bar_layout.addWidget(push_buttons[type_name_button])
         
+    
+        self.view.buttons_label_bar_temporary[label_id] = push_buttons
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
+        self.view.container_label_bar_temporary[label_id] = new_layer_label_bar_container
         
         

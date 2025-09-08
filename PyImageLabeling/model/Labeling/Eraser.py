@@ -79,7 +79,7 @@ class Eraser(Core):
         self.current_position_y = int(current_position.y())
 
         self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
-        self.color = self.labels[self.current_label]["color"]
+        self.color = self.get_labeling_overlay().get_color()
         
         eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
         eraser_brush_item.setZValue(4) # To place in the top of the item

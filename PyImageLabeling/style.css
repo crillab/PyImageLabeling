@@ -413,7 +413,7 @@ QPushButton#label_setting:checked {
     border: 1px inset #bbb;
 }
 
-QPushButton#unload_label {
+QPushButton#remove_label {
     background-color: #cccccc;
     min-height: 40px;
     max-height: 40px;
@@ -429,16 +429,16 @@ QPushButton#unload_label {
     border-top-right-radius: 5px;
 }
 
-QPushButton#unload_label:hover {
+QPushButton#remove_label:hover {
     background-color: #8ba1ff;
 }
 
-QPushButton#unload_label:pressed {
+QPushButton#remove_label:pressed {
     background-color: #fcfcfc;
     border: 1px solid #bbb;
 }
 
-QPushButton#unload_label:checked {
+QPushButton#remove_label:checked {
     background-color: #fcfcfc;
     border: 1px inset #bbb;
 }

@@ -144,11 +144,11 @@
                     "tooltip": "Parameters of the layer/label."
                 },
                 {
-                    "name": "unload_label",
-                    "name_view": "Unload Label",
+                    "name": "remove_label",
+                    "name_view": "Remove Label",
                     "icon": "close",
                     "checkable": false,
-                    "tooltip": "Unload the label (without save)"
+                    "tooltip": "Remove the label"
                 }
                 
             ]},

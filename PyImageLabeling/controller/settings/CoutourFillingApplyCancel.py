@@ -3,7 +3,7 @@ from PyQt6.QtCore import Qt, QRect, QPoint
 
 from PyImageLabeling.model.Utils import Utils
 
-class ContourFillinApplyCancel(QDialog):
+class ContourFillingApplyCancel(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
