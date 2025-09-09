@@ -15,7 +15,7 @@ from skimage.color import rgb2hsv
 class LoadImage(Core):
     def __init__(self):
         super().__init__() 
-        self.loaded_image_paths = []
+        self.file_paths = []
 
     def set_view(self, view):
         super().set_view(view)
@@ -31,30 +31,20 @@ class LoadImage(Core):
         
         print("init_load_image")
         file_dialog = QFileDialog()
-        file_paths, _ = file_dialog.getOpenFileNames(
+        current_file_paths, _ = file_dialog.getOpenFileNames(
             self.view, "Open Image", default_path, "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)"
         )
-        if file_paths == "": return
-        
-        valid_images = []
-        for file_path in file_paths:
-            image = QPixmap(file_path)
-            if image.isNull():
-                print(f"Warning: Could not load image {file_path}")
-            elif file_path not in self.loaded_image_paths:
-                valid_images.append(file_path)
-                filename = os.path.basename(file_path)
-                self.view.add_file_to_list(filename, self.loaded_image_paths)
-                self.loaded_image_paths.append(file_path)
-                default_path = os.path.dirname(file_path)
-        
+        if current_file_paths == "": return
+      
+        self.view.file_bar_add(current_file_paths)
+
         data = Utils.load_parameters()
-        data["load_image"]["path"] = default_path
+        data["load_image"]["path"] = os.path.dirname(current_file_paths[0])
         Utils.save_parameters(data)
 
-        if not valid_images:
-            print("Warning: Could not load any of the selected images.")
-            return
+        #if not valid_images:
+        #    print("Warning: Could not load any of the selected images.")
+        #    return
         
         # Activate previous and next buttons
         for button_name in self.view.buttons_file_bar:

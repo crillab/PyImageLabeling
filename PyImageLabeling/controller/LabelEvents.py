@@ -154,7 +154,7 @@ class LabelEvents(Events):
                 for button_key in self.view.buttons_labeling_bar.keys():
                     self.view.buttons_labeling_bar[button_key].setEnabled(False)
                 self.move_image() # To deactivate the last used tool, we active the move button :)  
-
+                self.model.remove_contour()
             # Select another label if the deleted one was selected 
             elif self.model.current_label_id == label_id:
                 first_id = list(self.model.labeling_overlays.keys())[0]

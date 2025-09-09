@@ -2,6 +2,8 @@
     "window_size":{
         "margin": 10,
         "icon": [20, 20],
+        "icon_save_marker": [12, 12],
+        
         "graphics_view":{
             "width":400
         },

@@ -100,39 +100,61 @@ class View(QMainWindow):
         #         for button in geometric_tools:
         #             self.buttons_labeling_bar[button].setEnabled(False)
 
-    def add_file_to_list(self, filename, loaded_image_paths):
-        # Create list item
-        item = QListWidgetItem()
-        self.file_bar_list.addItem(item)
-        
-        # Create custom widget for the item
-        item_widget = QWidget()
-        item_widget.setObjectName("file_item")
-        item_layout = QHBoxLayout(item_widget)
-        item_layout.setContentsMargins(5, 2, 5, 2)
-        
-        # File name label
-        file_label = QLabel(filename)
-        file_label.setObjectName("label_files")
-        file_label.setToolTip(filename)  # Full filename as tooltip
-        
-        # Remove button
-        remove_button = QPushButton("×")
-        remove_button.setToolTip("Remove file")
-        remove_button.setObjectName("remove_image_button")
-        
-        # Connect remove button to removal function
-        remove_button.clicked.connect(lambda: self.remove_file_from_list(item, filename, loaded_image_paths))
- 
-        item_layout.addWidget(file_label)
-        item_layout.addWidget(remove_button)
-        
-        self.file_bar_list.setItemWidget(item, item_widget)
     
-    def remove_file_from_list(self, item, filename, loaded_image_paths):
+
+    def file_bar_add(self, current_file_paths):
+        for file in current_file_paths:
+            if file in self.controller.model.file_paths:
+                continue
+            
+            self.controller.model.file_paths.append(file)
+            
+            filename = os.path.basename(file)
+
+            # Create list item
+            item = QListWidgetItem()
+            item.file_path = file
+            item.filename = filename
+
+            self.file_bar_list.addItem(item)
+            
+            # Create custom widget for the item
+            item_widget = QWidget()
+            item_widget.setObjectName("file_item")
+            item_layout = QHBoxLayout(item_widget)
+            item_layout.setContentsMargins(5, 2, 5, 2)
+
+            # The save marker
+            icon_button = QLabel()
+            icon_pixmap = QPixmap(Utils.get_icon_path("asterisk-green"))
+            icon_pixmap = icon_pixmap.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+            icon_button.setPixmap(icon_pixmap)
+            icon_button.setObjectName("save_marker")
+            
+            # File name label
+            file_label = QLabel(filename)
+            file_label.setObjectName("label_files")
+            file_label.setToolTip(filename)  # Full filename as tooltip
+            
+            # Remove button
+            remove_button = QPushButton("×")
+            remove_button.setToolTip("Remove file")
+            remove_button.setObjectName("remove_image_button")
+            
+            # Connect remove button to removal function
+            remove_button.clicked.connect(lambda: self.file_bar_remove(item, file_paths))
+    
+            item_layout.addWidget(icon_button)
+            item_layout.addWidget(file_label)
+            item_layout.addWidget(remove_button)
+            
+            self.file_bar_list.setItemWidget(item, item_widget)
+
+    
+    def file_bar_remove(self, item, loaded_image_paths):
         # Get the row of the item
         for path in loaded_image_paths:
-            if filename in path:
+            if item.filename in path:
                 loaded_image_paths.remove(path)
         row = self.file_bar_list.row(item)
         if row >= 0:
@@ -144,12 +166,14 @@ class View(QMainWindow):
                     self.buttons_file_bar[button_name].setEnabled(False)
             for button_names in self.buttons_image_bar:
                 self.buttons_image_bar[button_names].setEnabled(False)
-            self.zoomable_graphics_view.scene.clear()
-            self.pixmap_item = None
-            self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
-            self.zoomable_graphics_view.resetTransform()
+            
+            
+            #self.zoomable_graphics_view.scene.clear()
+            #self.pixmap_item = None
+            #self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
+            #self.zoomable_graphics_view.resetTransform()
 
-    def select_image(self):
+    def file_bar_select(self):
         """Handle selection change to update styling"""
         for i in range(self.file_bar_list.count()):
             item = self.file_bar_list.item(i)

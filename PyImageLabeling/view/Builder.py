@@ -86,7 +86,7 @@ class Builder:
         self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.view.file_bar_list = QListWidget()
-        self.view.file_bar_list.itemSelectionChanged.connect(self.view.select_image)
+        self.view.file_bar_list.itemSelectionChanged.connect(self.view.file_bar_select)
         #self.view.file_bar_list.itemClicked.connect(self.view.controller.on_file_double_clicked)
         """
         self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
@@ -301,11 +301,12 @@ class Builder:
             push_buttons[type_name_button].setObjectName(button["name"])
             push_buttons[type_name_button].setToolTip(button["tooltip"])
             push_buttons[type_name_button].setCheckable(button["checkable"])
-        
-            icon_path = Utils.get_icon_path(button["icon"])
-            if os.path.exists(icon_path):
-                push_buttons[type_name_button].setIcon(QIcon(icon_path))
-                push_buttons[type_name_button].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
+            
+            if type_name_button != "color":
+                icon_path = Utils.get_icon_path(button["icon"])
+                if os.path.exists(icon_path):
+                    push_buttons[type_name_button].setIcon(QIcon(icon_path))
+                    push_buttons[type_name_button].setIconSize(QSize(*self.view.config["window_size"]["icon"])) 
 
             if type_name_button == "color":
                 push_buttons[type_name_button].setStyleSheet(Utils.color_to_stylesheet(color))

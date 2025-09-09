@@ -28,22 +28,28 @@ class FileEvents(Events):
         print("load_images")
 
     def select_image(self, item):
-        item_widget = self.view.file_bar_list.itemWidget(item)
-        if item_widget:
-            file_label = item_widget.findChild(QLabel)
-            if file_label:
-                filename = file_label.text()
-                matching_path = None
-                for path in self.model.loaded_image_paths:
-                    if os.path.basename(path) == filename:
-                        matching_path = path
-                        break
-                if matching_path:
-                    self.model.load_image(matching_path)
-                    self.view.file_bar_list.setCurrentItem(item)
-                    print(f"Loaded image: {filename}")
-                else:
-                    print(f"Error: Could not find path for {filename}")
+        print("item:", item)
+        
+        #filename = item.filename
+        self.model.load_image(item.file_path)
+        self.view.file_bar_list.setCurrentItem(item)
+        
+        # item_widget = self.view.file_bar_list.itemWidget(item)
+        # if item_widget:
+        #     file_label = item_widget.findChild(QLabel)
+        #     if file_label:
+        #         filename = file_label.text()
+        #         matching_path = None
+        #         for path in self.model.loaded_image_paths:
+        #             if os.path.basename(path) == filename:
+        #                 matching_path = path
+        #                 break
+        #         if matching_path:
+        #             self.model.load_image(matching_path)
+        #             self.view.file_bar_list.setCurrentItem(item)
+        #             print(f"Loaded image: {filename}")
+        #         else:
+        #             print(f"Error: Could not find path for {filename}")
     
     def next_image(self):
         self.all_events(self.next_image.__name__)

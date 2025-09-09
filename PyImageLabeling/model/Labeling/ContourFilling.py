@@ -122,7 +122,7 @@ class ContourFilling(Core):
         if closest_contour is None: return # We are not cliked inside of a contour
 
         # Create a little QPixmap of this contour with cv2 
-        coutour_item = ContourItem(closest_contour, self.color, )
+        coutour_item = ContourItem(closest_contour.copy(), self.color)
         
         # Draw the contour QPixmap on the good labeling overlay 
         coutour_item.paint_labeling_overlay(self.get_labeling_overlay().get_painter())

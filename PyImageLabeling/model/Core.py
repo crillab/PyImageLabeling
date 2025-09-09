@@ -16,7 +16,6 @@ class LabelingOverlay():
     # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
     ###
 
-
     def __init__(self, label_id, scene, width, height, name, labeling_mode, color):
         self.label_id = label_id
         self.scene = scene # The associated QGraphicScene of the QGraphicsView
@@ -180,24 +179,17 @@ class LabelingOverlay():
         self.labeling_overlay_painter.setPen(QPen(self.color, 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         self.labeling_overlay_painter.setBrush(self.color)
         
+class Image():
 
-
-class Core():
-    static_label_id = 0
-
-    def __init__(self):
-        
-        #self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
-        
-        self.current_label_id = None # The current label id selected
-        self.checked_button = None # The current button checked => usefull to know the labelinf tool to use
-        
-
-        self.backgroung_item = None # The QBackgroundItem behind the images
+    def __init__(self, view):
+        self.view = view
+        self.zoomable_graphics_view = view.zoomable_graphics_view
 
         self.image_pixmap = None # The current pixmap of the image
         self.image_item = None # The current pixmap item of the image in the scene
         self.image_numpy_pixels_rgb = None # The current RGB numpy matrix of the image  
+
+        self.backgroung_item = None # The QBackgroundItem behind the images
 
         self.labeling_overlays = dict() # dict of LabelingOverlay instance 
 
@@ -205,23 +197,6 @@ class Core():
 
         self.image_qrectf = None # Float size in QRectF
         self.image_qrect = None # Integer size in Qrect
-
-        self.undo_deque = deque()
-
-    def get_static_label_id(self):
-        return Core.static_label_id
-
-    def new_label_id(self):
-        value = Core.static_label_id
-        Core.static_label_id+=1
-        return value
-
-    def set_view(self, view):
-        self.view = view
-        self.zoomable_graphics_view = view.zoomable_graphics_view # short-cut
-
-    def set_controller(self, controller):
-        self.controller = controller
 
     def load_image(self, path_image):
         self.image_pixmap = QPixmap(path_image)
@@ -234,8 +209,6 @@ class Core():
         self.image_item = self.zoomable_graphics_view.scene.addPixmap(self.image_pixmap)
         self.image_qrectf = self.image_item.boundingRect() 
         self.image_qrect = self.image_pixmap.rect()
-
-
         self.image_item.setZValue(1) # Image layer 
         self.zoomable_graphics_view.setSceneRect(self.image_qrectf)
         self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -256,7 +229,7 @@ class Core():
 
        
         print("load_image:", self.image_pixmap)
-        
+    
     def initialyse_zoom_factor(self):
         self.view.min_zoom = self.view.zoomable_graphics_view.data_parameters["zoom"]["min_zoom"]
         self.view.max_zoom = self.view.zoomable_graphics_view.data_parameters["zoom"]["max_zoom"]
@@ -271,8 +244,41 @@ class Core():
         self.view.max_zoom = diagonal_pixmap/self.view.max_zoom        
         self.view.initial_zoom_factor = self.view.zoom_factor
 
-    # Add a new labeling overlay 
+class Core():
+    static_label_id = 0
+
+    def __init__(self):
+        
+        #self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
+        
+        self.current_label_id = None # The current label id selected
+        self.checked_button = None # The current button checked => usefull to know the labelinf tool to use
+        
+        self.images = dict() # Dictionnary key: file_path -> value: Image Object or None
+
+        
+    def get_static_label_id(self):
+        return Core.static_label_id
+
+    def new_label_id(self):
+        value = Core.static_label_id
+        Core.static_label_id+=1
+        return value
+
+    def set_view(self, view):
+        self.view = view
+        self.zoomable_graphics_view = view.zoomable_graphics_view # short-cut
+
+    def set_controller(self, controller):
+        self.controller = controller
+
+
+    
+        
+    
+
     def new_labeling_overlay(self, label_id, name, labeling_mode, color):
+        # Add a new labeling overlay 
         self.current_labeling_overlay = LabelingOverlay(label_id,
                                                         self.view.zoomable_graphics_view.scene, 
                                                         self.image_qrect.width(), 
