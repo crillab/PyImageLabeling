@@ -15,15 +15,14 @@ from skimage.color import rgb2hsv
 class LoadImage(Core):
     def __init__(self):
         super().__init__() 
-        self.file_paths = []
 
     def set_view(self, view):
         super().set_view(view)
     
-    def load_image(self, path_image):
+    def select_image(self, path_image):
         #remove all overlays#
         #self.clear_all()
-        super().load_image(path_image)
+        super().select_image(path_image)
         
         
     def init_load_image(self):

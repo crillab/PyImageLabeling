@@ -21,15 +21,16 @@ class LabelEvents(Events):
             # Uncheck all activation buttons
             for label_id in self.view.buttons_label_bar_temporary:
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
-          
-            # Get a new id for this label
-            label_id = self.model.new_label_id() 
+
+
+            # Create a new label
+            label = self.model.new_label(label_setting.name, label_setting.labeling_mode, label_setting.color) 
 
             # Display the new label bar 
-            self.view.builder.build_new_layer_label_bar(label_id, label_setting.name, label_setting.labeling_mode, label_setting.color)
+            self.view.builder.build_new_layer_label_bar(label.get_label_id(), label_setting.name, label_setting.labeling_mode, label_setting.color)
             
-            # Add a new overlay in the model
-            self.model.new_labeling_overlay(label_id, label_setting.name, label_setting.labeling_mode, label_setting.color)           
+            # Update the model with the new labal
+            self.model.update_labeling_overlays(label.get_label_id())        
             
             # Put the good labeling buttons according to the mode 
             self.view.update_labeling_buttons(label_setting.labeling_mode)
@@ -44,11 +45,13 @@ class LabelEvents(Events):
             else:
                 self.view.buttons_label_bar_temporary[id]["activation"].setChecked(False)
         
+
         # Active or deactivate the good labeling buttons 
-        self.view.update_labeling_buttons(self.model.labeling_overlays[label_id].get_labeling_mode())
+        self.view.update_labeling_buttons(self.model.get_label_items()[label_id].get_labeling_mode())
         
         # Call the model part to change the labeling overlay 
-        self.model.select_labeling_overlay(label_id) 
+        self.model.update_labeling_overlays(label_id)      
+        #self.model.select_labeling_overlay(label_id) 
 
         # Ensure that the visibility button of this label is checked
         self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)

@@ -108,7 +108,8 @@ class View(QMainWindow):
                 continue
             
             self.controller.model.file_paths.append(file)
-            
+            self.controller.model.image_items[file] = None
+
             filename = os.path.basename(file)
 
             # Create list item

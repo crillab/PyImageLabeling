@@ -31,7 +31,11 @@ class FileEvents(Events):
         print("item:", item)
         
         #filename = item.filename
-        self.model.load_image(item.file_path)
+        self.model.select_image(item.file_path)
+        
+        if self.model.get_current_label_item() is not None:
+            self.model.update_labeling_overlays(self.model.get_current_label_item().get_label_id())
+
         self.view.file_bar_list.setCurrentItem(item)
         
         # item_widget = self.view.file_bar_list.itemWidget(item)

@@ -15,7 +15,7 @@ class PaintBrushItemOld(QGraphicsItem):
         self.color = color
         self.size = size
         self.labeling_overlay_painter = core.get_labeling_overlay().get_painter()
-        self.image_pixmap = core.image_pixmap
+        #self.image_pixmap = core.image_pixmap
 
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
         self.qrectf = self.qrectf.intersected(core.image_qrectf)
@@ -66,12 +66,12 @@ class PaintBrushItem(QGraphicsItem):
         self.y = y
         self.color = color
         self.size = size
-        self.labeling_overlay_painter = self.core.get_labeling_overlay().get_painter()
-        self.image_pixmap = self.core.image_pixmap
+        self.labeling_overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
+        #self.image_pixmap = self.core.image_pixmap
         self.position_x = int(self.x-(self.size/2))
         self.position_y = int(self.y-(self.size/2))
         self.bounding_rect = QRectF(self.position_x, self.position_y, self.size, self.size)
-        self.bounding_rect = self.bounding_rect.intersected(core.image_qrectf)
+        self.bounding_rect = self.bounding_rect.intersected(core.get_current_image_item().image_qrectf)
 
         # Create the image of the first point
         self.texture = QPixmap(self.size, self.size) 
@@ -86,7 +86,7 @@ class PaintBrushItem(QGraphicsItem):
 
         # Remove the existing pixel label already colored 
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.core.get_labeling_overlay().labeling_overlay_pixmap, self.bounding_rect.toRect())
+        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.bounding_rect.toRect())
         
         painter.end()
         
@@ -101,7 +101,7 @@ class PaintBrushItem(QGraphicsItem):
         new_position_x = int(new_x-(self.size/2))
         new_position_y = int(new_y-(self.size/2))
         new_bounding_rect = QRectF(new_position_x, new_position_y, self.size, self.size)
-        new_bounding_rect = new_bounding_rect.intersected(self.core.image_qrectf)
+        new_bounding_rect = new_bounding_rect.intersected(self.core.get_current_image_item().image_qrectf)
 
         # Do the union of the two bounding rects 
         self.united_bounding_rect = self.bounding_rect.united(new_bounding_rect)
@@ -127,7 +127,7 @@ class PaintBrushItem(QGraphicsItem):
         
         # Remove the existing pixel label already colored 
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-        painter.drawPixmap(QRect(0, 0, int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height())), self.core.get_labeling_overlay().labeling_overlay_pixmap, self.united_bounding_rect.toRect())
+        painter.drawPixmap(QRect(0, 0, int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height())), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.united_bounding_rect.toRect())
         
         
         painter.end()
@@ -142,7 +142,7 @@ class PaintBrushItem(QGraphicsItem):
         return self.bounding_rect
 
     def paint(self, painter, option, widget):
-        painter.setOpacity(self.core.get_labeling_overlay().get_opacity())
+        painter.setOpacity(self.core.get_current_image_item().get_labeling_overlay().get_opacity())
         painter.drawPixmap(self.position_x, self.position_y, self.texture) 
         
         
@@ -169,7 +169,7 @@ class PaintBrush(Core):
         self.current_position_y = int(current_position.y())
 
         self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
-        self.color = self.get_labeling_overlay().get_color()
+        self.color = self.get_current_label_item().get_color()
         
         self.paint_brush_item = PaintBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_paint_brush)
         self.paint_brush_item.setZValue(2) # To place in the top of the item
@@ -199,7 +199,7 @@ class PaintBrush(Core):
         self.paint_brush_item.labeling_overlay_paint()
 
         # Display it :) 
-        self.update_labeling_overlay()
+        self.get_current_image_item().update_labeling_overlay()
 
         # Romeve the fake item 
         self.zoomable_graphics_view.scene.removeItem(self.paint_brush_item)
