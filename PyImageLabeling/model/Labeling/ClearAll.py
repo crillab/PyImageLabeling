@@ -16,7 +16,7 @@ class ClearAll(Core):
         msgBox.setModal(True)
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
-            self.get_labeling_overlay().reset()
+            self.get_current_image_item().get_labeling_overlay().reset()
         
     
 

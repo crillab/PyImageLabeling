@@ -14,12 +14,12 @@ class EraserBrushItem(QGraphicsItem):
         self.y = y
         self.color = color
         self.size = size
-        self.labeling_overlay_painter = self.core.get_labeling_overlay().get_painter()
-        self.image_pixmap = self.core.image_pixmap
+        self.labeling_overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
+        self.image_pixmap = self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap
 
         # Compute the good qrect to avoid going beyond the painting area  
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
-        self.qrectf = self.qrectf.intersected(self.image_pixmap.rect().toRectF())
+        self.qrectf = self.qrectf.intersected(core.get_current_image_item().image_qrectf)
         alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
 
         # Create a fake texture with the good image inside 
@@ -29,8 +29,8 @@ class EraserBrushItem(QGraphicsItem):
         painter = QPainter(self.eraser_texture)
         
         painter.drawPixmap(QRect(0, 0, self.size, self.size), self.image_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
-        painter.setOpacity(self.core.get_labeling_overlay().get_opacity())
-        for other_labeling_overlay_pixmap in self.core.get_labeling_overlay_pixmaps():
+        painter.setOpacity(self.core.get_current_image_item().get_labeling_overlay().get_opacity())
+        for other_labeling_overlay_pixmap in self.core.get_current_image_item().get_labeling_overlay_pixmaps():
             painter.drawPixmap(QRect(0, 0, self.size, self.size), other_labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
             
         painter.end()
@@ -79,7 +79,7 @@ class Eraser(Core):
         self.current_position_y = int(current_position.y())
 
         self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
-        self.color = self.get_labeling_overlay().get_color()
+        self.color = self.get_current_label_item().get_color()
         
         eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
         eraser_brush_item.setZValue(4) # To place in the top of the item
@@ -109,7 +109,7 @@ class Eraser(Core):
         self.eraser_brush_items.clear()
 
         # Display the good pixmap :) 
-        self.update_labeling_overlay()
+        self.get_current_image_item().update_labeling_overlay()
 
         # Reset the pen of the good labeling overlay
-        self.get_labeling_overlay().reset_pen()
+        self.get_current_image_item().get_labeling_overlay().reset_pen()

@@ -5,7 +5,7 @@ from PyImageLabeling.model.Utils import Utils
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
-
+from functools import partial
 import os
 
 class View(QMainWindow):
@@ -143,7 +143,7 @@ class View(QMainWindow):
             remove_button.setObjectName("remove_image_button")
             
             # Connect remove button to removal function
-            remove_button.clicked.connect(lambda: self.file_bar_remove(item, file_paths))
+            remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths))
     
             item_layout.addWidget(icon_button)
             item_layout.addWidget(file_label)
@@ -159,14 +159,14 @@ class View(QMainWindow):
                 loaded_image_paths.remove(path)
         row = self.file_bar_list.row(item)
         if row >= 0:
-            # Remove the item from the list
+        # Remove the item from the list
             self.file_bar_list.takeItem(row)
-        if len(loaded_image_paths) == 0:
-            for button_name in self.buttons_file_bar:
-                if 'previous' in button_name or 'next' in button_name:
-                    self.buttons_file_bar[button_name].setEnabled(False)
-            for button_names in self.buttons_image_bar:
-                self.buttons_image_bar[button_names].setEnabled(False)
+        # if len(loaded_image_paths) == 0:
+        #     for button_name in self.buttons_file_bar:
+        #         if 'previous' in button_name or 'next' in button_name:
+        #             self.buttons_file_bar[button_name].setEnabled(False)
+        #     for button_names in self.buttons_image_bar:
+        #         self.buttons_image_bar[button_names].setEnabled(False)
             
             
             #self.zoomable_graphics_view.scene.clear()

@@ -7,6 +7,6 @@ class Undo(Core):
         super().__init__() 
     
     def undo(self):
-        self.get_labeling_overlay().undo()
+        self.get_current_image_item().get_labeling_overlay().undo()
             
   

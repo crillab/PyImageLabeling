@@ -75,7 +75,7 @@ class LabelingOverlay():
         
         self.undo_deque.clear()
         self.previous_labeling_overlay_pixmap = None
-
+        
     def remove(self):
         self.scene.removeItem(self.labeling_overlay_item)
         self.labeling_overlay_painter.end()
@@ -110,9 +110,17 @@ class LabelingOverlay():
             self.reset_pen()
 
     def generate_opacity_pixmap(self):
+        # End the painter before filling
+        self.labeling_overlay_opacity_painter.end()
+        
+        # Now we can fill the pixmap
         self.labeling_overlay_opacity_pixmap.fill(Qt.GlobalColor.transparent)
+        
+        # Restart the painter
+        self.labeling_overlay_opacity_painter.begin(self.labeling_overlay_opacity_pixmap)
         self.labeling_overlay_opacity_painter.setOpacity(self.get_opacity())
         self.labeling_overlay_opacity_painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
+        
         return self.labeling_overlay_opacity_pixmap
 
     def update_color(self):
@@ -338,7 +346,7 @@ class ImageItem():
         if self.n_labeling_overlays() == 1:
             return []
         result = [labeling_overlay for labeling_overlay in self.labeling_overlays.values() if labeling_overlay != self.current_labeling_overlay]
-        result.sort(key=lambda x: x.label_id)
+        result.sort(key=lambda x: x.label.get_label_id())
         return [element.labeling_overlay_pixmap for element in result]
         
     def set_opacity(self, opacity):
