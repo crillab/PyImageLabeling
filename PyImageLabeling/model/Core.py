@@ -39,10 +39,6 @@ class LabelingOverlay():
         self.undo_deque = deque()
         self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
         
-        # Initialize the QGraphicItem
-        self.labeling_overlay_item = self.scene.addPixmap(self.labeling_overlay_pixmap)
-        self.labeling_overlay_item.setZValue(self.zvalue)  
-
         # Initialize the associated QPainter
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)      
         self.reset_pen()
@@ -56,7 +52,14 @@ class LabelingOverlay():
         
         self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
         self.labeling_overlay_color_painter = QPainter()
+
+        self.is_displayed_in_scene = False
         
+    def update_scene(self):
+        if self.is_displayed_in_scene is False:
+            self.labeling_overlay_item = self.scene.addPixmap(self.generate_opacity_pixmap())
+            self.labeling_overlay_item.setZValue(self.zvalue)  
+            self.is_displayed_in_scene = True
         
     def change_visible(self):
         if self.labeling_overlay_item.isVisible() is True:
@@ -181,15 +184,17 @@ class LabelingOverlay():
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         self.labeling_overlay_painter.setPen(QPen(self.label.color, 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         self.labeling_overlay_painter.setBrush(self.label.color)
-        
+    
+    def set_is_displayed_in_scene(self, is_displayed_in_scene):
+        self.is_displayed_in_scene = is_displayed_in_scene
 class ImageItem():
 
-    def __init__(self, view, controller):
+    def __init__(self, view, controller, path_image):
         self.view = view
         self.controller = controller
         self.zoomable_graphics_view = view.zoomable_graphics_view
 
-        self.image_pixmap = None # The current pixmap of the image
+        self.image_pixmap = QPixmap(path_image) # The current pixmap of the image
         self.image_item = None # The current pixmap item of the image in the scene
         self.image_numpy_pixels_rgb = None # The current RGB numpy matrix of the image  
 
@@ -199,41 +204,52 @@ class ImageItem():
 
         self.current_labeling_overlay = None # The current selected LabelingOverlay
 
-        self.image_qrectf = None # Float size in QRectF
-        self.image_qrect = None # Integer size in Qrect
-
-    def load_image(self, path_image):
-        self.image_pixmap = QPixmap(path_image)
+        self.image_qrect = self.image_pixmap.rect() # Integer size in Qrect
+        self.image_qrectf = self.image_qrect.toRectF() # Float size in QRectF
         
-        # Clear some values
-        self.zoomable_graphics_view.scene.clear()
-        self.zoomable_graphics_view.resetTransform()
+        # the background item
+        self.alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
         
-        # Add the image
-        self.image_item = self.zoomable_graphics_view.scene.addPixmap(self.image_pixmap)
-        self.image_qrectf = self.image_item.boundingRect() 
-        self.image_qrect = self.image_pixmap.rect()
-        self.image_item.setZValue(1) # Image layer 
-        self.zoomable_graphics_view.setSceneRect(self.image_qrectf)
-        self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.zoomable_graphics_view.centerOn(self.image_qrect.width()/2,self.image_qrect.height()/2)
-        
-        # Add the background item
-        alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
-        self.backgroung_item = QBackgroundItem(self.image_qrectf, self.controller, alpha_color)
-        self.backgroung_item.setZValue(0) # Base layer
-        self.view.zoomable_graphics_view.scene.addItem(self.backgroung_item)
-        self.image_item.installSceneEventFilter(self.backgroung_item)
-        
-        # Compute the good value of the zoom 
-        self.initialyse_zoom_factor()
-
         #save a numpy matrix of colors
         self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
 
-       
-        print("load_image:", self.image_pixmap)
+        self.is_displayed_in_scene = False
 
+    
+    
+    def update_scene(self):
+        if self.is_displayed_in_scene is False:
+            # Add the backgroung_item in the scene
+            self.backgroung_item = QBackgroundItem(self.image_qrectf, self.controller, self.alpha_color)
+            self.view.zoomable_graphics_view.scene.addItem(self.backgroung_item)
+            self.backgroung_item.setZValue(0) # Base layer
+            
+            # Add the image in the scene
+            self.image_item = self.zoomable_graphics_view.scene.addPixmap(self.image_pixmap)
+            self.image_item.setZValue(1) # Image layer 
+            
+            # Set the Event listener in the background item to the image item 
+            self.image_item.installSceneEventFilter(self.backgroung_item)
+
+            # Set the good visual parameters for the scene
+            self.zoomable_graphics_view.setSceneRect(self.image_qrectf)
+            self.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.zoomable_graphics_view.centerOn(self.image_qrect.width()/2,self.image_qrect.height()/2)
+
+            self.initialyse_zoom_factor()
+            self.is_displayed_in_scene = True
+        
+        # Update the labeling overlays
+        for label_id in self.labeling_overlays:
+            self.labeling_overlays[label_id].update_scene()
+        
+        print("update scene")
+
+    def clear_scene(self):
+        self.is_displayed_in_scene = False
+        for label_id in self.labeling_overlays:
+            self.labeling_overlays[label_id].set_is_displayed_in_scene(False)
+       
     def initialyse_zoom_factor(self):
         self.view.min_zoom = self.view.zoomable_graphics_view.data_parameters["zoom"]["min_zoom"]
         self.view.max_zoom = self.view.zoomable_graphics_view.data_parameters["zoom"]["max_zoom"]
@@ -249,30 +265,24 @@ class ImageItem():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     def update_labeling_overlays(self, label_items, selected_label_id):
-        print("update_labeling_overlays:", selected_label_id)
         # Update the labeling overlays of this image
         for label_id in label_items:
-            print("here:", label_id)
-            print("here2:", self.labeling_overlays)
-            
             if label_id not in self.labeling_overlays: # If the labeling overlay do not exists for this iamge, create it !
-                print("here")
                 self.labeling_overlays[label_id] = LabelingOverlay(label_items[label_id], self.view.zoomable_graphics_view.scene, self.image_qrect.width(), self.image_qrect.height())
             
-            #if label_id == selected_label_id:  # Put in the foreground this one 
-            #    print("before")
-            #    self.labeling_overlays[label_id].set_zvalue(3)
-            #    print("after")
-            #else:
-            #    self.labeling_overlays[label_id].set_zvalue(2)
-        print("update_labeling_overlays middle")   
         # Set the current labeling_overlay and label_id
         self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
         self.current_label_id = selected_label_id
-        
+    
+    def foreground_current_labeling_overlay(self):        
+        for label_id in self.labeling_overlays:
+            if label_id == self.current_label_id:
+                self.labeling_overlays[label_id].set_zvalue(3)
+            else:
+                self.labeling_overlays[label_id].set_zvalue(2)
         # Force the visibility 
-        self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
-        print("update_labeling_overlays end")
+        # self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
+        # print("update_labeling_overlays end")
         
        
 
@@ -335,6 +345,15 @@ class ImageItem():
         for labeling_overlay in self.labeling_overlays.values():
             labeling_overlay.set_opacity(opacity)
 
+    def get_image_numpy_pixels_rgb(self):
+        return self.image_numpy_pixels_rgb
+    
+    def get_width(self):
+        return self.image_qrect.width()
+
+    def get_height(self):
+        return self.image_qrect.height()
+    
 class LabelItem():
 
     static_label_id = 0
@@ -408,7 +427,6 @@ class Core():
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)
         self.label_items[label.get_label_id()] = label
-        
         return label
 
     def update_labeling_overlays(self, selected_label_id):
@@ -419,16 +437,37 @@ class Core():
                 self.image_items[file].update_labeling_overlays(self.label_items, selected_label_id)
         self.current_label_item = self.label_items[selected_label_id]
 
+        self.current_image_item.update_scene()
+        self.current_image_item.foreground_current_labeling_overlay()
+
     def select_image(self, path_image):
+        print("select_image")
+        if self.checked_button == "contour_filling":
+            self.remove_contour()
+
+        self.zoomable_graphics_view.scene.clear()
+        self.zoomable_graphics_view.resetTransform()
+        for file in self.file_paths:
+            if self.image_items[file] is not None:
+                self.image_items[file].clear_scene()
+
         if self.image_items[path_image] is None:
+            print("select_image new")
             # We have to load image and theses labels
-            self.image_items[path_image] = ImageItem(self.view, self.controller)
-            self.image_items[path_image].load_image(path_image)
+            self.image_items[path_image] = ImageItem(self.view, self.controller, path_image)
             self.current_image_item = self.image_items[path_image]
+            self.image_items[path_image].update_scene()
+            if len(self.label_items) != 0:
+                self.image_items[path_image].update_labeling_overlays(self.label_items, self.current_label_item.get_label_id())
         else:
+            print("select_image already exists")
             # Image and these labels are already loaded, display it 
-            self.image_items[path_image].load_image(path_image)
+            self.image_items[path_image].update_scene()
             self.current_image_item = self.image_items[path_image]
+
+        if self.checked_button == "contour_filling":
+            self.apply_contour()
+
         
             
     

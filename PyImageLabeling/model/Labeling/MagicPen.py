@@ -30,14 +30,15 @@ class MagicPen(Core):
         self.view.progressBar.reset()
 
         self._fill_shape_worker(scene_pos)
-        self.update_labeling_overlay() 
+        self.get_current_image_item().update_labeling_overlay()
     
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
-        print("self.image_pixmap:", self.image_pixmap)
-        width, height = self.image_pixmap.width(), self.image_pixmap.height()
+        width, height = self.get_current_image_item().get_width(), self.get_current_image_item().get_height()
         if not (0 <= initial_position_x < width and 0 <= initial_position_y < height): return None
+
+        self.numpy_pixels_rgb = self.get_current_image_item().get_image_numpy_pixels_rgb()
 
         #Get parameters
         tolerance = Utils.load_parameters()["magic_pen"]["tolerance"] 
@@ -58,7 +59,7 @@ class MagicPen(Core):
         
     def _fill_shape_rgb(self, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
         #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
-        target_rgb = self.image_numpy_pixels_rgb[initial_position_y, initial_position_x].astype(int)   
+        target_rgb = self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(int)   
         queue = deque()
         
         if (0 <= initial_position_x < width and 0 <= initial_position_y < height): 
@@ -69,14 +70,14 @@ class MagicPen(Core):
             x, y = queue.popleft()
             if visited[x][y] == True: continue
             visited[x][y] = True
-            current_rgb = self.image_numpy_pixels_rgb[y, x].astype(int) 
+            current_rgb = self.numpy_pixels_rgb[y, x].astype(int) 
             dist = numpy.mean(100-numpy.divide(numpy.multiply(numpy.abs(target_rgb-current_rgb), 100), 255))
             
             if dist < tolerance: continue
             
             #Color the new_overlay
             #self.labeling_overlay.setPixel(x, y, 1)
-            self.get_labeling_overlay().get_painter().drawPoint(x, y)
+            self.get_current_image_item().get_labeling_overlay().get_painter().drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -92,7 +93,7 @@ class MagicPen(Core):
         #Convertion HSV is to slow: an optimization to do is to use openCv2 to store an HSV matrix in LoadImage. 
 
         #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
-        target_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.image_numpy_pixels_rgb[initial_position_y, initial_position_x].astype(float), 255))   
+        target_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(float), 255))   
         queue = deque()
         
         if (0 <= initial_position_x < width and 0 <= initial_position_y < height): 
@@ -103,7 +104,7 @@ class MagicPen(Core):
             x, y = queue.popleft()
             if visited[x][y] == True: continue
             visited[x][y] = True
-            current_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.image_numpy_pixels_rgb[y, x].astype(float), 255))
+            current_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.numpy_pixels_rgb[y, x].astype(float), 255))
             #print("target_hsv:", target_hsv)
             #print("current_hsv:", current_hsv)
             
@@ -112,7 +113,7 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            self.get_labeling_overlay().get_painter().drawPoint(x, y)
+            self.get_current_image_item().get_labeling_overlay().get_painter().drawPoint(x, y)
             n_pixels += 1
             
             # Add neighbors

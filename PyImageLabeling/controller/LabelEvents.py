@@ -22,7 +22,6 @@ class LabelEvents(Events):
             for label_id in self.view.buttons_label_bar_temporary:
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
 
-
             # Create a new label
             label = self.model.new_label(label_setting.name, label_setting.labeling_mode, label_setting.color) 
 

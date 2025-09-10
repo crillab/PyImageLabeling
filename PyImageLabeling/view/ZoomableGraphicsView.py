@@ -72,6 +72,7 @@ class ZoomableGraphicsView(QGraphicsView):
         if self.view.min_zoom <= self.view.zoom_factor*factor <= self.view.max_zoom:
             view = self.view.zoomable_graphics_view
             self.view.zoom_factor = self.view.zoom_factor * factor
+            #self.view.controller.model.get_current_image_item().set_zoom_factor(self.view.zoom_factor)
             mouse_pos = view.mapFromGlobal(view.cursor().pos())
             scene_pos = view.mapToScene(mouse_pos)
             view.scale(factor, factor)
@@ -80,7 +81,7 @@ class ZoomableGraphicsView(QGraphicsView):
             view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() + delta.x())
             view.verticalScrollBar().setValue(view.verticalScrollBar().value() + delta.y())
         
-
+    
            
     def wheelEvent(self, event):
         zoom_in = event.angleDelta().y() > 0

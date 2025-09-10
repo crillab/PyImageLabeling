@@ -78,7 +78,7 @@ class ContourFilling(Core):
     
     def get_contours(self):
         # Convert to grayscale (use OpenCV)
-        image_numpy_pixels_gray = cv2.cvtColor(self.image_numpy_pixels_rgb, cv2.COLOR_RGB2GRAY)
+        image_numpy_pixels_gray = cv2.cvtColor(self.get_current_image_item().get_image_numpy_pixels_rgb(), cv2.COLOR_RGB2GRAY)
         # Apply Gaussian blur to reduce noise (kernel size based on tolerance)
         image_numpy_pixels_blurred = cv2.GaussianBlur(image_numpy_pixels_gray, (self.tolerance_parameters["blur_kernel"], self.tolerance_parameters["blur_kernel"]), 0)
         # Apply Canny edge detection with tolerance-based parameters
@@ -93,17 +93,20 @@ class ContourFilling(Core):
         return contours
 
     def apply_contour(self):
+        self.width = self.get_current_image_item().get_width()
+        self.height = self.get_current_image_item().get_height()
+        
         self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"]
         self.tolerance_parameters = TOLERENCE_PARAMETERS[self.tolerance]
         self.contours = self.get_contours() # It is in list of contours. A contour is a list of points (x, y). 
         if len(self.contours) == 0:
             raise ValueError("No contours found !")
 
-        self.color = self.get_labeling_overlay().get_color()
+        self.color = self.get_current_label_item().get_color()
         # It is more faster to do that because cv2 loop into the points of contours in c++, not python
-        contour_numpy_pixels = np.zeros((self.image_qrect.height(), self.image_qrect.width(), 4), dtype=np.uint8)
+        contour_numpy_pixels = np.zeros((self.height, self.width, 4), dtype=np.uint8)
         cv2.drawContours(contour_numpy_pixels, self.contours, -1, self.color.darker(200).getRgb(), 1)
-        self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.image_qrect.width(), self.image_qrect.height(), self.image_qrect.width() * 4, QImage.Format.Format_RGBA8888))
+        self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.width, self.height, self.width * 4, QImage.Format.Format_RGBA8888))
         self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
         self.coutour_filling_item.setZValue(1)
         print("end apply_contour")
@@ -116,7 +119,7 @@ class ContourFilling(Core):
             
     def fill_contour(self, position):
         # Find the good contour
-        self.color = self.get_labeling_overlay().get_color()
+        self.color = self.get_current_label_item().get_color()
         position_x, position_y = int(position.x()), int(position.y()) 
         closest_contour = self.find_closest_contour(position_x, position_y)
         if closest_contour is None: return # We are not cliked inside of a contour
@@ -125,8 +128,8 @@ class ContourFilling(Core):
         coutour_item = ContourItem(closest_contour.copy(), self.color)
         
         # Draw the contour QPixmap on the good labeling overlay 
-        coutour_item.paint_labeling_overlay(self.get_labeling_overlay().get_painter())
+        coutour_item.paint_labeling_overlay(self.get_current_image_item().get_labeling_overlay().get_painter())
         
         # Update the labeling overlay
-        self.update_labeling_overlay()
+        self.get_current_image_item().update_labeling_overlay()
         
