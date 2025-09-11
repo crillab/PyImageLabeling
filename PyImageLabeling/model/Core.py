@@ -34,7 +34,8 @@ class LabelingOverlay():
         # Initialize the QPixmap
         self.labeling_overlay_pixmap = QPixmap(QSize(self.width, self.height))
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
-        
+        self.labeling_overlay_item = None
+
         # Initialize the deque for the `undo` feature
         self.undo_deque = deque()
         self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
@@ -48,7 +49,7 @@ class LabelingOverlay():
 
         # Initialize others pixmaps and painters to change the color or opacity operations
         self.labeling_overlay_opacity_pixmap = QPixmap(self.width, self.height)
-        self.labeling_overlay_opacity_painter = QPainter(self.labeling_overlay_opacity_pixmap)
+        self.labeling_overlay_opacity_painter = QPainter()
         
         self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
         self.labeling_overlay_color_painter = QPainter()
@@ -58,14 +59,16 @@ class LabelingOverlay():
     def update_scene(self):
         if self.is_displayed_in_scene is False:
             self.labeling_overlay_item = self.scene.addPixmap(self.generate_opacity_pixmap())
-            self.labeling_overlay_item.setZValue(self.zvalue)  
+            self.labeling_overlay_item.setZValue(self.zvalue)
             self.is_displayed_in_scene = True
         
-    def change_visible(self):
-        if self.labeling_overlay_item.isVisible() is True:
-            self.labeling_overlay_item.setVisible(False)
-        else:
-            self.labeling_overlay_item.setVisible(True)
+        self.labeling_overlay_item.setVisible(self.label.get_visible())
+
+    #def change_visible(self):
+    #    if self.labeling_overlay_item.isVisible() is True:
+    #        self.labeling_overlay_item.setVisible(False)
+    #    else:
+    #        self.labeling_overlay_item.setVisible(True)
 
     def reset(self):
         #self.labeling_overlay_painter.end()
@@ -73,21 +76,26 @@ class LabelingOverlay():
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
+        first_labeling_overlay_pixmap = self.undo_deque[0].copy()
         self.undo_deque.clear()
+        self.undo_deque.append(first_labeling_overlay_pixmap)
+
         self.previous_labeling_overlay_pixmap = None
         
     def remove(self):
-        self.scene.removeItem(self.labeling_overlay_item)
+        if self.is_displayed_in_scene is True:
+            self.scene.removeItem(self.labeling_overlay_item)
+            self.labeling_overlay_item = None
+        
         self.labeling_overlay_painter.end()
-        self.labeling_overlay_opacity_painter.end()
         
     def set_opacity(self, opacity):
         self.opacity = opacity
 
         # Change and update the QPixmap 
-        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
+        if self.is_displayed_in_scene is True:
+            self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
         
-
     def get_opacity(self):
         return self.opacity
         
@@ -108,9 +116,6 @@ class LabelingOverlay():
             self.reset_pen()
 
     def generate_opacity_pixmap(self):
-        # End the painter before filling
-        self.labeling_overlay_opacity_painter.end()
-        
         # Now we can fill the pixmap
         self.labeling_overlay_opacity_pixmap.fill(Qt.GlobalColor.transparent)
         
@@ -118,18 +123,20 @@ class LabelingOverlay():
         self.labeling_overlay_opacity_painter.begin(self.labeling_overlay_opacity_pixmap)
         self.labeling_overlay_opacity_painter.setOpacity(self.get_opacity())
         self.labeling_overlay_opacity_painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
-        
+        self.labeling_overlay_opacity_painter.end()
+
         return self.labeling_overlay_opacity_pixmap
 
     def update_color(self):
         # Apply Color
-        self.labeling_overlay_color_pixmap.fill(self.color)
+        self.labeling_overlay_color_pixmap.fill(self.label.get_color())
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
         self.labeling_overlay_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         
         # Update
-        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
+        if self.is_displayed_in_scene is True:
+            self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
 
         # Apply the color on the undo pixmaps
         for pixmap in self.undo_deque:
@@ -226,7 +233,11 @@ class ImageItem():
 
         self.is_displayed_in_scene = False
 
+    def get_image_pixmap(self):
+        return self.image_pixmap
     
+    def get_qrectf(self):
+        return self.image_qrectf
     
     def update_scene(self):
         if self.is_displayed_in_scene is False:
@@ -249,17 +260,17 @@ class ImageItem():
 
             self.initialyse_zoom_factor()
             self.is_displayed_in_scene = True
-            for label_id in self.labeling_overlays:
-                self.labeling_overlays[label_id].update_scene()
+            # for label_id in self.labeling_overlays:
+            #     self.labeling_overlays[label_id].update_scene()
                 
-                # Apply the label's visibility state using existing change_visible logic
-                if label_id in self.controller.model.get_label_items():
-                    label_item = self.controller.model.get_label_items()[label_id]
-                    overlay = self.labeling_overlays[label_id]
+            #     # Apply the label's visibility state using existing change_visible logic
+            #     if label_id in self.controller.model.get_label_items():
+            #         label_item = self.controller.model.get_label_items()[label_id]
+            #         overlay = self.labeling_overlays[label_id]
                     
-                    # Only change if current visibility doesn't match desired state
-                    if overlay.labeling_overlay_item.isVisible() != label_item.get_visible():
-                        overlay.change_visible()
+            #         # Only change if current visibility doesn't match desired state
+            #         if overlay.labeling_overlay_item.isVisible() != label_item.get_visible():
+            #             overlay.change_visible()
         
         # Update the labeling overlays
         for label_id in self.labeling_overlays:
@@ -382,6 +393,9 @@ class ImageItem():
     def set_opacity(self, opacity):
         for labeling_overlay in self.labeling_overlays.values():
             labeling_overlay.set_opacity(opacity)
+    
+    def update_color(self, label_id):
+        self.labeling_overlays[label_id].update_color()
 
     def get_image_numpy_pixels_rgb(self):
         return self.image_numpy_pixels_rgb
@@ -456,6 +470,9 @@ class Core():
     def get_current_label_item(self):
         return self.current_label_item
     
+    def set_current_label_item(self, current_label_item):
+        self.current_label_item = current_label_item
+    
     def get_current_image_item(self):
         return self.current_image_item
     
@@ -471,6 +488,17 @@ class Core():
 
     def set_controller(self, controller):
         self.controller = controller
+
+    def set_opacity(self, opacity):
+        for file in self.file_paths:
+            if self.image_items[file] is not None:
+                self.image_items[file].set_opacity(opacity)
+
+    def update_color(self, label_id):
+        for file in self.file_paths:
+            if self.image_items[file] is not None:
+                self.image_items[file].update_color(label_id)
+
 
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)

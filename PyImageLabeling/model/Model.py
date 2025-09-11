@@ -21,10 +21,9 @@ from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
 from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
 from PyImageLabeling.model.Labels.LoadLabels import LoadLabels
-from PyImageLabeling.model.Labels.Opacity import Opacity
 from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
-class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Opacity, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
+class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, LoadLabels):
     def __init__(self, view, controller, config):
         super().__init__()
         self.config = config
