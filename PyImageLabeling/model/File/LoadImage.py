@@ -4,8 +4,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFileDialog
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
-from PyImageLabeling.model.Core import Core
-from PyImageLabeling.model.Utils import Utils
+from model.Core import Core
+from model.Utils import Utils
 
 import os
 import numpy

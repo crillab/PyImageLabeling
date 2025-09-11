@@ -4,9 +4,9 @@ from  controller.Events import Events
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QDialog, QColorDialog
 from PyQt6.QtGui import QPixmap, QImage
 
-from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
-from PyImageLabeling.controller.settings.LabelSetting import LabelSetting
-from PyImageLabeling.model.Utils import Utils
+from controller.settings.OpacitySetting import OpacitySetting
+from controller.settings.LabelSetting import LabelSetting
+from model.Utils import Utils
 
 class LabelEvents(Events):
     def __init__(self):
@@ -48,6 +48,21 @@ class LabelEvents(Events):
         # Active or deactivate the good labeling buttons 
         self.view.update_labeling_buttons(self.model.get_label_items()[label_id].get_labeling_mode())
         
+        label_item = self.model.get_label_items()[label_id]
+        if not label_item.get_visible():
+            # Set the label as visible
+            label_item.set_visible(True)
+            
+            # Apply visibility to all loaded images
+            image_items = self.model.get_image_items()
+            for file_path, image_item in image_items.items():
+                if image_item is not None and label_id in image_item.labeling_overlays:
+                    overlay = image_item.labeling_overlays[label_id]
+                    if overlay.is_displayed_in_scene:
+                        # Only change if currently not visible
+                        if not overlay.labeling_overlay_item.isVisible():
+                            overlay.change_visible()
+
         # Call the model part to change the labeling overlay 
         self.model.update_labeling_overlays(label_id)      
         #self.model.select_labeling_overlay(label_id) 
@@ -66,11 +81,23 @@ class LabelEvents(Events):
             
     def visibility(self, label_id):
         self.all_events(self.visibility.__name__)
-        if self.model.current_label_id == label_id:
+        
+        if self.model.get_current_label_item().get_label_id() == label_id:
             # Do nothing 
             self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)
         else:
-            self.model.labeling_overlays[label_id].change_visible()
+            # Get the label visibility state
+            label_item = self.model.get_label_items()[label_id]
+            new_visibility = not label_item.get_visible() 
+            label_item.set_visible(new_visibility)
+            
+            # Apply to all loaded images
+            image_items = self.model.get_image_items()
+            for file_path, image_item in image_items.items():
+                if image_item is not None and label_id in image_item.labeling_overlays:
+                    overlay = image_item.labeling_overlays[label_id]
+                    if overlay.is_displayed_in_scene:
+                        overlay.set_visible(new_visibility)
         
     def opacity(self):
         self.all_events(self.opacity.__name__)
@@ -139,32 +166,43 @@ class LabelEvents(Events):
         msgBox.setModal(True)
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
-            # In the model
-            self.model.labeling_overlays[label_id].remove()
-            del self.model.labeling_overlays[label_id]
+            # Remove from all images (replace the old single overlay removal)
+            image_items = self.model.get_image_items()
+            for file_path, image_item in image_items.items():
+                if image_item is not None and label_id in image_item.labeling_overlays:
+                    image_item.labeling_overlays[label_id].remove()
+                    del image_item.labeling_overlays[label_id]
 
-            # In the view
-            widget, separator = self.view.container_label_bar_temporary[label_id]
-            
-            widget.hide()
-            self.view.label_bar_layout.removeWidget(widget)
-            separator.hide()
-            self.view.label_bar_layout.removeWidget(separator)
+            # Remove from the model's label_items
+            if label_id in self.model.get_label_items():
+                del self.model.get_label_items()[label_id]
 
-            # If there are no more labels
-            if len(self.model.labeling_overlays) == 0:
+            # Remove from the view
+            if label_id in self.view.container_label_bar_temporary:
+                widget, separator = self.view.container_label_bar_temporary[label_id]
+                
+                widget.hide()
+                self.view.label_bar_layout.removeWidget(widget)
+                separator.hide()
+                self.view.label_bar_layout.removeWidget(separator)
+                
+                # Clean up the view dictionaries
+                del self.view.container_label_bar_temporary[label_id]
+                if label_id in self.view.buttons_label_bar_temporary:
+                    del self.view.buttons_label_bar_temporary[label_id]
+
+            # Check if there are no more labels
+            if len(self.model.get_label_items()) == 0:
                 for button_key in self.view.buttons_labeling_bar.keys():
                     self.view.buttons_labeling_bar[button_key].setEnabled(False)
-                self.move_image() # To deactivate the last used tool, we active the move button :)  
-                self.model.remove_contour()
-            # Select another label if the deleted one was selected 
-            elif self.model.current_label_id == label_id:
-                first_id = list(self.model.labeling_overlays.keys())[0]
+                self.move_image()  # To deactivate the last used tool, we active the move button :)  
+                if hasattr(self.model, 'remove_contour'):
+                    self.model.remove_contour()
+            # Select another label if the deleted one was selected (this condition should never be true now)
+            elif self.model.get_current_label_item() is not None and self.model.get_current_label_item().get_label_id() == label_id:
+                first_id = list(self.model.get_label_items().keys())[0]
                 self.select_label(first_id)
             
-
-            
-
     def load_labels(self):
         self.all_events(self.load_labels.__name__)
         print("load_layers")

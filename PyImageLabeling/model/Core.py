@@ -2,13 +2,13 @@
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtCore import Qt, QSize
 
-from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
+from view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
 import numpy
 from collections import deque
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 
 class LabelingOverlay():
@@ -80,8 +80,6 @@ class LabelingOverlay():
         self.scene.removeItem(self.labeling_overlay_item)
         self.labeling_overlay_painter.end()
         self.labeling_overlay_opacity_painter.end()
-        
-
         
     def set_opacity(self, opacity):
         self.opacity = opacity
@@ -195,6 +193,11 @@ class LabelingOverlay():
     
     def set_is_displayed_in_scene(self, is_displayed_in_scene):
         self.is_displayed_in_scene = is_displayed_in_scene
+
+    def set_visible(self, is_visible):
+        if self.labeling_overlay_item is not None:
+            self.labeling_overlay_item.setVisible(is_visible)
+
 class ImageItem():
 
     def __init__(self, view, controller, path_image):
@@ -246,6 +249,17 @@ class ImageItem():
 
             self.initialyse_zoom_factor()
             self.is_displayed_in_scene = True
+            for label_id in self.labeling_overlays:
+                self.labeling_overlays[label_id].update_scene()
+                
+                # Apply the label's visibility state using existing change_visible logic
+                if label_id in self.controller.model.get_label_items():
+                    label_item = self.controller.model.get_label_items()[label_id]
+                    overlay = self.labeling_overlays[label_id]
+                    
+                    # Only change if current visibility doesn't match desired state
+                    if overlay.labeling_overlay_item.isVisible() != label_item.get_visible():
+                        overlay.change_visible()
         
         # Update the labeling overlays
         for label_id in self.labeling_overlays:
@@ -273,12 +287,28 @@ class ImageItem():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     def update_labeling_overlays(self, label_items, selected_label_id):
-        # Update the labeling overlays of this image
+        # Ensure all existing labels have an overlay
         for label_id in label_items:
-            if label_id not in self.labeling_overlays: # If the labeling overlay do not exists for this iamge, create it !
-                self.labeling_overlays[label_id] = LabelingOverlay(label_items[label_id], self.view.zoomable_graphics_view.scene, self.image_qrect.width(), self.image_qrect.height())
-            
-        # Set the current labeling_overlay and label_id
+            if label_id not in self.labeling_overlays:
+                self.labeling_overlays[label_id] = LabelingOverlay(
+                    label_items[label_id],
+                    self.view.zoomable_graphics_view.scene,
+                    self.image_qrect.width(),
+                    self.image_qrect.height()
+                )
+
+        # If the selected label was removed, choose a fallback
+        if selected_label_id not in self.labeling_overlays:
+            if self.labeling_overlays:  # still overlays available
+                first_label_id = next(iter(self.labeling_overlays))
+                self.current_labeling_overlay = self.labeling_overlays[first_label_id]
+                self.current_label_id = first_label_id
+            else:  # no labels left
+                self.current_labeling_overlay = None
+                self.current_label_id = None
+            return
+
+        # Otherwise, set the requested label
         self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
         self.current_label_id = selected_label_id
     
@@ -371,6 +401,7 @@ class LabelItem():
         self.name = name
         self.labeling_mode = labeling_mode
         self.color = QColor(color) # The color of labels in the Labeling Overlay
+        self.is_visible = True 
         LabelItem.static_label_id +=1 
 
     def get_label_id(self):
@@ -393,6 +424,12 @@ class LabelItem():
     
     def set_labeling_mode(self, labeling_mode):
         self.labeling_mode = labeling_mode
+
+    def set_visible(self, is_visible):
+        self.is_visible = is_visible
+    
+    def get_visible(self):
+        return self.is_visible
     
 class Core():
 
@@ -421,6 +458,9 @@ class Core():
     
     def get_current_image_item(self):
         return self.current_image_item
+    
+    def get_current_labeling_overlay(self, label_id):
+        return self.current_image_item.labeling_overlays[label_id]
     
     def get_static_label_id(self):
         return LabelItem.static_label_id

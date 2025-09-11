@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 from PyQt6.QtWidgets import QGraphicsEllipseItem
 from PyQt6.QtGui import QPen, QCursor, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF

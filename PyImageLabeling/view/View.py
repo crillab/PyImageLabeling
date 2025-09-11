@@ -1,6 +1,6 @@
 
-from PyImageLabeling.view.Builder import Builder
-from PyImageLabeling.model.Utils import Utils
+from view.Builder import Builder
+from model.Utils import Utils
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
@@ -143,7 +143,7 @@ class View(QMainWindow):
             remove_button.setObjectName("remove_image_button")
             
             # Connect remove button to removal function
-            remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths))
+            remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths, self.controller.model.image_items))
     
             item_layout.addWidget(icon_button)
             item_layout.addWidget(file_label)
@@ -152,24 +152,25 @@ class View(QMainWindow):
             self.file_bar_list.setItemWidget(item, item_widget)
 
     
-    def file_bar_remove(self, item, loaded_image_paths):
+    def file_bar_remove(self, item, loaded_image_paths, image_items):
         # Get the row of the item
         for path in loaded_image_paths:
             if item.filename in path:
                 loaded_image_paths.remove(path)
+                del image_items[path]
         row = self.file_bar_list.row(item)
         if row >= 0:
         # Remove the item from the list
             self.file_bar_list.takeItem(row)
-        # if len(loaded_image_paths) == 0:
-        #     for button_name in self.buttons_file_bar:
-        #         if 'previous' in button_name or 'next' in button_name:
-        #             self.buttons_file_bar[button_name].setEnabled(False)
-        #     for button_names in self.buttons_image_bar:
-        #         self.buttons_image_bar[button_names].setEnabled(False)
+        if len(loaded_image_paths) == 0:
+            for button_name in self.buttons_file_bar:
+                if 'previous' in button_name or 'next' in button_name:
+                    self.buttons_file_bar[button_name].setEnabled(False)
+            for button_names in self.buttons_image_bar:
+                self.buttons_image_bar[button_names].setEnabled(False)
             
             
-            #self.zoomable_graphics_view.scene.clear()
+            self.zoomable_graphics_view.scene.clear()
             #self.pixmap_item = None
             #self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
             #self.zoomable_graphics_view.resetTransform()
