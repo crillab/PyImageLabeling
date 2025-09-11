@@ -74,7 +74,8 @@ class LabelingOverlay():
         #self.labeling_overlay_painter.end()
 
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
-        self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
+        if self.is_displayed_in_scene is True:
+            self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
         first_labeling_overlay_pixmap = self.undo_deque[0].copy()
         self.undo_deque.clear()
@@ -361,13 +362,6 @@ class ImageItem():
     
     def get_labeling_overlay(self):
         return self.current_labeling_overlay
-    
-    def name_already_in_labels(self, name):
-        for id in self.labeling_overlays:
-            if self.labeling_overlays[id].get_name() == name:
-                return True
-        return False 
-
 
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -499,8 +493,17 @@ class Core():
             if self.image_items[file] is not None:
                 self.image_items[file].update_color(label_id)
 
-
+    def name_already_exists(self, name, exclude_label_id=None):
+        for label_id, label_item in self.label_items.items():
+            if exclude_label_id is not None and label_id == exclude_label_id:
+                continue
+            if label_item.get_name() == name:
+                return True
+        return False
+    
     def new_label(self, name, labeling_mode, color):
+        if self.name_already_exists(name):
+            raise ValueError(f"Label name '{name}' already exists. Please choose a different name.")
         label = LabelItem(name, labeling_mode, color)
         self.label_items[label.get_label_id()] = label
         return label

@@ -116,9 +116,9 @@ class LabelEvents(Events):
 
         if label_setting.exec():
             if label_item.get_name() != label_setting.name:
-                # if self.model.name_already_in_labels(label_setting.name) is True:
-                #     self.error_message("Error", "This label name already exists !")
-                #     return
+                if self.model.name_already_exists(label_setting.name, exclude_label_id=label_id):
+                    self.error_message("Error", f"The label name '{label_setting.name}' already exists!")
+                    return
 
                 # Change the name in the model 
                 label_item.set_name(label_setting.name)
@@ -126,7 +126,7 @@ class LabelEvents(Events):
                 # Change the name in the view 
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setText(label_setting.name) 
                 
-            if labeling_mode != label_setting.labeling_mode:
+            if label_item.get_labeling_mode() != label_setting.labeling_mode:
                 msgBox = QMessageBox(self.view.zoomable_graphics_view)
                 msgBox.setWindowTitle("Labeling Mode")
                 msgBox.setText("Are you sure you want to change the labeling mode ?")
@@ -137,17 +137,20 @@ class LabelEvents(Events):
                 result = msgBox.exec()
                 if result == QMessageBox.StandardButton.Yes:
                     # Change in the model 
-                    self.model.labeling_overlays[label_id].set_labeling_mode(label_setting.labeling_mode)
+                    label_item.set_labeling_mode(label_setting.labeling_mode)
 
                     # Reset the labeling overlay 
-                    self.model.labeling_overlays[label_id].reset()
+                    for file_path in self.model.file_paths:
+                        image_item = self.model.image_items[file_path]
+                        if image_item is not None and label_id in image_item.labeling_overlays:
+                            image_item.labeling_overlays[label_id].reset()
 
                     # Put the good labeling buttons according to the mode 
                     self.view.update_labeling_buttons(label_setting.labeling_mode)
             
-            if color != label_setting.color:
-                self.model.labeling_overlays[label_id].set_color(label_setting.color)
-                self.model.labeling_overlays[label_id].update_color()
+            if label_item.get_color() != label_setting.color:
+                label_item.set_color(label_setting.color)
+                self.model.update_color(label_id)
                 self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(label_setting.color))
             
 
