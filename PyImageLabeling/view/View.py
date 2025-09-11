@@ -1,6 +1,6 @@
 
-from view.Builder import Builder
-from model.Utils import Utils
+from PyImageLabeling.view.Builder import Builder
+from PyImageLabeling.model.Utils import Utils
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont

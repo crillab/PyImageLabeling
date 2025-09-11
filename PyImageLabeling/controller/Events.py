@@ -4,7 +4,7 @@ from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor
 from PyQt6.QtWidgets import QLabel
 import os
 
-from model.Utils import Utils
+from PyImageLabeling.model.Utils import Utils
 
 
 

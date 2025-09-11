@@ -4,9 +4,9 @@ from  controller.Events import Events
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QDialog, QColorDialog
 from PyQt6.QtGui import QPixmap, QImage
 
-from controller.settings.OpacitySetting import OpacitySetting
-from controller.settings.LabelSetting import LabelSetting
-from model.Utils import Utils
+from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
+from PyImageLabeling.controller.settings.LabelSetting import LabelSetting
+from PyImageLabeling.model.Utils import Utils
 
 class LabelEvents(Events):
     def __init__(self):
