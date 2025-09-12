@@ -158,7 +158,9 @@ class LabelingOverlay():
         
     def update(self):
         # Change and update the QPixmap 
-        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap()) 
+        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
+        if self.label.get_is_edited() is False:
+            self.label.set_is_edited(True)
         
         # For the `undo` feature, if we have a previous, add it in the deque 
         if self.previous_labeling_overlay_pixmap is not None:
@@ -421,7 +423,11 @@ class ImageItem():
     
     def save_overlays(self, current_file_path):
         for labeling_overlay in self.labeling_overlays.values():
-            labeling_overlay.save(current_file_path, self.path_image)
+            if labeling_overlay.label.get_is_edited():
+                img = labeling_overlay.labeling_overlay_pixmap.toImage()
+                if not img.isNull() and not img.allGray():
+                    labeling_overlay.save(current_file_path, self.path_image)
+                labeling_overlay.label.set_is_edited(False)
     
 class LabelItem():
 
@@ -434,6 +440,7 @@ class LabelItem():
         self.color = QColor(color) # The color of labels in the Labeling Overlay
         self.is_visible = True 
         LabelItem.static_label_id +=1 
+        self.is_edited = False
 
     def to_dict(self):
         return {"name": self.name, "labeling_mode": self.labeling_mode, "color": [self.color.red(), self.color.green(), self.color.blue()]}
@@ -464,6 +471,12 @@ class LabelItem():
     
     def get_visible(self):
         return self.is_visible
+    
+    def set_is_edited(self, is_edited):
+        self.is_edited = is_edited
+    
+    def get_is_edited(self):
+        return self.is_edited
     
 class Core():
 
@@ -565,6 +578,70 @@ class Core():
         self.save_labels(current_file_path)
         self.save_overlays(current_file_path)
 
+    def load_labels(self):
+        default_path = Utils.load_parameters()["save"]["path"]
+        files, _ = QFileDialog.getOpenFileNames(
+            parent=self.view,
+            caption="Open Labels and Overlays",
+            directory=default_path,
+            filter="JSON/PNG Files (*.json *.png);;All Files (*)"
+        )
+
+        if not files:
+            return
+
+        labels_dict = {}
+
+        # --- First pass: load labels.json ---
+        for file_path in files:
+            if os.path.basename(file_path) == "labels.json":
+                with open(file_path, "r") as fp:
+                    labels_dict = json.load(fp)
+
+                for lid_str, info in labels_dict.items():
+                    label_id = int(lid_str)
+                    name = info.get("name", f"label_{label_id}")
+                    labeling_mode = info.get("labeling_mode", "Pixel-by-pixel")
+                    color_list = info.get("color", [255, 0, 0])
+                    color = QColor(*color_list[:3]) if isinstance(color_list, list) else QColor(255, 0, 0)
+
+                    if self.name_already_exists(name) or label_id in self.label_items:
+                        continue
+
+                    self.label_items[label_id] = LabelItem(name, labeling_mode, color)
+                    self.view.builder.build_new_layer_label_bar(
+                        label_id, name, labeling_mode, color
+                    )
+
+        # --- Second pass: load overlays ---
+        for file_path in files:
+            base = os.path.basename(file_path)
+            if ".label." in base and base.endswith(".png"):
+                parts = base.split(".")
+                idx = parts.index("label")
+                label_id_str = parts[idx + 1]
+                    
+                # Check if this label_id exists in the loaded labels_dict
+                if label_id_str in labels_dict:
+                    label_id = int(label_id_str)
+                    info = labels_dict[label_id_str]
+                    name = info.get("name", f"label_{label_id}")
+                    labeling_mode = info.get("labeling_mode", "Pixel-by-pixel")
+                    color_list = info.get("color", [255, 0, 0])
+                    color = QColor(*color_list[:3]) if isinstance(color_list, list) else QColor(255, 0, 0)
+                    
+                    if self.name_already_exists(name) or label_id in self.label_items:
+                        continue
+                    
+                    # Load the PNG overlay image here if needed
+                    # overlay_image = cv2.imread(file_path) or Image.open(file_path)
+                    
+                    self.label_items[label_id] = LabelItem(name, labeling_mode, color)
+                    self.view.builder.build_new_layer_label_bar(
+                        label_id, name, labeling_mode, color
+                    )
+                    print(f"Loaded overlay for label {label_id_str}: {name}")
+  
 
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)

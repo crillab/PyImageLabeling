@@ -211,6 +211,7 @@ class LabelEvents(Events):
             
     def load_labels(self):
         self.all_events(self.load_labels.__name__)
+        self.model.load_labels()
         print("load_layers")
 
     def save_labels(self):
