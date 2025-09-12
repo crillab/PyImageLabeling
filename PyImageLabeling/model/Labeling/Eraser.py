@@ -7,13 +7,14 @@ from PyImageLabeling.model.Utils import Utils
 
 class EraserBrushItem(QGraphicsItem):
 
-    def __init__(self, core, x, y, color, size):
+    def __init__(self, core, x, y, color, size, absolute_mode):
         super().__init__()
         self.core = core
         self.x = x
         self.y = y
         self.color = color
         self.size = size
+        self.absolute_mode = absolute_mode
         self.labeling_overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
         self.image_pixmap = self.core.get_current_image_item().get_image_pixmap()
 
@@ -58,9 +59,19 @@ class EraserBrushItem(QGraphicsItem):
         
         pen = QPen(Qt.GlobalColor.black, self.size)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap) 
-        self.labeling_overlay_painter.setPen(pen)
-        self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-        self.labeling_overlay_painter.drawPoint(int(self.x), int(self.y))
+
+        if self.absolute_mode == 1:
+            # Apply eraser to all labeling overlays
+            for labeling_overlay in self.core.get_current_image_item().get_labeling_overlays():
+                overlay_painter = labeling_overlay.get_painter()
+                overlay_painter.setPen(pen)
+                overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+                overlay_painter.drawPoint(int(self.x), int(self.y))
+        else:
+            # Apply eraser only to current labeling overlay
+            self.labeling_overlay_painter.setPen(pen)
+            self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            self.labeling_overlay_painter.drawPoint(int(self.x), int(self.y))
         
 class Eraser(Core):
     def __init__(self):
@@ -79,9 +90,10 @@ class Eraser(Core):
         self.current_position_y = int(current_position.y())
 
         self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
+        self.absolute_mode = Utils.load_parameters()["eraser"]["absolute_mode"]
         self.color = self.get_current_label_item().get_color()
         
-        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
+        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.absolute_mode)
         eraser_brush_item.setZValue(4) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
@@ -95,7 +107,7 @@ class Eraser(Core):
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
-        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush)
+        eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.absolute_mode)
         eraser_brush_item.setZValue(4) # To place in the top of the item
         self.zoomable_graphics_view.scene.addItem(eraser_brush_item) # update is already call in this method
         self.eraser_brush_items.append(eraser_brush_item)
@@ -108,8 +120,12 @@ class Eraser(Core):
             self.zoomable_graphics_view.scene.removeItem(item)
         self.eraser_brush_items.clear()
 
-        # Display the good pixmap :) 
-        self.get_current_image_item().update_labeling_overlay()
-
-        # Reset the pen of the good labeling overlay
-        self.get_current_image_item().get_labeling_overlay().reset_pen()
+        if self.absolute_mode == 1:
+            # Update all labeling overlays
+            for labeling_overlay in self.get_current_image_item().get_labeling_overlays():
+                labeling_overlay.update()
+                labeling_overlay.reset_pen()
+        else:
+            # Update only current labeling overlay
+            self.get_current_image_item().update_labeling_overlay()
+            self.get_current_image_item().get_labeling_overlay().reset_pen()

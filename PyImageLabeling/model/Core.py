@@ -251,6 +251,9 @@ class ImageItem():
     def get_qrectf(self):
         return self.image_qrectf
     
+    def get_labeling_overlays(self):
+        return list(self.labeling_overlays.values())
+    
     def update_scene(self):
         if self.is_displayed_in_scene is False:
             # Add the backgroung_item in the scene

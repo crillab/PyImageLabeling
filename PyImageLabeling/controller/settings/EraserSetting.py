@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
+from PyQt6.QtWidgets import QCheckBox, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 
 from PyImageLabeling.model.Utils import Utils
@@ -10,6 +10,7 @@ class EraserSetting(QDialog):
         self.resize(500, 100)
 
         self.radius = Utils.load_parameters()["eraser"]["size"] 
+        self.absolute_mode = Utils.load_parameters()["eraser"].get("absolute_mode", 0)
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
@@ -25,6 +26,9 @@ class EraserSetting(QDialog):
         self.radius_spinbox.setRange(0, 100)
         self.radius_spinbox.setValue(self.radius)
 
+        self.absolute_checkbox = QCheckBox("Absolute mode")
+        self.absolute_checkbox.setChecked(self.absolute_mode == 1)
+        
         # Connect both ways to keep them synchronized
         self.radius_spinbox.valueChanged.connect(self.radius_slider.setValue)
         self.radius_slider.valueChanged.connect(self.radius_spinbox.setValue)
@@ -32,14 +36,12 @@ class EraserSetting(QDialog):
         # Update internal values when sliders change
         self.radius_slider.valueChanged.connect(self.update_radius)
         self.radius_spinbox.valueChanged.connect(self.update_radius)
+        self.absolute_checkbox.stateChanged.connect(self.update_absolute_mode)
 
         form_layout.addRow("Radius:", self.radius_slider)
         form_layout.addRow("Value:", self.radius_spinbox)
+        form_layout.addRow("", self.absolute_checkbox)
 
-        # Help text
-        radius_help = QLabel("Select the radius of your paintbrush")
-        radius_help.setStyleSheet("color: #666; font-style: italic;")
-        form_layout.addRow("", radius_help)
 
         layout.addLayout(form_layout)
 
@@ -54,6 +56,10 @@ class EraserSetting(QDialog):
     def update_radius(self, value):
         """Update internal tolerance value when slider changes"""
         self.radius = value
+    
+    def update_absolute_mode(self, state):
+        """Update internal absolute mode value when checkbox changes"""
+        self.absolute_mode = 1 if state == Qt.CheckState.Checked.value else 0
         
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
@@ -62,5 +68,6 @@ class EraserSetting(QDialog):
         self.radius = self.radius_slider.value()
         data = Utils.load_parameters()
         data["eraser"]["size"] = self.radius
+        data["eraser"]["absolute_mode"] = self.absolute_mode
         Utils.save_parameters(data) 
         return super().accept()

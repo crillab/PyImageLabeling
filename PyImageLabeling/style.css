@@ -598,6 +598,10 @@ QSlider {
     background-color: transparent;
 }
 
+QCheckBox{
+    background-color: transparent;
+}
+
 
 
 ZoomableGraphicsView {
