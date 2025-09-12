@@ -33,7 +33,7 @@ class LoadImage(Core):
         current_file_paths, _ = file_dialog.getOpenFileNames(
             self.view, "Open Image", default_path, "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)"
         )
-        if current_file_paths == "": return
+        if len(current_file_paths) == 0: return
 
         
         self.view.file_bar_add(current_file_paths)

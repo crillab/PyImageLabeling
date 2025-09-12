@@ -215,6 +215,7 @@ class LabelEvents(Events):
 
     def save_labels(self):
         self.all_events(self.save_labels.__name__)
+        self.model.save()
         print("save_layers")
 
 
