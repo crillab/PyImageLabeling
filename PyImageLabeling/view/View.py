@@ -2,11 +2,12 @@
 from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
+from PyQt6.QtWidgets import QListWidget, QProgressDialog, QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
 from functools import partial
 import os
+import time
 
 class View(QMainWindow):
     def __init__(self, controller, config):
@@ -28,6 +29,8 @@ class View(QMainWindow):
         
         self.zoomable_graphics_view = None
 
+        self.file_bar_layout = None
+
         # Set the main properties of the view
         self.initialize()
 
@@ -35,8 +38,14 @@ class View(QMainWindow):
         self.builder = Builder(self)
         self.builder.build()
 
-
+        self.icon_asterisk_green = QPixmap(Utils.get_icon_path("asterisk-green"))
+        self.icon_asterisk_green = self.icon_asterisk_green.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+        
+        self.icon_asterisk_red = QPixmap(Utils.get_icon_path("asterisk-red"))
+        self.icon_asterisk_red = self.icon_asterisk_red.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+        
         self.controller.set_view(self) 
+        
         
         # Display
         self.show()
@@ -103,10 +112,11 @@ class View(QMainWindow):
     
 
     def file_bar_add(self, current_file_paths):
+        
+        item_widgets = []
         for file in current_file_paths:
             if file in self.controller.model.file_paths:
                 continue
-            
             self.controller.model.file_paths.append(file)
             self.controller.model.image_items[file] = None
 
@@ -127,10 +137,9 @@ class View(QMainWindow):
 
             # The save marker
             icon_button = QLabel()
-            icon_pixmap = QPixmap(Utils.get_icon_path("asterisk-green"))
-            icon_pixmap = icon_pixmap.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
-            icon_button.setPixmap(icon_pixmap)
+            icon_button.setPixmap(self.icon_asterisk_green)
             icon_button.setObjectName("save_marker")
+            self.controller.model.icon_button_files[file] = icon_button
             
             # File name label
             file_label = QLabel(filename)
@@ -144,14 +153,16 @@ class View(QMainWindow):
             
             # Connect remove button to removal function
             remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths, self.controller.model.image_items))
-    
+
             item_layout.addWidget(icon_button)
             item_layout.addWidget(file_label)
             item_layout.addWidget(remove_button)
+            item_widgets.append((item, item_widget))
             
+        for item, item_widget in item_widgets:
             self.file_bar_list.setItemWidget(item, item_widget)
-
-    
+            
+        
     def file_bar_remove(self, item, loaded_image_paths, image_items):
         # Get the row of the item
         for path in loaded_image_paths:

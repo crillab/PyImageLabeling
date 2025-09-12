@@ -59,8 +59,8 @@ class Builder:
         self.view.statusBar().addPermanentWidget(self.view.progressBar) 
 
     def build_file_bar(self):
-        self.file_bar_container = QWidget()
-        file_bar_layout = QVBoxLayout(self.file_bar_container)
+        self.view.file_bar_container = QWidget()
+        self.view.file_bar_layout = QVBoxLayout(self.view.file_bar_container)
         self.file_bar_scroll = QScrollArea()
         self.file_bar_button_container = QWidget()
         self.file_bar_button_container.setObjectName("file_bar")
@@ -82,7 +82,7 @@ class Builder:
                         self.view.buttons_file_bar[button_name].setEnabled(False)
 
             self.file_bar_button_layout.addWidget(self.view.buttons_file_bar[button_name])
-        file_bar_layout.addWidget(self.file_bar_button_container)
+        self.view.file_bar_layout.addWidget(self.file_bar_button_container)
         self.file_bar_button_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.view.file_bar_list = QListWidget()
@@ -95,14 +95,14 @@ class Builder:
         """
         self.view.file_bar_list.setMinimumWidth(0)
 
-        file_bar_layout.addWidget(self.view.file_bar_list)
-        file_bar_layout.setSpacing(0)
-        file_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
+        self.view.file_bar_layout.addWidget(self.view.file_bar_list)
+        self.view.file_bar_layout.setSpacing(0)
+        self.view.file_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
 
-        self.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
-        self.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
+        self.view.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
+        self.view.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
         
-        self.view.main_layout.addWidget(self.file_bar_container, 0, 3, 2, 1)
+        self.view.main_layout.addWidget(self.view.file_bar_container, 0, 3, 2, 1)
 
     def build_labeling_bar(self):
         self.labeling_bar_container = QWidget()

@@ -18,6 +18,10 @@ class LabelEvents(Events):
         label_setting = LabelSetting(self.view.zoomable_graphics_view)   
         
         if label_setting.exec():
+            if self.model.name_already_exists(label_setting.name):
+                    self.error_message("Error", f"The label name '{label_setting.name}' already exists!")
+                    return
+
             # Uncheck all activation buttons
             for label_id in self.view.buttons_label_bar_temporary:
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
@@ -116,7 +120,7 @@ class LabelEvents(Events):
 
         if label_setting.exec():
             if label_item.get_name() != label_setting.name:
-                if self.model.name_already_exists(label_setting.name, exclude_label_id=label_id):
+                if self.model.name_already_exists(label_setting.name):
                     self.error_message("Error", f"The label name '{label_setting.name}' already exists!")
                     return
 

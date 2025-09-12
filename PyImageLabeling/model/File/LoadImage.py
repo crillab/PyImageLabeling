@@ -1,7 +1,7 @@
 
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QProgressDialog
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
 from PyImageLabeling.model.Core import Core
@@ -34,9 +34,11 @@ class LoadImage(Core):
             self.view, "Open Image", default_path, "Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)"
         )
         if current_file_paths == "": return
-      
-        self.view.file_bar_add(current_file_paths)
 
+        
+        self.view.file_bar_add(current_file_paths)
+        print("end")      
+        
         data = Utils.load_parameters()
         data["load_image"]["path"] = os.path.dirname(current_file_paths[0])
         Utils.save_parameters(data)

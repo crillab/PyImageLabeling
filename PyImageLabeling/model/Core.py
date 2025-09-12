@@ -208,9 +208,12 @@ class LabelingOverlay():
 
 class ImageItem():
 
-    def __init__(self, view, controller, path_image):
+    def __init__(self, view, controller, path_image, icon_button):
         self.view = view
         self.controller = controller
+        self.path_image = path_image
+        self.icon_button = icon_button
+        
         self.zoomable_graphics_view = view.zoomable_graphics_view
 
         self.image_pixmap = QPixmap(path_image) # The current pixmap of the image
@@ -233,6 +236,14 @@ class ImageItem():
         self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
 
         self.is_displayed_in_scene = False
+
+        self.is_edited = False
+
+    def get_edited(self):
+        return self.is_edited
+
+    def set_edited(self, is_edited):
+        self.is_edited = is_edited
 
     def get_image_pixmap(self):
         return self.image_pixmap
@@ -309,18 +320,6 @@ class ImageItem():
                     self.image_qrect.height()
                 )
 
-        # If the selected label was removed, choose a fallback
-        if selected_label_id not in self.labeling_overlays:
-            if self.labeling_overlays:  # still overlays available
-                first_label_id = next(iter(self.labeling_overlays))
-                self.current_labeling_overlay = self.labeling_overlays[first_label_id]
-                self.current_label_id = first_label_id
-            else:  # no labels left
-                self.current_labeling_overlay = None
-                self.current_label_id = None
-            return
-
-        # Otherwise, set the requested label
         self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
         self.current_label_id = selected_label_id
     
@@ -366,7 +365,9 @@ class ImageItem():
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
         self.current_labeling_overlay.update()
-
+        if self.get_edited() is False:
+            self.set_edited(True)
+            self.icon_button.setPixmap(self.view.icon_asterisk_red)
     # # Put at the foreground the current labeling overlay 
     # def foreground_current_labeling_overlay(self):        
     #     for label_id in self.labeling_overlays:
@@ -455,6 +456,8 @@ class Core():
         self.current_label_item = None # The current label selected
         self.current_image_item = None # The current ImageItem that is display 
 
+        self.icon_button_files = dict()
+
     def get_label_items(self):
         return self.label_items
     
@@ -493,17 +496,13 @@ class Core():
             if self.image_items[file] is not None:
                 self.image_items[file].update_color(label_id)
 
-    def name_already_exists(self, name, exclude_label_id=None):
+    def name_already_exists(self, name):
         for label_id, label_item in self.label_items.items():
-            if exclude_label_id is not None and label_id == exclude_label_id:
-                continue
             if label_item.get_name() == name:
                 return True
         return False
     
     def new_label(self, name, labeling_mode, color):
-        if self.name_already_exists(name):
-            raise ValueError(f"Label name '{name}' already exists. Please choose a different name.")
         label = LabelItem(name, labeling_mode, color)
         self.label_items[label.get_label_id()] = label
         return label
@@ -533,7 +532,7 @@ class Core():
         if self.image_items[path_image] is None:
             print("select_image new")
             # We have to load image and theses labels
-            self.image_items[path_image] = ImageItem(self.view, self.controller, path_image)
+            self.image_items[path_image] = ImageItem(self.view, self.controller, path_image, self.icon_button_files[path_image])
             self.current_image_item = self.image_items[path_image]
             self.image_items[path_image].update_scene()
             if len(self.label_items) != 0:
