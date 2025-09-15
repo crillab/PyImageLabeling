@@ -20,7 +20,7 @@ class LabelingOverlay():
     # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
     ###
 
-    def __init__(self, label, scene, width, height):
+    def __init__(self, label, scene, width, height, from_file=None):
         self.label = label
         
         self.scene = scene # The associated QGraphicScene of the QGraphicsView
@@ -35,9 +35,14 @@ class LabelingOverlay():
         #self.color = QColor(color) # The color of labels in the Labeling Overlay
         # Note: The color is in RGB, the alpha is set at only the end for the view part :)
        
+
         # Initialize the QPixmap
         self.labeling_overlay_pixmap = QPixmap(QSize(self.width, self.height))
-        self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
+        if from_file is None:
+            self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
+        else:
+            # Load the the file in the pixmap
+            pass
         self.labeling_overlay_item = None
 
         # Initialize the deque for the `undo` feature
@@ -352,6 +357,7 @@ class ImageItem():
         # Ensure all existing labels have an overlay
         for label_id in label_items:
             if label_id not in self.labeling_overlays:
+                    
                 self.labeling_overlays[label_id] = LabelingOverlay(
                     label_items[label_id],
                     self.view.zoomable_graphics_view.scene,
@@ -523,6 +529,9 @@ class Core():
 
         self.save_directory = ""
 
+        # For a file_path, say if a labeling overview was loaded or not   
+        self.labeling_overview_loaded = dict() # Dictionnary: (key: file_path) -> (value: True or False)
+        
 
     def get_label_items(self):
         return self.label_items
@@ -618,7 +627,8 @@ class Core():
             )
 
     def load_labels_images(self, file):
-        pass
+        if file not in self.labeling_overview_loaded:
+            self.labeling_overview_loaded[file] = False
   
 
     def new_label(self, name, labeling_mode, color):

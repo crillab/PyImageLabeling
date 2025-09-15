@@ -68,6 +68,7 @@ class Files(Core):
         current_files = [current_file_path+os.sep+f for f in os.listdir(current_file_path)]
         current_files_to_add = []
         print("current_files:", current_files)
+        labels_json = None
         for file in current_files:
             print("file:", file)
             if file in self.file_paths:
@@ -75,13 +76,15 @@ class Files(Core):
             if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
                 if KEYWORD_SAVE_LABEL in file:
                     # It is a label file  
-                    self.load_labels_image(file)
+                    self.load_labels_images(file)
                 else:
                     # It is a image 
                     print("file2:", file)
                     self.file_paths.append(file)
                     self.image_items[file] = None
                     current_files_to_add.append(file)
+            elif file.endswith("labels.json"):
+                labels_json = file # Load it later 
         self.view.file_bar_add(current_files_to_add)
 
         # Activate previous and next buttons
@@ -93,11 +96,9 @@ class Files(Core):
             self.view.file_bar_list.setCurrentRow(0) 
 
         #Load the labels only when all images and selection are initalize
-        for file in current_files:
-            if file.endswith("labels.json"):
-                # It is a json label description file 
-                self.load_labels_json(file)
-
+        if labels_json is not None:
+            self.load_labels_json(labels_json)
+            
             
 
 
