@@ -1,7 +1,7 @@
 
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFileDialog, QProgressDialog
+from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
 from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
@@ -96,15 +96,71 @@ class Files(Core):
         if self.view.file_bar_list.count() > 0 and self.view.file_bar_list.currentRow() == -1:
             self.view.file_bar_list.setCurrentRow(0) 
 
+        if (len(labels_images) != 0 and labels_json is None) or \
+            (len(labels_images) == 0 and labels_json is not None):
+            self.controller.error_message("Load Error", "The labeling image or the `labels.json` file is missing !")
+            return 
+
+        if len(labels_images) == 0 and labels_json is None:
+            return
+
+        if labels_json is not None and self.get_edited():
+            msgBox = QMessageBox(self.view.zoomable_graphics_view)
+            msgBox.setWindowTitle("Load")
+            msgBox.setText("Are you sure you want to load the new labeling overview without save our previous works ?")
+            msgBox.setInformativeText("All previous works not saved will be reset.")
+            msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
+            msgBox.setDefaultButton(QMessageBox.StandardButton.No)
+            msgBox.setModal(True)
+            result = msgBox.exec()
+
+            if result == QMessageBox.StandardButton.No:
+                return
+        
+        # Reset all labeling overview in the model
+        self.reset()
+        self.labeling_overview_was_loaded.clear()
+        self.labeling_overview_file_paths.clear()
+
+        # Reset the view
+        to_delete = []
+        for label_id in self.view.container_label_bar_temporary:
+            widget, separator = self.view.container_label_bar_temporary[label_id]
+            
+            widget.hide()
+            self.view.label_bar_layout.removeWidget(widget)
+            separator.hide()
+            self.view.label_bar_layout.removeWidget(separator)
+            
+            # Clean up the view dictionaries
+            to_delete.append(label_id)
+            if label_id in self.view.buttons_label_bar_temporary:
+                del self.view.buttons_label_bar_temporary[label_id]
+        
+        for label_id in to_delete:
+            del self.view.container_label_bar_temporary[label_id]
+
+        # Clear the labels in the model
+        self.label_items.clear()
+
+        # Reset the icon file 
+        self.update_icon_file()
+
+        # We load the overview labelings
         if labels_images is not None:
-            for label in labels_images:
+            for file in labels_images:
                 self.load_labels_images(file)
 
-        #Load the labels only when all images and selection are initalize
+        # Load the labels and initalize the first one
         if labels_json is not None:
             self.load_labels_json(labels_json)
+            first_id = list(self.get_label_items().keys())[0]
+            self.controller.select_label(first_id)
 
+        # Now, we have to save in this directory :)
+        self.save_directory = current_file_path
 
+        
             
             
 

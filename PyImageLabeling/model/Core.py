@@ -100,8 +100,8 @@ class LabelingOverlay():
 
         self.previous_labeling_overlay_pixmap = None
         
-        if self.label.get_is_edited() is False:
-            self.label.set_is_edited(True)
+        if self.get_is_edited() is False:
+            self.set_is_edited(True)
         
     def remove(self):
         if self.is_displayed_in_scene is True:
@@ -251,11 +251,13 @@ class LabelingOverlay():
         
 class ImageItem():
 
-    def __init__(self, view, controller, path_image, icon_button):
+    def __init__(self, view, controller, path_image, icon_button, labeling_overview_was_loaded, labeling_overview_file_paths):
         self.view = view
         self.controller = controller
         self.path_image = path_image
         self.icon_button = icon_button
+        self.labeling_overview_was_loaded = labeling_overview_was_loaded
+        self.labeling_overview_file_paths = labeling_overview_file_paths
         
         self.zoomable_graphics_view = view.zoomable_graphics_view
 
@@ -357,15 +359,28 @@ class ImageItem():
     def update_labeling_overlays(self, label_items, selected_label_id):
         # Ensure all existing labels have an overlay
         for label_id in label_items:
+            print("label_id:", label_id)
             if label_id not in self.labeling_overlays:
-                    
-                self.labeling_overlays[label_id] = LabelingOverlay(
-                    label_items[label_id],
-                    self.view.zoomable_graphics_view.scene,
-                    self.image_qrect.width(),
-                    self.image_qrect.height()
-                )
-
+                basename_key = ".".join(os.path.basename(self.path_image).split(".")[:-1])+KEYWORD_SAVE_LABEL+str(label_id)+".png"
+                print("basename_key:", basename_key)
+                if basename_key in self.labeling_overview_was_loaded and self.labeling_overview_was_loaded[basename_key] is False:
+                    print("We have to load this labeling overlay")
+                    self.labeling_overlays[label_id] = LabelingOverlay(
+                        label_items[label_id],
+                        self.view.zoomable_graphics_view.scene,
+                        self.image_qrect.width(),
+                        self.image_qrect.height(),
+                        self.labeling_overview_file_paths[basename_key]
+                    )
+                    self.labeling_overview_was_loaded[basename_key] = True
+                else:
+                    print("We have not to load this labeling overlay")
+                    self.labeling_overlays[label_id] = LabelingOverlay(
+                        label_items[label_id],
+                        self.view.zoomable_graphics_view.scene,
+                        self.image_qrect.width(),
+                        self.image_qrect.height()
+                    )
         self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
         self.current_label_id = selected_label_id
     
@@ -542,9 +557,35 @@ class Core():
         self.save_directory = ""
 
         # For a file_path, say if a labeling overview was loaded or not   
-        self.labeling_overview_loaded = dict() # Dictionnary: (key: file_path) -> (value: True or False)
+        self.labeling_overview_was_loaded = dict() # Dictionnary: (key: basename) -> (value: True or False)
         
+        # To obtain the file path 
+        self.labeling_overview_file_paths = dict() # Dictionnary: (key: basename) -> (value: file_path)
+    
 
+
+    def reset(self):
+        
+        for file in self.file_paths:
+            if self.image_items[file] is not None:
+                to_delete = []
+                for labeling_overlay_key in self.image_items[file].labeling_overlays:
+                    self.image_items[file].labeling_overlays[labeling_overlay_key].reset()
+                    self.image_items[file].labeling_overlays[labeling_overlay_key].remove()
+                    to_delete.append(labeling_overlay_key)
+                
+                for labeling_overlay_key in to_delete:
+                    
+                    del self.image_items[file].labeling_overlays[labeling_overlay_key]
+                    
+
+        
+    def get_edited(self):
+        for file in self.file_paths:
+            if self.image_items[file] is not None and self.image_items[file].get_edited() is True:
+                return True
+        return False
+                 
     def get_label_items(self):
         return self.label_items
     
@@ -578,6 +619,12 @@ class Core():
             if self.image_items[file] is not None:
                 self.image_items[file].set_opacity(opacity)
 
+    def update_icon_file(self):
+        for file in self.file_paths:
+            image_item = self.image_items[file] 
+            if image_item is not None:
+                image_item.update_icon_file()
+                
     def update_color(self, label_id):
         for file in self.file_paths:
             image_item = self.image_items[file] 
@@ -639,53 +686,56 @@ class Core():
             )
 
     def load_labels_images(self, label_file_path):
-        filename = os.path.basename(label_file_path)
+        # filename = os.path.basename(label_file_path)
         
-        # Split to get the parts
-        parts = filename.split(KEYWORD_SAVE_LABEL)
-        if len(parts) != 2:
-            return
+        # # Split to get the parts
+        # parts = filename.split(KEYWORD_SAVE_LABEL)
+        # if len(parts) != 2:
+        #     return
         
-        original_name = parts[0]
-        label_part = parts[1] 
-        label_id  = label_part.split('.')[0] 
+        # original_name = parts[0]
+        # label_part = parts[1] 
+        # label_id  = label_part.split('.')[0] 
 
-        # Find the corresponding image file path
-        image_file_path = None
-        for file_path in self.file_paths:
-            base_name = os.path.basename(file_path).split('.')[0]
-            if base_name == original_name:
-                image_file_path = file_path
-                break
+        # # Find the corresponding image file path
+        # image_file_path = None
+        # for file_path in self.file_paths:
+        #     base_name = os.path.basename(file_path).split('.')[0]
+        #     if base_name == original_name:
+        #         image_file_path = file_path
+        #         break
         
         # Initialize labeling_overview_loaded if needed
-        if image_file_path not in self.labeling_overview_loaded:
-            self.labeling_overview_loaded[image_file_path] = False
         
-        # Check if we have an ImageItem for this image file
-        if self.image_items[image_file_path] is not None and label_id in self.label_items:
-            image_item = self.image_items[image_file_path]
+        basename = os.path.basename(label_file_path)
+        print("basename:", basename)
+        if label_file_path not in self.labeling_overview_was_loaded:
+            self.labeling_overview_was_loaded[basename] = False
+            self.labeling_overview_file_paths[basename] = label_file_path
+        # # Check if we have an ImageItem for this image file
+        # if self.image_items[image_file_path] is not None and label_id in self.label_items:
+        #     image_item = self.image_items[image_file_path]
 
-            if os.path.exists(label_file_path):
-                # Remove the existing overlay if it exists
-                if label_id in image_item.labeling_overlays:
-                    old_overlay = image_item.labeling_overlays[label_id]
-                    old_overlay.remove()
+        #     if os.path.exists(label_file_path):
+        #         # Remove the existing overlay if it exists
+        #         if label_id in image_item.labeling_overlays:
+        #             old_overlay = image_item.labeling_overlays[label_id]
+        #             old_overlay.remove()
                 
-                # Create new overlay with the saved file
-                image_item.labeling_overlays[label_id] = LabelingOverlay(
-                    self.label_items[label_id],
-                    self.view.zoomable_graphics_view.scene,
-                    image_item.get_width(),
-                    image_item.get_height(),
-                    from_file=label_file_path
-                )
+        #         # Create new overlay with the saved file
+        #         image_item.labeling_overlays[label_id] = LabelingOverlay(
+        #             self.label_items[label_id],
+        #             self.view.zoomable_graphics_view.scene,
+        #             image_item.get_width(),
+        #             image_item.get_height(),
+        #             from_file=label_file_path
+        #         )
                 
-                # Update the scene to reflect the loaded overlays
-                image_item.update_scene()
+        #         # Update the scene to reflect the loaded overlays
+        #         image_item.update_scene()
                 
-                # Mark as loaded
-                self.labeling_overview_loaded[image_file_path] = True
+        #         # Mark as loaded
+        #         self.labeling_overview_loaded[image_file_path] = True
   
 
     def new_label(self, name, labeling_mode, color):
@@ -699,10 +749,11 @@ class Core():
             if self.image_items[file] is not None:
                 print("for file:", file)
                 self.image_items[file].update_labeling_overlays(self.label_items, selected_label_id)
+        
         self.current_label_item = self.label_items[selected_label_id]
-
-        self.current_image_item.update_scene()
-        self.current_image_item.foreground_current_labeling_overlay()
+        if self.current_image_item is not None:
+            self.current_image_item.update_scene()
+            self.current_image_item.foreground_current_labeling_overlay()
 
     def select_image(self, path_image):
         print("select_image")
@@ -718,11 +769,18 @@ class Core():
         if self.image_items[path_image] is None:
             print("select_image new")
             # We have to load image and theses labels
-            self.image_items[path_image] = ImageItem(self.view, self.controller, path_image, self.icon_button_files[path_image])
+            self.image_items[path_image] = ImageItem(self.view, 
+                                                     self.controller, 
+                                                     path_image, 
+                                                     self.icon_button_files[path_image],
+                                                     self.labeling_overview_was_loaded,
+                                                     self.labeling_overview_file_paths)
             self.current_image_item = self.image_items[path_image]
             self.image_items[path_image].update_scene()
             if len(self.label_items) != 0:
-                self.image_items[path_image].update_labeling_overlays(self.label_items, self.current_label_item.get_label_id())
+                self.image_items[path_image].update_labeling_overlays(
+                    self.label_items, 
+                    self.current_label_item.get_label_id())
         else:
             print("select_image already exists")
             # Image and these labels are already loaded, display it 

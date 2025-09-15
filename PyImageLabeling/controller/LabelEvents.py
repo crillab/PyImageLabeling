@@ -57,7 +57,7 @@ class LabelEvents(Events):
             # Set the label as visible
             label_item.set_visible(True)
             
-        # Call the model part to change the labeling overlay 
+        # Call the model part to change the labeling overlay
         self.model.update_labeling_overlays(label_id)      
         #self.model.select_labeling_overlay(label_id) 
 
@@ -209,15 +209,7 @@ class LabelEvents(Events):
                 first_id = list(self.model.get_label_items().keys())[0]
                 self.select_label(first_id)
             
-    def load_labels(self):
-        self.all_events(self.load_labels.__name__)
-        self.model.load_labels()
-        print("load_layers")
-
-    def save_labels(self):
-        self.all_events(self.save_labels.__name__)
-        self.model.save()
-        print("save_layers")
+   
 
 
 
