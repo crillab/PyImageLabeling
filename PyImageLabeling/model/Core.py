@@ -13,6 +13,8 @@ from PyImageLabeling.model.Utils import Utils
 import os
 import json
 
+KEYWORD_SAVE_LABEL = ".label."
+
 class LabelingOverlay():
     ###
     # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
@@ -57,7 +59,14 @@ class LabelingOverlay():
         self.labeling_overlay_color_painter = QPainter()
 
         self.is_displayed_in_scene = False
-        
+        self.is_edited = False
+    
+    def set_is_edited(self, is_edited):
+        self.is_edited = is_edited
+    
+    def get_is_edited(self):
+        return self.is_edited
+    
     def update_scene(self):
         if self.is_displayed_in_scene is False:
             self.labeling_overlay_item = self.scene.addPixmap(self.generate_opacity_pixmap())
@@ -84,6 +93,9 @@ class LabelingOverlay():
         self.undo_deque.append(first_labeling_overlay_pixmap)
 
         self.previous_labeling_overlay_pixmap = None
+        
+        if self.label.get_is_edited() is False:
+            self.label.set_is_edited(True)
         
     def remove(self):
         if self.is_displayed_in_scene is True:
@@ -131,6 +143,10 @@ class LabelingOverlay():
         return self.labeling_overlay_opacity_pixmap
 
     def update_color(self):
+        # We change this labeling overlay
+        if self.get_is_edited() is False:
+            self.set_is_edited(True)
+
         # Apply Color
         self.labeling_overlay_color_pixmap.fill(self.label.get_color())
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
@@ -157,10 +173,12 @@ class LabelingOverlay():
 
         
     def update(self):
+        # We change this labeling overlay
+        if self.get_is_edited() is False:
+            self.set_is_edited(True)
+        
         # Change and update the QPixmap 
         self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
-        if self.label.get_is_edited() is False:
-            self.label.set_is_edited(True)
         
         # For the `undo` feature, if we have a previous, add it in the deque 
         if self.previous_labeling_overlay_pixmap is not None:
@@ -214,8 +232,16 @@ class LabelingOverlay():
         name = os.path.basename(path_image)
         name, format = name.split(".")
         format = "png"
-        save_file = current_file_path + os.sep+name + ".label." + str(self.label.get_label_id()) + "." + format 
+        save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
         self.labeling_overlay_pixmap.save(save_file, format)
+
+    def remove_save(self, current_file_path, path_image):
+        name = os.path.basename(path_image)
+        name, format = name.split(".")
+        format = "png"
+        save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
+        if os.path.isfile(save_file):
+            os.remove(save_file)
         
 class ImageItem():
 
@@ -241,20 +267,19 @@ class ImageItem():
         self.image_qrectf = self.image_qrect.toRectF() # Float size in QRectF
         
         # the background item
-        self.alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
+        self.alpha_color = Utils.load_parameters()["load"]["alpha_color"] 
         
         #save a numpy matrix of colors
         self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
 
         self.is_displayed_in_scene = False
 
-        self.is_edited = False
 
     def get_edited(self):
-        return self.is_edited
-
-    def set_edited(self, is_edited):
-        self.is_edited = is_edited
+        for label_id in self.labeling_overlays:
+            if self.labeling_overlays[label_id].get_is_edited() is True:
+                return True
+        return False
 
     def get_image_pixmap(self):
         return self.image_pixmap
@@ -385,9 +410,8 @@ class ImageItem():
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
         self.current_labeling_overlay.update()
-        if self.get_edited() is False:
-            self.set_edited(True)
-            self.update_icon_file()
+        self.update_icon_file()
+    
     # # Put at the foreground the current labeling overlay 
     # def foreground_current_labeling_overlay(self):        
     #     for label_id in self.labeling_overlays:
@@ -411,6 +435,7 @@ class ImageItem():
     
     def update_color(self, label_id):
         self.labeling_overlays[label_id].update_color()
+        self.update_icon_file()   
 
     def get_image_numpy_pixels_rgb(self):
         return self.image_numpy_pixels_rgb
@@ -423,12 +448,18 @@ class ImageItem():
     
     def save_overlays(self, current_file_path):
         for labeling_overlay in self.labeling_overlays.values():
-            if labeling_overlay.label.get_is_edited():
-                img = labeling_overlay.labeling_overlay_pixmap.toImage()
-                if not img.isNull() and not img.allGray():
-                    labeling_overlay.save(current_file_path, self.path_image)
-                labeling_overlay.label.set_is_edited(False)
-    
+            if labeling_overlay.get_is_edited() is True:
+                #img = labeling_overlay.labeling_overlay_pixmap.toImage()
+                #if not img.isNull() and not img.allGray():
+                #print("save:", current_file_path, self.path_image)
+                labeling_overlay.save(current_file_path, self.path_image)
+                #else:
+                #    print("remove:", current_file_path, self.path_image)
+                #    labeling_overlay.remove_save(current_file_path, self.path_image)
+                labeling_overlay.set_is_edited(False)
+        
+        self.update_icon_file()        
+
 class LabelItem():
 
     static_label_id = 0
@@ -440,7 +471,6 @@ class LabelItem():
         self.color = QColor(color) # The color of labels in the Labeling Overlay
         self.is_visible = True 
         LabelItem.static_label_id +=1 
-        self.is_edited = False
 
     def to_dict(self):
         return {"name": self.name, "labeling_mode": self.labeling_mode, "color": [self.color.red(), self.color.green(), self.color.blue()]}
@@ -472,11 +502,6 @@ class LabelItem():
     def get_visible(self):
         return self.is_visible
     
-    def set_is_edited(self, is_edited):
-        self.is_edited = is_edited
-    
-    def get_is_edited(self):
-        return self.is_edited
     
 class Core():
 
@@ -495,6 +520,9 @@ class Core():
         self.current_image_item = None # The current ImageItem that is display 
 
         self.icon_button_files = dict()
+
+        self.save_directory = ""
+
 
     def get_label_items(self):
         return self.label_items
@@ -531,9 +559,17 @@ class Core():
 
     def update_color(self, label_id):
         for file in self.file_paths:
-            if self.image_items[file] is not None:
-                self.image_items[file].update_color(label_id)
-
+            image_item = self.image_items[file] 
+            if image_item is not None:
+                image_item.update_color(label_id)
+                # We save the image in this case
+                image_item.save()
+                image_item.update_icon_file()
+            else:
+                #TODO: if a file (ImageItem) is not open, the color is not update. 
+                # We have to open the good file and change the color of this file (only the file of the good label_id)
+                pass
+            
     def name_already_exists(self, name):
         for label_id, label_item in self.label_items.items():
             if label_item.get_name() == name:
@@ -556,27 +592,11 @@ class Core():
             if image_item is not None:
                 if image_item.get_edited() is True: 
                     image_item.save_overlays(current_file_path)
-                    image_item.set_edited(False)
                     image_item.update_icon_file()
 
     def save(self):
-        print("save")
-
-        # Open a directory        
-        default_path = Utils.load_parameters()["save"]["path"]
-        
-        file_dialog = QFileDialog()
-        current_file_path = file_dialog.getExistingDirectory(
-            parent=self.view, caption="Open Save Folder", directory=default_path)
-        
-        if len(current_file_path) == 0: return
-
-        data = Utils.load_parameters()
-        data["save"]["path"] = current_file_path
-        Utils.save_parameters(data)
-
-        self.save_labels(current_file_path)
-        self.save_overlays(current_file_path)
+        self.save_labels(self.save_directory)
+        self.save_overlays(self.save_directory)
 
     def load_labels(self):
         default_path = Utils.load_parameters()["save"]["path"]

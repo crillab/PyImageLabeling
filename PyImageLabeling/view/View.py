@@ -115,11 +115,7 @@ class View(QMainWindow):
         
         item_widgets = []
         for file in current_file_paths:
-            if file in self.controller.model.file_paths:
-                continue
-            self.controller.model.file_paths.append(file)
-            self.controller.model.image_items[file] = None
-
+            
             filename = os.path.basename(file)
 
             # Create list item

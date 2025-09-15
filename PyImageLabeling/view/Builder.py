@@ -78,8 +78,8 @@ class Builder:
                 self.view.buttons_file_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
             self.view.buttons_file_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
             self.view.buttons_file_bar[button_name].setCheckable(button["checkable"])
-            if 'previous' in button_name or 'next' in button_name:
-                        self.view.buttons_file_bar[button_name].setEnabled(False)
+            if 'previous' in button_name or 'next' in button_name or 'save' in button_name:
+                self.view.buttons_file_bar[button_name].setEnabled(False)
 
             self.file_bar_button_layout.addWidget(self.view.buttons_file_bar[button_name])
         self.view.file_bar_layout.addWidget(self.file_bar_button_container)

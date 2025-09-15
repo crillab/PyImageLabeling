@@ -16,16 +16,21 @@ class FileEvents(Events):
     def set_model(self, model):
         super().set_model(model)
         
-    def load_images(self):
-        self.all_events(self.load_images.__name__)
-        self.model.init_load_image()
+    def load(self):
+        self.all_events(self.load.__name__)
+        self.model.load()
         for button_names in self.view.buttons_image_bar:
             self.view.buttons_image_bar[button_names].setEnabled(True)
         for button_names in self.view.buttons_label_bar_permanent:
             self.view.buttons_label_bar_permanent[button_names].setEnabled(True)
         
         self.move_image() # we active the move button :) 
-        print("load_images")
+        print("load")
+
+
+    def save(self):
+        self.model.save()
+
 
     def select_image(self, item):
         print("item:", item)

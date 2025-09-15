@@ -39,11 +39,18 @@
     ],
     "file_bar":[
         {
-            "name": "load_images",
-            "name_view": "Load Images",
+            "name": "load",
+            "name_view": "Load images and labels",
             "icon": "open_image",
             "checkable": false,
-            "tooltip": "Load images."
+            "tooltip": "Load images and labels."
+        },
+        {
+            "name": "save",
+            "name_view": "Save labels",
+            "icon": "save",
+            "checkable": false,
+            "tooltip": "Save all labels."
         },
         {
             "name": "next_image",
@@ -100,20 +107,6 @@
                     "icon": "plus",
                     "checkable": false,
                     "tooltip": "Add a new label."
-                },
-                {
-                    "name": "load_labels",
-                    "name_view": "Load Layer",
-                    "icon": "open_layer",
-                    "checkable": false,
-                    "tooltip": "Load labels from specific files."
-                },
-                {
-                    "name": "save_labels",
-                    "name_view": "Save labels",
-                    "icon": "save",
-                    "checkable": false,
-                    "tooltip": "Save all labels."
                 },
                 {
                     "name": "opacity",

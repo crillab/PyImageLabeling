@@ -1,7 +1,7 @@
 # Model
 
 
-from PyImageLabeling.model.File.LoadImage import LoadImage
+from PyImageLabeling.model.File.Files import Files
 from PyImageLabeling.model.File.NextImage import NextImage
 from PyImageLabeling.model.File.PreviousImage import PreviousImage
 
@@ -20,9 +20,8 @@ from PyImageLabeling.model.Image.ZoomMinus import ZoomMinus
 from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
 from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
-from PyImageLabeling.model.Labels.SaveLayer import SaveLayer
 
-class Model(LoadImage, NextImage, PreviousImage, SaveLayer, ClearAll, Eraser, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage):
+class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage):
     def __init__(self, view, controller, config):
         super().__init__()
         self.config = config
