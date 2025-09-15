@@ -4,8 +4,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
-from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
-from PyImageLabeling.model.Utils import Utils
+from model.Core import Core, KEYWORD_SAVE_LABEL
+from model.Utils import Utils
 
 
 import os
@@ -69,6 +69,7 @@ class Files(Core):
         current_files_to_add = []
         print("current_files:", current_files)
         labels_json = None
+        labels_images = []
         for file in current_files:
             print("file:", file)
             if file in self.file_paths:
@@ -76,7 +77,7 @@ class Files(Core):
             if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
                 if KEYWORD_SAVE_LABEL in file:
                     # It is a label file  
-                    self.load_labels_images(file)
+                    labels_images.append(file)
                 else:
                     # It is a image 
                     print("file2:", file)
@@ -95,9 +96,15 @@ class Files(Core):
         if self.view.file_bar_list.count() > 0 and self.view.file_bar_list.currentRow() == -1:
             self.view.file_bar_list.setCurrentRow(0) 
 
+        if labels_images is not None:
+            for label in labels_images:
+                self.load_labels_images(file)
+
         #Load the labels only when all images and selection are initalize
         if labels_json is not None:
             self.load_labels_json(labels_json)
+
+
             
             
 

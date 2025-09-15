@@ -2,13 +2,13 @@
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QFileDialog
-from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
+from view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
 import numpy
 from collections import deque
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 import os
 import json
@@ -42,6 +42,7 @@ class LabelingOverlay():
             self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         else:
             # Load the the file in the pixmap
+            self.labeling_overlay_pixmap.load(from_file)
             pass
         self.labeling_overlay_item = None
 
@@ -469,14 +470,25 @@ class ImageItem():
 class LabelItem():
 
     static_label_id = 0
+    used_ids = set()
 
-    def __init__(self, name, labeling_mode, color):
-        self.label_id = LabelItem.static_label_id
+    def __init__(self, name, labeling_mode, color, id = None):
+        if id is None:
+            while LabelItem.static_label_id in LabelItem.used_ids:
+                LabelItem.static_label_id += 1 
+            self.label_id = LabelItem.static_label_id
+            LabelItem.used_ids.add(self.label_id)
+            LabelItem.static_label_id += 1
+        else:
+            self.label_id = id
+            LabelItem.used_ids.add(self.label_id)
+            if id >= LabelItem.static_label_id:
+                LabelItem.static_label_id = id + 1
         self.name = name
         self.labeling_mode = labeling_mode
         self.color = QColor(color) # The color of labels in the Labeling Overlay
         self.is_visible = True 
-        LabelItem.static_label_id +=1 
+        
 
     def to_dict(self):
         return {"name": self.name, "labeling_mode": self.labeling_mode, "color": [self.color.red(), self.color.green(), self.color.blue()]}
@@ -621,14 +633,59 @@ class Core():
             if self.name_already_exists(name) or label_id in self.label_items:
                 continue
 
-            self.label_items[label_id] = LabelItem(name, labeling_mode, color)
+            self.label_items[label_id] = LabelItem(name, labeling_mode, color, id =  label_id)
             self.view.builder.build_new_layer_label_bar(
                 label_id, name, labeling_mode, color
             )
 
-    def load_labels_images(self, file):
-        if file not in self.labeling_overview_loaded:
-            self.labeling_overview_loaded[file] = False
+    def load_labels_images(self, label_file_path):
+        filename = os.path.basename(label_file_path)
+        
+        # Split to get the parts
+        parts = filename.split(KEYWORD_SAVE_LABEL)
+        if len(parts) != 2:
+            return
+        
+        original_name = parts[0]
+        label_part = parts[1] 
+        label_id  = label_part.split('.')[0] 
+
+        # Find the corresponding image file path
+        image_file_path = None
+        for file_path in self.file_paths:
+            base_name = os.path.basename(file_path).split('.')[0]
+            if base_name == original_name:
+                image_file_path = file_path
+                break
+        
+        # Initialize labeling_overview_loaded if needed
+        if image_file_path not in self.labeling_overview_loaded:
+            self.labeling_overview_loaded[image_file_path] = False
+        
+        # Check if we have an ImageItem for this image file
+        if self.image_items[image_file_path] is not None and label_id in self.label_items:
+            image_item = self.image_items[image_file_path]
+
+            if os.path.exists(label_file_path):
+                # Remove the existing overlay if it exists
+                if label_id in image_item.labeling_overlays:
+                    old_overlay = image_item.labeling_overlays[label_id]
+                    old_overlay.remove()
+                
+                # Create new overlay with the saved file
+                image_item.labeling_overlays[label_id] = LabelingOverlay(
+                    self.label_items[label_id],
+                    self.view.zoomable_graphics_view.scene,
+                    image_item.get_width(),
+                    image_item.get_height(),
+                    from_file=label_file_path
+                )
+                
+                # Update the scene to reflect the loaded overlays
+                image_item.update_scene()
+                
+                # Mark as loaded
+                self.labeling_overview_loaded[image_file_path] = True
   
 
     def new_label(self, name, labeling_mode, color):

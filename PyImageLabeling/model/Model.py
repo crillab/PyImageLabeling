@@ -1,24 +1,24 @@
 # Model
 
 
-from PyImageLabeling.model.File.Files import Files
-from PyImageLabeling.model.File.NextImage import NextImage
-from PyImageLabeling.model.File.PreviousImage import PreviousImage
+from model.File.Files import Files
+from model.File.NextImage import NextImage
+from model.File.PreviousImage import PreviousImage
 
-from PyImageLabeling.model.Labeling.ContourFilling import ContourFilling
-from PyImageLabeling.model.Labeling.MagicPen import MagicPen
-from PyImageLabeling.model.Labeling.PaintBrush import PaintBrush
-from PyImageLabeling.model.Labeling.Polygon import Polygon
-from PyImageLabeling.model.Labeling.Rectangle import Rectangle
-from PyImageLabeling.model.Labeling.ClearAll import ClearAll
-from PyImageLabeling.model.Labeling.Eraser import Eraser
-from PyImageLabeling.model.Labeling.Undo import Undo
-from PyImageLabeling.model.Labeling.Ellipse import Ellipse
+from model.Labeling.ContourFilling import ContourFilling
+from model.Labeling.MagicPen import MagicPen
+from model.Labeling.PaintBrush import PaintBrush
+from model.Labeling.Polygon import Polygon
+from model.Labeling.Rectangle import Rectangle
+from model.Labeling.ClearAll import ClearAll
+from model.Labeling.Eraser import Eraser
+from model.Labeling.Undo import Undo
+from model.Labeling.Ellipse import Ellipse
 
-from PyImageLabeling.model.Image.MoveImage import MoveImage
-from PyImageLabeling.model.Image.ZoomMinus import ZoomMinus
-from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
-from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
+from model.Image.MoveImage import MoveImage
+from model.Image.ZoomMinus import ZoomMinus
+from model.Image.ZoomPlus import ZoomPlus
+from model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
 
 class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage):

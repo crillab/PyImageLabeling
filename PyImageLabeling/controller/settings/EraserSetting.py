@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QCheckBox, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout
 from PyQt6.QtCore import Qt
 
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
 class EraserSetting(QDialog):
     def __init__(self, parent):

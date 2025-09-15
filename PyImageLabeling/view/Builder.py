@@ -5,11 +5,11 @@
 from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
-from PyImageLabeling.model.Utils import Utils
+from model.Utils import Utils
 
-from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
+from view.ZoomableGraphicsView import ZoomableGraphicsView
 
-from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
+from view.QWidgets import QBlanckWidget1, QSeparator1
 import os
 
 class Builder:

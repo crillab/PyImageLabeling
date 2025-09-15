@@ -1,6 +1,6 @@
 
 
-from PyImageLabeling.model.Core import Core
+from model.Core import Core
 from PyQt6.QtWidgets import QGraphicsView
 
 
