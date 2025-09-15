@@ -4,8 +4,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
-from model.Core import Core, KEYWORD_SAVE_LABEL
-from model.Utils import Utils
+from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
+from PyImageLabeling.model.Utils import Utils
 
 
 import os
