@@ -6,7 +6,7 @@ from PyImageLabeling.model.Model import Model
 from PyQt6.QtWidgets import QApplication
 import sys 
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 def __main__():
     config = Utils.get_config()
