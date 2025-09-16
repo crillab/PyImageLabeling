@@ -6,6 +6,8 @@ from PyImageLabeling.model.Model import Model
 from PyQt6.QtWidgets import QApplication
 import sys 
 
+__version__ = "1.0.0"
+
 def __main__():
     config = Utils.get_config()
     app = QApplication(sys.argv)
@@ -14,8 +16,6 @@ def __main__():
     view = View(controller, config)
     model = Model(view, controller, config)
     controller.set_model(model)
-
-
     
     sys.exit(app.exec())
 

@@ -9,8 +9,6 @@ from PyImageLabeling.model.Utils import Utils
 
 
 import os
-import numpy
-from skimage.color import rgb2hsv
 
         
 class Files(Core):

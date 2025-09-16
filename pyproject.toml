@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyImageLabeling"
+requires-python = ">= 3.7"
+dynamic = ["version"]
+authors = [
+    { name = "Szczepanski Nicolas", email = "szczepanski@cril.fr" },
+    { name = "Fayette Pierre-Marie", email = "pmarie.fayette@univ-artois.fr" }
+]
+maintainers = [
+    { name = "Szczepanski Nicolas", email = "szczepanski@cril.fr" },
+    { name = "Fayette Pierre-Marie", email = "pmarie.fayette@univ-artois.fr" }
+]
+keywords = ["AI", "ML", "labeling", "learning", "image"]
+classifiers = [
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Education"
+]
+dependencies = ["pyqt6", "opencv-python", "pillow", "matplotlib"]
+#optional-dependencies = { gui = ["pyqt6"] }
+description = "PyImageLabeling is a tool designed to help create image masks, i.e., labeled images for training machine learning models."
+readme = "README.md"
+license = { text = "MIT" }
+
+[project.urls]
+#Documentation = "http://www.cril.univ-artois.fr/pyxai/"
+#Installation = "http://www.cril.univ-artois.fr/pyxai/documentation/installation/"
+Git = "https://github.com/crillab/PyImageLabeling"
+
+[tool.setuptools]
+package-dir = { pyxai = "PyImageLabeling" }
+include-package-data = true
+
+[tool.setuptools.packages]
+find = {} 
+
+[tool.setuptools.dynamic]
+version = { attr = "pyxai.__version__" }
+
+#[tool.cibuildwheel]
+#build = "*"
+#skip = "pp38-* pp39-* cp36-* pp310-macosx_*"
+
+
+
+
+
+
+

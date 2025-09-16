@@ -1,0 +1,8 @@
+recursive-include PyImageLabeling/icons/ *
+recursive-include PyImageLabeling/ *.css
+recursive-include PyImageLabeling/ *.json
+
+global-exclude __pycache__
+global-exclude *.pyc
+prune __pycache__
+prune *.pyc
