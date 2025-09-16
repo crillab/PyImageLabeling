@@ -48,11 +48,20 @@ class Files(Core):
         print("load")
         default_path = Utils.load_parameters()["load"]["path"]
         
-        file_dialog = QFileDialog()
-        current_file_path = file_dialog.getExistingDirectory(
-                parent=self.view, 
-                caption="Open Folder", 
-                directory=default_path)
+        # file_dialog = QFileDialog()
+        # current_file_path = file_dialog.getExistingDirectory(
+        #         parent=self.view, 
+        #         caption="Open Folder", 
+        #         directory=default_path)
+        
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
+        dialog.setViewMode(QFileDialog.ViewMode.Detail)
+        if dialog.exec():
+            default_path = dialog.selectedFiles()[0]
+        current_file_path = default_path
         
         if len(current_file_path) == 0: return
         current_file_path = current_file_path + os.sep

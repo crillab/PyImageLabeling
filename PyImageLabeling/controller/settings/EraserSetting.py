@@ -18,12 +18,14 @@ class EraserSetting(QDialog):
         # Tolerance slider and spinbox
         self.radius_slider = QSlider(Qt.Orientation.Horizontal)
         self.radius_slider.setRange(0, 100)
+        self.radius_slider.setSingleStep(2)
         self.radius_slider.setValue(self.radius)
         self.radius_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.radius_slider.setTickInterval(10)
 
         self.radius_spinbox = QSpinBox()
         self.radius_spinbox.setRange(0, 100)
+        self.radius_spinbox.setSingleStep(2)
         self.radius_spinbox.setValue(self.radius)
 
         self.absolute_checkbox = QCheckBox("Absolute mode")
@@ -53,9 +55,15 @@ class EraserSetting(QDialog):
 
         self.setLayout(layout)
 
+    def ensure_even_value(self, value):
+        """Ensure the value is even (pair). If odd, round to nearest even."""
+        if value % 2 != 0:
+            return value + 1
+        return value
+    
     def update_radius(self, value):
         """Update internal tolerance value when slider changes"""
-        self.radius = value
+        self.radius = self.ensure_even_value(value)
     
     def update_absolute_mode(self, state):
         """Update internal absolute mode value when checkbox changes"""
@@ -64,8 +72,8 @@ class EraserSetting(QDialog):
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
-        self.radius= self.radius_slider.value()
-        self.radius = self.radius_slider.value()
+        self.radius= self.ensure_even_value(self.radius_slider.value())
+        self.radius = self.ensure_even_value(self.radius_slider.value())
         data = Utils.load_parameters()
         data["eraser"]["size"] = self.radius
         data["eraser"]["absolute_mode"] = self.absolute_mode

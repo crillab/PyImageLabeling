@@ -61,10 +61,38 @@ class ZoomableGraphicsView(QGraphicsView):
 
         self.view.layer_activation = False
         
+    # def change_cursor(self, name):
+    #     cursor_pixmap = QPixmap(Utils.get_icon_path(name))
+    #     cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
+    #     cursor = QCursor(cursor_pixmap)
+    #     self.viewport().setCursor(cursor)
+    #     return cursor.pixmap().width(), cursor.pixmap().height()
+    
     def change_cursor(self, name):
         cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
-        cursor = QCursor(cursor_pixmap)
+        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"])
+        
+        # Create a new pixmap with border
+        border_width = 2
+        new_size = cursor_pixmap.size() + QSize(border_width * 2, border_width * 2)
+        bordered_pixmap = QPixmap(new_size)
+        bordered_pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(bordered_pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        
+        # Draw border/outline
+        pen = QPen(Qt.GlobalColor.white, border_width)  # or Qt.black for dark border
+        painter.setPen(pen)
+        painter.drawRect(border_width//2, border_width//2, 
+                        cursor_pixmap.width() + border_width, 
+                        cursor_pixmap.height() + border_width)
+        
+        # Draw original cursor on top
+        painter.drawPixmap(border_width, border_width, cursor_pixmap)
+        painter.end()
+        
+        cursor = QCursor(bordered_pixmap)
         self.viewport().setCursor(cursor)
         return cursor.pixmap().width(), cursor.pixmap().height()
 
