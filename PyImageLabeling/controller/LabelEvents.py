@@ -1,5 +1,5 @@
 
-from  controller.Events import Events
+from PyImageLabeling.controller.Events import Events
 
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QDialog, QColorDialog
 from PyQt6.QtGui import QPixmap, QImage

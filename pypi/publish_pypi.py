@@ -7,7 +7,7 @@ import os
 print("Type 'enter' to execute: 'python -m build ..'")
 input()
 
-os.system("python -m build ..")
+os.system("python3 -m build ..")
 os.system("mv ../dist/* .")
 
 print("Type 'enter' to publish the wheels on pypi:")
@@ -15,4 +15,4 @@ input()
 os.system("python3 -m twine upload --skip-existing *.whl")
 
 print("Type 'enter' to delete the whell:")
-os.system("rm -rf *.whl")
+os.system("rm -rf *.whl *.tar.gz ")
