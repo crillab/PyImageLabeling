@@ -19,7 +19,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Education"
 ]
-dependencies = ["pyqt6", "opencv-python", "pillow", "matplotlib"]
+dependencies = ["numpy<2.0", "pyqt6", "opencv-python", "pillow", "matplotlib"]
 #optional-dependencies = { gui = ["pyqt6"] }
 description = "PyImageLabeling is a tool designed to help create image masks, i.e., labeled images for training machine learning models."
 readme = "README.md"
