@@ -10,7 +10,7 @@ class PaintBrushSetting(QDialog):
         self.resize(500, 100)
 
         self.size_paint_brush = Utils.load_parameters()["paint_brush"]["size"] 
-        self.max_size = min(model.image_qrect.width(), model.image_qrect.height())
+        self.max_size = int(min(model.get_current_image_item().image_qrectf.width(), model.get_current_image_item().image_qrectf.height()))
         self.min_size = 1
         if not (self.min_size <= self.size_paint_brush <= self.max_size):
             self.size_paint_brush = 5
@@ -26,7 +26,8 @@ class PaintBrushSetting(QDialog):
         self.size_paint_brush_slider.setRange(self.min_size, self.max_size)
         self.size_paint_brush_slider.setValue(self.size_paint_brush)
         self.size_paint_brush_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.size_paint_brush_slider.setTickInterval(10)
+        tick_interval = max(1, self.max_size // 20)
+        self.size_paint_brush_slider.setTickInterval(tick_interval)
 
         self.size_paint_brush_spinbox = QSpinBox()
         self.size_paint_brush_spinbox.setRange(self.min_size, self.max_size)

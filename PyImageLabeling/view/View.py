@@ -161,26 +161,68 @@ class View(QMainWindow):
         
     def file_bar_remove(self, item, loaded_image_paths, image_items):
         # Get the row of the item
+        path_to_remove = None
         for path in loaded_image_paths:
             if item.filename in path:
-                loaded_image_paths.remove(path)
-                del image_items[path]
+                path_to_remove = path
+                break
+        
+        if path_to_remove:
+            # Check if this is the currently displayed image
+            is_current_image = False
+            current_image = self.controller.model.current_image_item
+            if (current_image is not None and 
+                path_to_remove in image_items and 
+                image_items[path_to_remove] == current_image):
+                is_current_image = True
+            
+            # If this is the current image, clear the scene first
+            if is_current_image:
+                self.zoomable_graphics_view.scene.clear()
+                self.controller.model.current_image_item = None
+            
+            # Properly cleanup the ImageItem
+            if path_to_remove in image_items and image_items[path_to_remove] is not None:
+                image_item = image_items[path_to_remove]
+                
+                # Mark all overlays as not displayed since scene might be cleared
+                for label_id in list(image_item.labeling_overlays):
+                    overlay = image_item.labeling_overlays[label_id]
+                    overlay.is_displayed_in_scene = False
+                    overlay.labeling_overlay_item = None
+                    
+                    # End any active painters
+                    if  overlay.labeling_overlay_painter.isActive():
+                        overlay.labeling_overlay_painter.end()
+                    if  overlay.labeling_overlay_opacity_painter.isActive():
+                        overlay.labeling_overlay_opacity_painter.end()
+                    if  overlay.labeling_overlay_color_painter.isActive():
+                        overlay.labeling_overlay_color_painter.end()
+                
+                # Clear image item scene state
+                image_item.is_displayed_in_scene = False
+                image_item.image_item = None
+                image_item.backgroung_item = None
+            
+            # Remove from the data structures
+            loaded_image_paths.remove(path_to_remove)
+            del image_items[path_to_remove]
+        
+        # Remove from UI
         row = self.file_bar_list.row(item)
         if row >= 0:
-        # Remove the item from the list
             self.file_bar_list.takeItem(row)
+        
+        # Handle empty list case
         if len(loaded_image_paths) == 0:
+            # Disable navigation buttons
             for button_name in self.buttons_file_bar:
                 if 'previous' in button_name or 'next' in button_name:
                     self.buttons_file_bar[button_name].setEnabled(False)
+            
+            # Disable image operation buttons
             for button_names in self.buttons_image_bar:
                 self.buttons_image_bar[button_names].setEnabled(False)
-            
-            
-            self.zoomable_graphics_view.scene.clear()
-            #self.pixmap_item = None
-            #self.zoomable_graphics_view.setSceneRect(0, 0, 0, 0)
-            #self.zoomable_graphics_view.resetTransform()
 
     def file_bar_select(self):
         """Handle selection change to update styling"""

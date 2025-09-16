@@ -21,7 +21,7 @@ class EraserBrushItem(QGraphicsItem):
         # Compute the good qrect to avoid going beyond the painting area  
         self.qrectf = QRectF(int(self.x)-(self.size/2)-5, int(self.y)-(self.size/2)-5, self.size+10, self.size+10)
         self.qrectf = self.qrectf.intersected(core.get_current_image_item().get_qrectf())
-        alpha_color = Utils.load_parameters()["load_image"]["alpha_color"] 
+        alpha_color = Utils.load_parameters()["load"]["alpha_color"] 
 
         # Create a fake texture with the good image inside 
         self.eraser_texture = QPixmap(self.size, self.size) 
