@@ -30,12 +30,12 @@ if sys.argv:
             print("PyImageLabeling location: ", __location__)
 
     if  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
-        config = Utils.get_config()
-        app = QApplication(sys.argv)
-        
-        controller = Controller(config)
-        view = View(controller, config)
-        model = Model(view, controller, config)
-        controller.set_model(model)    
+        #config = Utils.get_config()
+        #app = QApplication(sys.argv)
+        print("Tests ...")
+        #controller = Controller(config)
+        #view = View(controller, config)
+        #model = Model(, controller, config)
+        #controller.set_model(model)    
     else:
         __main__()
