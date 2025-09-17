@@ -99,7 +99,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Quality Control**: Identify defects and areas of interest in industrial applications
 
 ---
-
-**Made with ❤️ for the Machine Learning community**
-
-*Star ⭐ this project if you find it useful!*
