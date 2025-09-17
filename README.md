@@ -18,8 +18,6 @@ pip install pyimagelabeling
 python -m pyimagelabeling
 ```
 
-## 📸 Screenshots
-
 ![PyImageLabeling Interface](screenshot.png)
 *Main interface showing the comprehensive toolset for image annotation*
 
