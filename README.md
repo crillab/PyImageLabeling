@@ -62,7 +62,9 @@ Load a study image and use a variety of professional-grade tools to annotate key
 | **Contour Filling**  |Shape detection and extraction - click to fill detected shape                        |
 | **Paintbrush**       | Paint brush tool to mark desired area                |
 | **Magic Pen**        | Intelligent fill tool based on color similarity and tolerance      |
+
 **IS COMING**
+
 | **Tool**             | **Geometric shapes**                                                                                   |
 |----------------------|-----------------------------------------------------------------------------------------------------|
 | **Ellipse**        | Precision ellipse selection for label assignment              |
