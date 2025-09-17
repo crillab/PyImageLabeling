@@ -25,7 +25,7 @@ jobs:
       run: |
         pip install build
         python -m build
-        pip install dist/*.whl
+        pip install dist/pyimagelabeling-1.0.2-py3-none-any.whl
 # sudo apt install ffmpeg libsm6 libxext6 qt6-base-dev libxcb-cursor0 -y
     - name: Run test suite
       run: |
