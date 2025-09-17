@@ -1,4 +1,4 @@
-name: Tests
+name: Tests Windows
 
 on: [workflow_dispatch] #Manually
 #on: [push]
