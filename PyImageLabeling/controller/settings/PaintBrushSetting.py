@@ -20,18 +20,20 @@ class PaintBrushSetting(QDialog):
         layout.addWidget(label)
 
         slider_layout = QHBoxLayout()
-
+        initial_size_paint_brush = self.ensure_even_value(self.size_paint_brush)
         # Tolerance slider and spinbox
         self.size_paint_brush_slider = QSlider(Qt.Orientation.Horizontal)
         self.size_paint_brush_slider.setRange(self.min_size, self.max_size)
-        self.size_paint_brush_slider.setValue(self.size_paint_brush)
+        self.size_paint_brush_slider.setSingleStep(2)
+        self.size_paint_brush_slider.setValue(initial_size_paint_brush)
         self.size_paint_brush_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         tick_interval = max(1, self.max_size // 20)
         self.size_paint_brush_slider.setTickInterval(tick_interval)
 
         self.size_paint_brush_spinbox = QSpinBox()
         self.size_paint_brush_spinbox.setRange(self.min_size, self.max_size)
-        self.size_paint_brush_spinbox.setValue(self.size_paint_brush)
+        self.size_paint_brush_spinbox.setSingleStep(2)
+        self.size_paint_brush_spinbox.setValue(initial_size_paint_brush)
 
         # Connect both ways to keep them synchronized
         self.size_paint_brush_spinbox.valueChanged.connect(self.size_paint_brush_slider.setValue)
@@ -53,9 +55,15 @@ class PaintBrushSetting(QDialog):
 
         self.setLayout(layout)
 
+    def ensure_even_value(self, value):
+        """Ensure the value is even (pair). If odd, round to nearest even."""
+        if value % 2 != 0:
+            return value + 1
+        return value
+    
     def update_size_paint_brush(self, value):
         """Update internal tolerance value when slider changes"""
-        self.size_paint_brush = value
+        self.size_paint_brush = self.ensure_even_value(value)
 
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
