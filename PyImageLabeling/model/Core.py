@@ -631,7 +631,7 @@ class Core():
             if image_item is not None:
                 image_item.update_color(label_id)
                 # We save the image in this case
-                image_item.save()
+                image_item.save_overlays(self.save_directory)
                 image_item.update_icon_file()
             else:
                 #TODO: if a file (ImageItem) is not open, the color is not update. 
