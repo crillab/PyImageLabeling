@@ -80,7 +80,7 @@ Each editing tools is proper to each selected label.
 ## Links
 
 - **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
-- **GitHub**: [View Source Code](https://github.com/yourusername/pyimagelabeling)
+- **GitHub**: [View Source Code]([https://github.com/yourusername/pyimagelabeling](https://github.com/crillab/PyImageLabeling))
 - **PyPI**: [Install via pip](https://pypi.org/project/pyimagelabeling/)
 
 
