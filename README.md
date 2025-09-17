@@ -81,7 +81,7 @@ Each editing tools is proper to each selected label.
 
 - **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
-- **PyPI**: [Install via pip](https://pypi.org/project/pyimagelabeling/)
+- **PyPI**: [Install via pip]((https://pypi.org/project/PyImageLabeling/))
 
 
 ## License
