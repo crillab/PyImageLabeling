@@ -5,8 +5,12 @@ from PyImageLabeling.model.Model import Model
 
 from PyQt6.QtWidgets import QApplication
 import sys 
+import os
+import PyImageLabeling
 
 __version__ = "1.0.2"
+__python_version__ = str(sys.version).split(os.linesep)[0].split(' ')[0]
+__location__ = os.sep.join(PyImageLabeling.__file__.split(os.sep)[:-1])
 
 def __main__():
     config = Utils.get_config()
@@ -19,4 +23,19 @@ def __main__():
     
     sys.exit(app.exec())
 
-__main__()
+if sys.argv:
+    if  (len(sys.argv) != 0 and sys.argv[0] == "-m"):
+            print("Python version: ", __python_version__)
+            print("PyImageLabeling version: ", __version__)
+            print("PyImageLabeling location: ", __location__)
+
+    if  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
+        config = Utils.get_config()
+        app = QApplication(sys.argv)
+        
+        controller = Controller(config)
+        view = View(controller, config)
+        model = Model(view, controller, config)
+        controller.set_model(model)    
+    else:
+        __main__()

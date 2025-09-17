@@ -46,10 +46,9 @@ class View(QMainWindow):
         
         self.controller.set_view(self) 
         
-        
         # Display
         self.show()
-
+        
     # Here we are sure that clicked is checkable
     def desactivate_buttons(self, clicked, list_buttons_bars):
         for buttons_bar in list_buttons_bars:

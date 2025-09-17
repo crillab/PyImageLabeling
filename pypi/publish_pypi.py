@@ -15,4 +15,4 @@ input()
 os.system("python3 -m twine upload --skip-existing *.whl")
 
 print("Type 'enter' to delete the whell:")
-os.system("rm -rf *.whl *.tar.gz ")
+os.system("rm -rf *.whl *.tar.gz ../dist/ ../PyImageLabeling.egg-info/")
