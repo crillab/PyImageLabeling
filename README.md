@@ -1,4 +1,4 @@
-# 🎨 PyImageLabeling
+# PyImageLabeling
 
 [![PyPI version](https://badge.fury.io/py/pyimagelabeling.svg)](https://badge.fury.io/py/pyimagelabeling)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
@@ -9,27 +9,12 @@
 
 PyImageLabeling is designed to streamline the creation of image masks (labeled images) that can be used to train Machine Learning models. With its comprehensive set of annotation tools and user-friendly interface, you can efficiently label and annotate images for computer vision tasks.
 
-## 🚀 Quick Start
 
-### Installation
+### Installation and Run
 
 ```bash
 # Install from PyPI
 pip install pyimagelabeling
-
-# Or install from source
-git clone https://github.com/yourusername/pyimagelabeling.git
-cd pyimagelabeling
-pip install -e .
-```
-
-### Usage
-
-```bash
-# Launch the application
-pyimagelabeling
-
-# Or run as a module
 python -m pyimagelabeling
 ```
 
@@ -49,12 +34,12 @@ Load a study image and use a variety of professional-grade tools to annotate key
 | Mouse wheel       | Zoom in/out                                      |
 | Left-click + drag | Move the image (when "Move" tool is active)     |
 
-## 🛠️ Professional Toolset
+## Toolset
 
 ### **Image Management**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Load Image**    | Import images and label's layers from your local system with support for multiple formats                                |
+| **Load Image**    | Import images and label's layers from your local system with support for multiple formats              |
 | **Save**          | Export current annotations with automatic directory creation                                           |
 
 ### **Navigation Tools**
@@ -92,18 +77,18 @@ Each editing tools is proper to each selected label.
 | **Eraser**        | Remove annotations with size control and "Absolute" mode for loaded layer editing                     |
 | **Clear All**     | Reset canvas by removing all current annotations                                                       |
 
-## 🔗 Links
+## Links
 
 - **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
 - **GitHub**: [View Source Code](https://github.com/yourusername/pyimagelabeling)
 - **PyPI**: [Install via pip](https://pypi.org/project/pyimagelabeling/)
 
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 💡 Use Cases
+## Use Cases
 
 - **Computer Vision**: Create training datasets for object detection and segmentation
 - **Medical Imaging**: Annotate medical scans and diagnostic images
