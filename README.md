@@ -18,7 +18,7 @@ pip install pyimagelabeling
 python -m pyimagelabeling
 ```
 
-![PyImageLabeling Interface](assets/Capture d'écran 2025-09-17 113629.png)
+![PyImageLabeling Interface](assets/Screenshot.png)
 *Main interface showing the comprehensive toolset for image annotation*
 
 ## Principle
