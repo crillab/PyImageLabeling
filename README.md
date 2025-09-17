@@ -14,8 +14,8 @@ PyImageLabeling is designed to streamline the creation of image masks (labeled i
 
 ```bash
 # Install from PyPI
-pip install pyimagelabeling
-python -m pyimagelabeling
+pip install PyImageLabeling
+python3 -m PyImageLabeling
 ```
 
 ![PyImageLabeling Interface](assets/Screenshot.png)
