@@ -15,18 +15,19 @@ class EraserSetting(QDialog):
         layout = QVBoxLayout()
         form_layout = QFormLayout()
 
+        initial_radius = self.ensure_even_value(self.radius)
         # Tolerance slider and spinbox
         self.radius_slider = QSlider(Qt.Orientation.Horizontal)
         self.radius_slider.setRange(0, 100)
         self.radius_slider.setSingleStep(2)
-        self.radius_slider.setValue(self.radius)
+        self.radius_slider.setValue(initial_radius)
         self.radius_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.radius_slider.setTickInterval(10)
 
         self.radius_spinbox = QSpinBox()
         self.radius_spinbox.setRange(0, 100)
         self.radius_spinbox.setSingleStep(2)
-        self.radius_spinbox.setValue(self.radius)
+        self.radius_spinbox.setValue(initial_radius)
 
         self.absolute_checkbox = QCheckBox("Absolute mode")
         self.absolute_checkbox.setChecked(self.absolute_mode == 1)
@@ -72,8 +73,8 @@ class EraserSetting(QDialog):
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
-        self.radius= self.ensure_even_value(self.radius_slider.value())
-        self.radius = self.ensure_even_value(self.radius_slider.value())
+        self.radius= self.radius_slider.value()
+        self.radius = self.radius_spinbox.value()
         data = Utils.load_parameters()
         data["eraser"]["size"] = self.radius
         data["eraser"]["absolute_mode"] = self.absolute_mode

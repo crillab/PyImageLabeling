@@ -31,9 +31,11 @@ class EraserBrushItem(QGraphicsItem):
         
         painter.drawPixmap(QRect(0, 0, self.size, self.size), self.image_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
         painter.setOpacity(self.core.get_current_image_item().get_labeling_overlay().get_opacity())
-        for label_id, labeling_overlay in self.core.get_current_image_item().labeling_overlays.items():
-                if (labeling_overlay != self.core.get_current_image_item() and labeling_overlay.label.get_visible()):
-                    painter.drawPixmap(QRect(0, 0, self.size, self.size), labeling_overlay.labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
+        # for other_labeling_overlay_pixmap in self.core.get_current_image_item().get_labeling_overlay_pixmaps():
+        #     painter.drawPixmap(QRect(0, 0, self.size, self.size), other_labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
+        for labeling_overlay in self.core.get_current_image_item().get_labeling_overlays():
+            if labeling_overlay != self.core.get_current_image_item().get_labeling_overlay() and labeling_overlay.label.get_visible():
+                painter.drawPixmap(QRect(0, 0, self.size, self.size), labeling_overlay.labeling_overlay_pixmap, QRect(int(self.x-(self.size/2)), int(self.y-(self.size/2)), self.size, self.size))
             
         painter.end()
 
