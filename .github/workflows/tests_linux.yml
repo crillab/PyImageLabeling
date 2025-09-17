@@ -1,0 +1,35 @@
+name: Tests
+
+on: [workflow_dispatch] #Manually
+#on: [push]
+#on:
+#  workflow_run:
+#    workflows: ["Build"]
+#    types:
+#      - completed
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Build a wheel via an sdist
+      run: |
+        pip install build
+        python -m build
+        pip install dist/pyimagelabeling*.whl
+        sudo apt install ffmpeg libsm6 libxext6 qt6-base-dev libxcb-cursor0 -y
+    - name: Run test suite
+      run: |
+        python3 -u -m PyImageLabeling -tests
+        
+  
+  

@@ -25,7 +25,8 @@ jobs:
       run: |
         pip install build
         python -m build
-        pip install dist/pyimagelabeling*.whl
+        for %%w in (*.whl) do pip install %%w
+#pip install dist/pyimagelabeling*.whl
 # sudo apt install ffmpeg libsm6 libxext6 qt6-base-dev libxcb-cursor0 -y
     - name: Run test suite
       run: |
