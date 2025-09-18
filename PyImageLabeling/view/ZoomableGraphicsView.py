@@ -61,14 +61,14 @@ class ZoomableGraphicsView(QGraphicsView):
 
         self.view.layer_activation = False
         
-    # def change_cursor(self, name):
-    #     cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-    #     cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
-    #     cursor = QCursor(cursor_pixmap)
-    #     self.viewport().setCursor(cursor)
-    #     return cursor.pixmap().width(), cursor.pixmap().height()
-    
     def change_cursor(self, name):
+        cursor_pixmap = QPixmap(Utils.get_icon_path(name))
+        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
+        cursor = QCursor(cursor_pixmap)
+        self.viewport().setCursor(cursor)
+        return cursor.pixmap().width(), cursor.pixmap().height()
+    
+    def change_cursor_n(self, name):
         cursor_pixmap = QPixmap(Utils.get_icon_path(name))
         cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"])
         
