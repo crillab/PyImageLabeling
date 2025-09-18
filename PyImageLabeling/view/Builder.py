@@ -24,6 +24,8 @@ class Builder:
         self.view.setCentralWidget(self.view.central_widget)
         self.view.main_layout = QGridLayout(self.view.central_widget)
         self.view.main_layout.setSpacing(0)
+        #self.view.main_layout.setRowMinimumHeight(0, 1000)
+        
         self.build_labeling_bar()
         self.build_graphics_view()
         self.build_label_bar()
@@ -57,7 +59,7 @@ class Builder:
         self.view.statusBar().showMessage('Ready')
         self.view.progressBar = QProgressBar()
         self.view.statusBar().addPermanentWidget(self.view.progressBar) 
-
+        
     def build_file_bar(self):
         self.view.file_bar_container = QWidget()
         self.view.file_bar_layout = QVBoxLayout(self.view.file_bar_container)
@@ -94,13 +96,19 @@ class Builder:
             self.file_bar_list.addItem("file_"+str(i)+".png")
         """
         self.view.file_bar_list.setMinimumWidth(0)
-
-        self.view.file_bar_layout.addWidget(self.view.file_bar_list)
+        
         self.view.file_bar_layout.setSpacing(0)
-        self.view.file_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
+        self.view.file_bar_layout.setContentsMargins(0,0,0,10)
 
+        
         self.view.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
         self.view.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
+        
+        #self.view.file_bar_container.setMinimumHeight(self.view.config["window_size"]["file_bar"]["width"])
+        #self.view.file_bar_container.setMaximumHeight(700)
+        
+
+        self.view.file_bar_layout.addWidget(self.view.file_bar_list)
         
         self.view.main_layout.addWidget(self.view.file_bar_container, 0, 3, 3, 1)
 
@@ -194,7 +202,7 @@ class Builder:
         self.labeling_bar_scroll.setWidget(self.labeling_bar_container)
         
         labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0)  
+        self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0, 1, 1)  
         
     
     def build_graphics_view(self):
@@ -206,9 +214,9 @@ class Builder:
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)  
         
-        self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 4, 2)
+        self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 3, 1)
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])    
-          
+        
         #self.right_layout_container.setMinimumSize(self.view.right_panel_width, self.view.right_panel_height)
     
     def build_image_bar(self):
@@ -247,7 +255,7 @@ class Builder:
 
         self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)  
         self.view.image_bar_layout_1.setContentsMargins(0, 10, 0, 10)     
-        self.view.main_layout.addWidget(self.image_bar_container_1, 1, 0)
+        self.view.main_layout.addWidget(self.image_bar_container_1, 2, 0, 1, 1)
 
     def build_label_bar(self):
         self.label_bar_container = QWidget()
@@ -280,11 +288,11 @@ class Builder:
         self.label_bar_scroll.setWidgetResizable(True)
         self.label_bar_scroll.setWidget(self.label_bar_container)
         self.label_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
+        #self.label_bar_container.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"]) 
+    
+        self.view.main_layout.addWidget(self.label_bar_scroll, 4, 0, 1, 4) 
+        self.view.main_layout.setRowMinimumHeight(2, 100)
         
-        self.label_bar_container.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"]) 
-
-        self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 4, 4) 
-
 
         
 
@@ -343,7 +351,7 @@ class Builder:
         
 
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
-    
+
         self.view.buttons_label_bar_temporary[label_id] = push_buttons # Usefull to control all buttons :)
         self.view.container_label_bar_temporary[label_id] = (new_layer_label_bar_container, separator) # Usefull to delete these qwidget :) 
         

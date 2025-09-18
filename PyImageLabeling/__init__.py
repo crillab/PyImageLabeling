@@ -8,7 +8,7 @@ import sys
 import os
 import PyImageLabeling
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 __python_version__ = str(sys.version).split(os.linesep)[0].split(' ')[0]
 __location__ = os.sep.join(PyImageLabeling.__file__.split(os.sep)[:-1])
 
