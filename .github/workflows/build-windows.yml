@@ -35,10 +35,11 @@ jobs:
     # Build the executable
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --noconfirm --log-level=WARN --onefile --windowed --name PyImageLabeling main.py \
-        --exclude-module tkinter \
-        --exclude-module PyQt5 \
-        --exclude-module PySide6 \
+        pyinstaller --noconfirm --clean --log-level=WARN --onefile --windowed `
+        --name PyImageLabeling main.py `
+        --exclude-module tkinter `
+        --exclude-module PyQt5 `
+        --exclude-module PySide6 `
         --exclude-module PySide2
     
     # Upload the executable as artifact
