@@ -1,0 +1,51 @@
+name: Build Windows Executable
+
+# Trigger the workflow
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    # Checkout your repository code
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    # Set up Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        # Install your project requirements
+        if (Test-Path requirements.txt) { pip install -r requirements.txt }
+    
+    # Build the executable
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --onefile --windowed --name="PyImageLabeling" main.py
+        # Alternative options:
+        # --onefile: Create a single executable file
+        # --windowed: Don't show console window (for GUI apps)
+        # --console: Show console window (for CLI apps)
+        # --icon=icon.ico: Add an icon (if you have one)
+    
+    # Upload the executable as artifact
+    - name: Upload executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: PyImageLabeling-Windows
+        path: dist/*.exe
+        retention-days: 30
