@@ -36,11 +36,6 @@ jobs:
     - name: Build executable with PyInstaller
       run: |
         pyinstaller --onefile --windowed --name="PyImageLabeling" main.py
-        # Alternative options:
-        # --onefile: Create a single executable file
-        # --windowed: Don't show console window (for GUI apps)
-        # --console: Show console window (for CLI apps)
-        # --icon=icon.ico: Add an icon (if you have one)
     
     # Upload the executable as artifact
     - name: Upload executable
