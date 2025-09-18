@@ -35,7 +35,7 @@ jobs:
     # Build the executable
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --name="PyImageLabeling" main.py
+        pyinstaller --onefile --windowed --name="PyImageLabeling" __main__.py
         # Alternative options:
         # --onefile: Create a single executable file
         # --windowed: Don't show console window (for GUI apps)
