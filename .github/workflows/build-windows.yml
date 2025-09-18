@@ -28,14 +28,14 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
+        pip install pyinstaller pyinstaller-hooks-contrib
         # Install your project requirements
         if (Test-Path requirements.txt) { pip install -r requirements.txt }
     
     # Build the executable
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --name="PyImageLabeling" main.py
+        pyinstaller --noconfirm --onefile --windowed --name PyImageLabeling main.py
     
     # Upload the executable as artifact
     - name: Upload executable
