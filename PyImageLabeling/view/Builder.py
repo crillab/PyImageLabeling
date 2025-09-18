@@ -102,7 +102,7 @@ class Builder:
         self.view.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
         self.view.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
         
-        self.view.main_layout.addWidget(self.view.file_bar_container, 0, 3, 2, 1)
+        self.view.main_layout.addWidget(self.view.file_bar_container, 0, 3, 3, 1)
 
     def build_labeling_bar(self):
         self.labeling_bar_container = QWidget()
@@ -206,7 +206,7 @@ class Builder:
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)  
         
-        self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 2, 2)
+        self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 4, 2)
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])    
           
         #self.right_layout_container.setMinimumSize(self.view.right_panel_width, self.view.right_panel_height)
@@ -283,7 +283,7 @@ class Builder:
         
         self.label_bar_container.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"]) 
 
-        self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 1, 4) 
+        self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 4, 4) 
 
 
         
