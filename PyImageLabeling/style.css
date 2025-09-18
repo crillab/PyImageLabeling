@@ -1,6 +1,7 @@
 QWidget {
     background-color: #2e2e2e;
     /*border: 1px solid #000000;*/
+    color: white;
 }
 
 QWidget#apply_cancel_bar {

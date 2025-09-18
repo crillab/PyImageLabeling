@@ -106,7 +106,7 @@ class Builder:
 
     def build_labeling_bar(self):
         self.labeling_bar_container = QWidget()
-    
+        self.labeling_bar_scroll = QScrollArea()
         labeling_bar_layout = QVBoxLayout(self.labeling_bar_container)
         #left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         
@@ -171,14 +171,30 @@ class Builder:
                     buttons_layout.addWidget(self.view.buttons_labeling_bar[button_name])
 
             labeling_bar_layout.addWidget(frame)
-        self.labeling_bar_container.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
-        self.labeling_bar_container.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
-        labeling_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
-        labeling_bar_layout.setSpacing(self.view.config["window_size"]["margin"])
-        
 
+        #self.labeling_bar_container.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
+        #self.labeling_bar_container.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        #labeling_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
+        #labeling_bar_layout.setSpacing(self.view.config["window_size"]["margin"])
+        
+        self.labeling_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.labeling_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.labeling_bar_scroll.setWidgetResizable(True)
+        self.labeling_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
+        self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        
+        self.labeling_bar_scroll.setMinimumHeight(self.view.config["window_size"]["labeling_bar"]["height"]) 
+        self.labeling_bar_scroll.setMaximumHeight(583)     
+        #self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        labeling_bar_layout.setContentsMargins(0,0,0,0)
+        #self.labeling_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
+
+        #self.labeling_bar_container.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"]) 
+        #self.labeling_bar_scroll.setSpacing(self.view.config["window_size"]["margin"])
+        self.labeling_bar_scroll.setWidget(self.labeling_bar_container)
+        
         labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.view.main_layout.addWidget(self.labeling_bar_container, 0, 0)  
+        self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0)  
         
     
     def build_graphics_view(self):
@@ -229,7 +245,8 @@ class Builder:
             self.view.buttons_image_bar[button_name].setEnabled(False)
             self.view.image_bar_layout_2.addWidget(self.view.buttons_image_bar[button_name])
 
-        self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)        
+        self.view.image_bar_layout_2.setAlignment(Qt.AlignmentFlag.AlignRight)  
+        self.view.image_bar_layout_1.setContentsMargins(0, 10, 0, 10)     
         self.view.main_layout.addWidget(self.image_bar_container_1, 1, 0)
 
     def build_label_bar(self):
@@ -264,7 +281,7 @@ class Builder:
         self.label_bar_scroll.setWidget(self.label_bar_container)
         self.label_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
         
-        
+        self.label_bar_container.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"]) 
 
         self.view.main_layout.addWidget(self.label_bar_scroll, 2, 0, 1, 4) 
 

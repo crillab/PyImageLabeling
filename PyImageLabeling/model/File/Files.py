@@ -63,8 +63,13 @@ class Files(Core):
         dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
         dialog.setViewMode(QFileDialog.ViewMode.Detail)
-        if dialog.exec():
-            default_path = dialog.selectedFiles()[0]
+        dialog.setDirectory(default_path)
+        dialog.setModal(True)
+        if dialog.exec() == 0: return 
+        #print("result:", result)
+        #if dialog.exec():
+        #print("default_path:", default_path)
+        default_path = dialog.selectedFiles()[0]
         current_file_path = default_path
         
         if len(current_file_path) == 0: return

@@ -8,7 +8,8 @@
             "width":400
         },
         "labeling_bar":{
-            "width": 250
+            "width": 250,
+            "height": 95
         },
         "image_bar":{
             "height": 220,
