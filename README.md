@@ -63,6 +63,15 @@ Load a study image and use a variety of professional-grade tools to annotate key
 |-------------------|--------------------------------------------------------------------------------------------------------|
 | **Opacity**       | Fine-tune layer transparency for precise overlay work                                                  |
 
+### **Label's Tools**
+| **Tool**          | **Functionality**                                                                                      |
+|-------------------|--------------------------------------------------------------------------------------------------------|
+| **Color**         | Set the color of the selected label                                                                    |
+| **Visibility**    | Set the visibilty of the selected label                                                                |
+| **Setting**       | Set the parameters of the selected label                                                               |
+| **Remove**        | Remove the selected label                                                                              |
+
+
 ### **Annotation Tools**
 | **Tool**             | **Pixel-by-pixel**                                                                                  |
 |----------------------|-----------------------------------------------------------------------------------------------------|
