@@ -4,9 +4,9 @@ from PyImageLabeling.controller.Controller import Controller
 from PyImageLabeling.model.Model import Model
 
 from PyQt6.QtWidgets import QApplication
-import sys
+import sys 
 
-def main():
+def __main__():
     config = Utils.get_config()
     app = QApplication(sys.argv)
     
@@ -18,5 +18,4 @@ def main():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
-    if "--no-gui" not in sys.argv:
-        main()
+    __main__()
