@@ -35,7 +35,7 @@ jobs:
     # Build the executable
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --noconfirm --clean --log-level=WARN --onefile --windowed --name PyImageLabeling main.py 
+        pyinstaller --onefile --noconsole --name "PyImageLabeling" --add-data "PyImageLabeling/config.json;." --add-data "PyImageLabeling/parameters.json;." --add-data "PyImageLabeling/style.css;." --add-data "PyImageLabeling/icons/*.png;icons" --icon "PyImageLabeling/icons/maia3.ico" __init__.py
     
     # Upload the executable as artifact
     - name: Upload executable

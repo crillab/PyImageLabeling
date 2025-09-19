@@ -4,15 +4,9 @@ from PyImageLabeling.controller.Controller import Controller
 from PyImageLabeling.model.Model import Model
 
 from PyQt6.QtWidgets import QApplication
-import sys 
-import os
-import PyImageLabeling
+import sys
 
-__version__ = "1.0.4"
-__python_version__ = str(sys.version).split(os.linesep)[0].split(' ')[0]
-__location__ = os.sep.join(PyImageLabeling.__file__.split(os.sep)[:-1])
-
-def __main__():
+def main():
     config = Utils.get_config()
     app = QApplication(sys.argv)
     
@@ -23,19 +17,6 @@ def __main__():
     
     sys.exit(app.exec())
 
-if sys.argv:
-    if  (len(sys.argv) != 0 and sys.argv[0] == "-m"):
-            print("Python version: ", __python_version__)
-            print("PyImageLabeling version: ", __version__)
-            print("PyImageLabeling location: ", __location__)
-
-    if  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
-        #config = Utils.get_config()
-        #app = QApplication(sys.argv)
-        print("Tests ...")
-        #controller = Controller(config)
-        #view = View(controller, config)
-        #model = Model(, controller, config)
-        #controller.set_model(model)    
-    else:
-        __main__()
+if __name__ == "__main__":
+    if "--no-gui" not in sys.argv:
+        main()
