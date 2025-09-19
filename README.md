@@ -7,7 +7,6 @@
 
 ## Links
 
-- **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
 - **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
 
@@ -15,7 +14,7 @@
 
 > **A powerful and intuitive tool for creating image masks and annotations for Machine Learning model training**
 
-PyImageLabeling is designed to streamline the creation of image masks (labeled images) that can be used to train Machine Learning models. With its comprehensive set of annotation tools and user-friendly interface, you can efficiently label and annotate images for computer vision tasks.
+PyImageLabeling is designed to the creation of masks for labelisation which could be used to train Machine Learning models. With its comprehensive set of annotation tools and user-friendly interface, you can efficiently label and annotate images for computer vision tasks.
 
 
 ### Installation and Run
@@ -47,14 +46,16 @@ Load a study image and use a variety of professional-grade tools to annotate key
 |-------------------|--------------------------------------------------------------------------------------------------------|
 | **Load Image**    | Import images and label's layers from your local system with support for multiple formats              |
 | **Save**          | Export current annotations with automatic directory creation                                           |
+| **Next**          | Load next image                                                                                        |
+| **Previous**      | Load previous image                                                                                    |
 
 ### **Navigation Tools**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Zoom in**      | click to zoom in                                                                                       |
-| **Zoom out**      | click to zoom out                                                                                     |
-| **Move**          | Activate pan mode for image navigation (enabled by default)                                           |
-| **Reset**         | Reset zoom and pan to default view                                                                    |
+| **Zoom in**       | click to zoom in                                                                                       |
+| **Zoom out**      | click to zoom out                                                                                      |
+| **Move**          | Activate pan mode for image navigation (enabled by default)                                            |
+| **Reset**         | Reset zoom and pan to default view                                                                     |
 
 
 ### **Visual Controls**
@@ -63,28 +64,28 @@ Load a study image and use a variety of professional-grade tools to annotate key
 | **Opacity**       | Fine-tune layer transparency for precise overlay work                                                  |
 
 ### **Annotation Tools**
-| **Tool**             | **Pixel-by-pixel**                                                                                   |
+| **Tool**             | **Pixel-by-pixel**                                                                                  |
 |----------------------|-----------------------------------------------------------------------------------------------------|
-| **Contour Filling**  |Shape detection and extraction - click to fill detected shape                        |
-| **Paintbrush**       | Paint brush tool to mark desired area                |
-| **Magic Pen**        | Intelligent fill tool based on color similarity and tolerance      |
+| **Contour Filling**  |Shape detection and extraction - click to fill detected shape                                        |
+| **Paintbrush**       | Paint brush tool to mark desired area                                                               |
+| **Magic Pen**        | Intelligent fill tool based on color similarity and tolerance                                       |
 
 ![PyImageLabeling Interface](assets/Creenshot2.png)
 
 **IS COMING**
 
-| **Tool**             | **Geometric shapes**                                                                                   |
+| **Tool**             | **Geometric shapes**                                                                                |
 |----------------------|-----------------------------------------------------------------------------------------------------|
-| **Ellipse**        | Precision ellipse selection for label assignment              |
-| **Rectangle**        | Precision rectangular selection for label assignment              |
-| **Polygon**        | Precision polygon selection for label assignment              |
+| **Ellipse**          | Precision ellipse selection for label assignment                                                    |
+| **Rectangle**        | Precision rectangular selection for label assignment                                                |
+| **Polygon**          | Precision polygon selection for label assignment                                                    |
 
 ### **Editing Tools**
 Each editing tools is proper to each selected label.
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Undo**          | Revert the last action with full history support                                                   |
-| **Eraser**        | Remove annotations with size control and "Absolute" mode for loaded layer editing                     |
+| **Undo**          | Revert the last action with full history support                                                       |
+| **Eraser**        | Remove annotations with size control and "Absolute" mode for loaded layer editing                      |
 | **Clear All**     | Reset canvas by removing all current annotations                                                       |
 
 ## License
