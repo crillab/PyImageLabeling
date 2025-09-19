@@ -29,13 +29,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller pyinstaller-hooks-contrib
-        # Install your project requirements
-        if (Test-Path requirements.txt) { pip install -r requirements.txt }
     
     # Build the executable
     - name: Build executable with PyInstaller
       run: |
-        pyinstaller --onefile --noconsole --name "PyImageLabeling" --add-data "PyImageLabeling/config.json;." --add-data "PyImageLabeling/parameters.json;." --add-data "PyImageLabeling/style.css;." --add-data "PyImageLabeling/icons/*.png;icons" --icon "PyImageLabeling/icons/maia3.ico" __init__.py
+        pyinstaller --onefile --noconsole --name "PyImageLabeling" --add-data "PyImageLabeling/config.json;." --add-data "PyImageLabeling/parameters.json;." --add-data "PyImageLabeling/style.css;." --add-data "PyImageLabeling/icons/*.png;icons" --icon "PyImageLabeling/icons/maia3.ico" main.py
     
     # Upload the executable as artifact
     - name: Upload executable
