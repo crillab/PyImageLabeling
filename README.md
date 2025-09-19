@@ -52,8 +52,8 @@ Load a study image and use a variety of professional-grade tools to annotate key
 ### **Navigation Tools**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Zoom in**       | click to zoom in                                                                                       |
-| **Zoom out**      | click to zoom out                                                                                      |
+| **Zoom in**       | Click to zoom in                                                                                       |
+| **Zoom out**      | Click to zoom out                                                                                      |
 | **Move**          | Activate pan mode for image navigation (enabled by default)                                            |
 | **Reset**         | Reset zoom and pan to default view                                                                     |
 
@@ -61,6 +61,7 @@ Load a study image and use a variety of professional-grade tools to annotate key
 ### **Visual Controls**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
+| **Plus**          | Add a new label                                                                                        |
 | **Opacity**       | Fine-tune layer transparency for precise overlay work                                                  |
 
 ### **Label's Tools**
@@ -75,7 +76,7 @@ Load a study image and use a variety of professional-grade tools to annotate key
 ### **Annotation Tools**
 | **Tool**             | **Pixel-by-pixel**                                                                                  |
 |----------------------|-----------------------------------------------------------------------------------------------------|
-| **Contour Filling**  |Shape detection and extraction - click to fill detected shape                                        |
+| **Contour Filling**  | Shape detection and extraction - click to fill detected shape                                       |
 | **Paintbrush**       | Paint brush tool to mark desired area                                                               |
 | **Magic Pen**        | Intelligent fill tool based on color similarity and tolerance                                       |
 
