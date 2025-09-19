@@ -4,6 +4,15 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+
+## Links
+
+- **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
+- **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
+- **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
+
+
+
 > **A powerful and intuitive tool for creating image masks and annotations for Machine Learning model training**
 
 PyImageLabeling is designed to streamline the creation of image masks (labeled images) that can be used to train Machine Learning models. With its comprehensive set of annotation tools and user-friendly interface, you can efficiently label and annotate images for computer vision tasks.
@@ -77,13 +86,6 @@ Each editing tools is proper to each selected label.
 | **Undo**          | Revert the last action with full history support                                                   |
 | **Eraser**        | Remove annotations with size control and "Absolute" mode for loaded layer editing                     |
 | **Clear All**     | Reset canvas by removing all current annotations                                                       |
-
-## Links
-
-- **Documentation**: [Read the Docs](https://pyimagelabeling.readthedocs.io/)
-- **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
-- **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
-
 
 ## License
 
