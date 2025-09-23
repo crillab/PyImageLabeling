@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['__main__.py'],
     pathex=[],
     binaries=[],
     datas=[('PyImageLabeling/config.json', '.'), ('PyImageLabeling/parameters.json', '.'), ('PyImageLabeling/style.css', '.'), ('PyImageLabeling/icons/*.png', 'icons')],

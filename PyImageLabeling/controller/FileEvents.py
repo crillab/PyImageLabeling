@@ -31,6 +31,9 @@ class FileEvents(Events):
     def save(self):
         self.model.save()
 
+    def save_copy(self):
+        self.model.save_copy()
+
 
     def select_image(self, item):
         print("item:", item)
