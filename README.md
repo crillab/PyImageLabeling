@@ -4,9 +4,6 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/crillab/PyImageLabeling/tree/master?tab=MIT-1-ov-file#)
 
-
-## Links
-
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
 - **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
 
@@ -19,11 +16,11 @@ Two types of labeling are available:
 ![PyImageLabeling Interface](assets/screenshot3.png)
 *Main interface showing the comprehensive toolset for image annotation*
 
-### Installation and Run
+## Installation and Run
 
 Note that you need first Python 3 (version 3.12, or later) to be installed. You can do it, for example, from [Python.org](www.python.org).
 
-## PyPi installation (Windows, Mac and Linux)
+### PyPi installation (Windows, Mac and Linux)
 
 Check whether you have the last version of PyPi:
 
@@ -43,13 +40,13 @@ To launch PyImageLabeling:
 python3 -m PyImageLabeling
 ```
 
-## Executable ".exe" (Windows)
+### Executable ".exe" (Windows)
 
 You can download the [Windows executable](https://github.com/crillab/PyImageLabeling/releases/tag/exec). 
 Just double-click on the executable file to launch PyImageLabeling.   
 
 
-## Github Installation (Windows, Mac and Linux)
+### Github Installation (Windows, Mac and Linux)
 
 Here is an illustration for Linux. We assume that Python 3 is installed, and consequently ‘pip3’ is also installed. In a console, type:
 
