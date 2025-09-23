@@ -16,7 +16,7 @@ Two types of labeling are available:
 - **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
 - **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling.
 
-![PyImageLabeling Interface](assets/Screenshot.png)
+![PyImageLabeling Interface](assets/screenshot3.png)
 *Main interface showing the comprehensive toolset for image annotation*
 
 ### Installation and Run
