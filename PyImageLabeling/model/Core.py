@@ -42,8 +42,32 @@ class LabelingOverlay():
             self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         else:
             # Load the the file in the pixmap
-            self.labeling_overlay_pixmap.load(from_file)
-            pass
+            basename = os.path.basename(from_file)
+            folder = os.path.dirname(from_file)
+            json_path = os.path.join(folder, "labels.json")
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                labels_data = json.load(f)
+
+                id = basename.split('.')[-2]
+                
+                info = labels_data.get(id, {})
+                color_list = info.get("color")
+                color = QColor(*color_list[:3]) if isinstance(color_list, list) else QColor(255, 0, 0)
+
+                print("color:", color)
+                label_pixmap = QPixmap(from_file)
+                image = label_pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
+                
+                # Create a mask for non-black pixels and fill with color
+                mask = image.createMaskFromColor(QColor(0, 0, 0).rgb(), Qt.MaskMode.MaskOutColor)
+                image.fill(color)
+                image.setAlphaChannel(mask)
+                
+                label_pixmap = QPixmap.fromImage(image)
+                self.labeling_overlay_pixmap = label_pixmap
+
         self.labeling_overlay_item = None
 
         # Initialize the deque for the `undo` feature
@@ -239,19 +263,24 @@ class LabelingOverlay():
         name, format = name.split(".")
         format = "png"
         save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
-        image = self.labeling_overlay_pixmap.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
-
-        # Apply binary threshold
-        threshold = 1  # any nonzero pixel will become white
-        for y in range(image.height()):
-            for x in range(image.width()):
-                pixel_val = image.pixelColor(x, y).value()  # grayscale intensity
-                if pixel_val > threshold:
-                    image.setPixel(x, y, 0xFFFFFFFF)  # white
-                else:
-                    image.setPixel(x, y, 0xFF000000)  # black
-
-        image.save(save_file, format.upper())
+        
+        # Get original image
+        image = self.labeling_overlay_pixmap.toImage()
+        
+        # Create binary image: transparent -> black, any color -> white
+        binary_image = QImage(image.size(), QImage.Format.Format_RGB32)
+        binary_image.fill(QColor(0, 0, 0))  # Fill with black
+        
+        # Use the alpha channel as mask to paint white where there's content
+        painter = QPainter(binary_image)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        white_brush = QBrush(QColor(255, 255, 255))
+        painter.fillRect(binary_image.rect(), white_brush)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+        painter.drawImage(0, 0, image)
+        painter.end()
+        
+        binary_image.save(save_file, format.upper())
 
     def remove_save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
@@ -698,13 +727,13 @@ class Core():
             )
 
     def load_labels_images(self, label_file_path):
-                
         basename = os.path.basename(label_file_path)
         print("basename:", basename)
+
         if label_file_path not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
-        
+
 
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)

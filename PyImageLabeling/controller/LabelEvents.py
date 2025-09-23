@@ -8,6 +8,9 @@ from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
 from PyImageLabeling.controller.settings.LabelSetting import LabelSetting
 from PyImageLabeling.model.Utils import Utils
 
+import os
+import glob 
+
 class LabelEvents(Events):
     def __init__(self):
         super().__init__()
@@ -163,7 +166,7 @@ class LabelEvents(Events):
         msgBox = QMessageBox(self.view.zoomable_graphics_view)
         msgBox.setWindowTitle("Remove Label")
         msgBox.setText("Are you sure you want to delete this label ?")
-        msgBox.setInformativeText("All previous works done with this label will be erased on all images.")
+        msgBox.setInformativeText("All previous works done with this label will be erased on all images and in your save.")
         msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
         msgBox.setDefaultButton(QMessageBox.StandardButton.No)
         for button in msgBox.buttons():
@@ -172,6 +175,13 @@ class LabelEvents(Events):
         msgBox.setModal(True)
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
+            self.default_path_save = Utils.load_parameters()["save"]["path"]
+            if os.path.exists(self.default_path_save):
+                pattern = os.path.join(self.default_path_save, f"*.{label_id}.png")
+                png_files = glob.glob(pattern)
+                for png_file in png_files:
+                        os.remove(png_file)
+
             # Remove from all images (replace the old single overlay removal)
             image_items = self.model.get_image_items()
             for file_path, image_item in image_items.items():
