@@ -136,12 +136,14 @@ Moreover, for each label, you can set some parameters:
 | **Polygon**          | Precision polygon selection for label assignment                                                    |
 
 ### Editing Tools
+
 Each editing tools is proper to each selected label.
+
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
 | **Undo**          | Revert the last action with full history support                                                       |
-| **Eraser**        | Remove annotations with size control and "Absolute" mode for loaded layer editing                      |
-| **Clear All**     | Reset canvas by removing all current annotations                                                       |
+| **Eraser**        | Brush that erases the selected label (Eraser brush size and "all labels" mode in parameter)            |
+| **Clear All**     | Clear all label areas.                                                                                 |
 
 ## License
 
