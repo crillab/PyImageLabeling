@@ -10,23 +10,73 @@
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
 - **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
 
+A powerful tool with a **user-friendly interface** based on PyQT6 for creating image masks. These **labeled images** are used in the creation of **machine learning models** dedicated to **computer vision tasks**. 
 
-
-> **A powerful and intuitive tool for creating image masks and annotations for Machine Learning model training**
-
-PyImageLabeling is designed to the creation of masks for labelisation which could be used to train Machine Learning models. With its comprehensive set of annotation tools and user-friendly interface, you can efficiently label and annotate images for computer vision tasks.
-
-
-### Installation and Run
-
-```bash
-# Install from PyPI
-pip install PyImageLabeling
-python3 -m PyImageLabeling
-```
+Two types of labeling are available: 
+- **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
+- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling.
 
 ![PyImageLabeling Interface](assets/Screenshot.png)
 *Main interface showing the comprehensive toolset for image annotation*
+
+### Installation and Run
+
+Note that you need first Python 3 (version 3.12, or later) to be installed. You can do it, for example, from [Python.org](www.python.org).
+
+## PyPi installation (Windows, Mac and Linux)
+
+Check whether you have the last version of PyPi:
+
+```bash
+python3 -m pip install -U pip
+```
+
+Install PyImageLabeling: 
+
+```bash
+python3 -m pip install -U PyImageLabeling
+```
+
+To launch PyImageLabeling:
+
+```bash
+python3 -m PyImageLabeling
+```
+
+## Executable ".exe" (Windows)
+
+You can download the [Windows executable](https://github.com/crillab/PyImageLabeling/releases/tag/exec). 
+Just double-click on the executable file to launch PyImageLabeling.   
+
+
+## Github Installation (Windows, Mac and Linux)
+
+Here is an illustration for Linux. We assume that Python 3 is installed, and consequently ‘pip3’ is also installed. In a console, type:
+
+```bash
+git clone https://github.com/crillab/PyImageLabeling.git
+```
+
+You may need to update the environment variable ‘PYTHONPATH’, by typing for example:
+```bash
+export PYTHONPATH="${PYTHONPATH}:${PWD}/.."
+```
+
+Get the last version of pip:
+```bash
+python3 -m pip install --upgrade pip
+```
+
+Executes the pyproject.toml inside the PyImageLabeling directory and installs dependencies ("numpy", "pyqt6", "opencv-python", "pillow", "matplotlib").
+```bash
+python3 -m pip install -e .
+```
+
+To launch PyImageLabeling:
+
+```bash
+python3 -m PyImageLabeling
+```
 
 ## Principle
 
