@@ -239,7 +239,19 @@ class LabelingOverlay():
         name, format = name.split(".")
         format = "png"
         save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
-        self.labeling_overlay_pixmap.save(save_file, format)
+        image = self.labeling_overlay_pixmap.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+
+        # Apply binary threshold
+        threshold = 1  # any nonzero pixel will become white
+        for y in range(image.height()):
+            for x in range(image.width()):
+                pixel_val = image.pixelColor(x, y).value()  # grayscale intensity
+                if pixel_val > threshold:
+                    image.setPixel(x, y, 0xFFFFFFFF)  # white
+                else:
+                    image.setPixel(x, y, 0xFF000000)  # black
+
+        image.save(save_file, format.upper())
 
     def remove_save(self, current_file_path, path_image):
         name = os.path.basename(path_image)

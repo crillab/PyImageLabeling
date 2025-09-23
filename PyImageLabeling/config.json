@@ -2,6 +2,7 @@
     "window_size":{
         "margin": 10,
         "icon": [20, 20],
+        "icon_tool": [30, 30],
         "icon_save_marker": [12, 12],
         
         "graphics_view":{
@@ -155,6 +156,7 @@
                     {
                         "name": "contour_filling",
                         "icon": "filling",
+                        "icon_tool": "filling_tool",
                         "checkable": true,
                         "name_view": "Contour Filling",
                         "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
@@ -164,6 +166,7 @@
                         "name_view": "Paintbrush",
                         "checkable": true,
                         "icon": "paint",
+                        "icon_tool": "paint_tool",
                         "tooltip": "Click to reset the image's position and zoom level to the default view."
                     },
                     {
@@ -171,6 +174,7 @@
                         "name_view": "Magic Pen",
                         "checkable": true,
                         "icon": "magic",
+                        "icon_tool": "magi_tool",
                         "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
                     }
                 ]
@@ -217,6 +221,7 @@
                     "name_view": "Eraser",
                     "checkable": true,
                     "icon": "eraser",
+                    "icon_tool": "eraser_tool",
                     "tooltip": "Click to activate the eraser tool, allowing you to erase parts of the image or layer."
                 },
                 {
