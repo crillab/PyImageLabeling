@@ -7,7 +7,7 @@
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
 - **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
 
-A powerful tool with a **user-friendly interface** based on PyQT6 for creating image masks. These **labeled images** are used in the creation of **machine learning models** dedicated to **computer vision tasks**. 
+PyImageLabeling is a powerful tool with a **user-friendly interface** based on PyQT6 for creating image masks. These **labeled images** are used in the creation of **machine learning models** dedicated to **computer vision tasks**. 
 
 Two types of labeling are available: 
 - **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
