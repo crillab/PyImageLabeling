@@ -41,6 +41,9 @@ class Files(Core):
                 info = QFileInfo(path)
                 if info.isFile():
                     self.default_path = info.absolutePath()
+                    data = Utils.load_parameters()
+                    data["save"]["path"] = self.default_path
+                    Utils.save_parameters(data)
                     dialog.done(0)  
                     self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
                     self.load()
@@ -123,6 +126,10 @@ class Files(Core):
             info = QFileInfo(path)
             if info.isFile():
                 self.default_path = info.absolutePath()
+                current_file_path = self.default_path + os.sep
+                data = Utils.load_parameters()
+                data["load"]["path"] = os.path.dirname(current_file_path)
+                Utils.save_parameters(data)
                 dialog.done(0)  
                 self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
                 self.load()
