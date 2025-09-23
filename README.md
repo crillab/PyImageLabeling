@@ -78,9 +78,24 @@ To launch PyImageLabeling:
 python3 -m PyImageLabeling
 ```
 
-## Principle
+## Features
 
-Load a study image and use a variety of professional-grade tools to annotate key data points. Once your work is saved, a save directory will be automatically created in your working folder, containing the mask in PNG format along with metadata for your annotations.
+PyImageLabeling considers that you have two working directories (which may be the same): 
+- The **working directory** containing your images to be labeled. 
+- The **saving directory** containing your labeled images and a JSON file.
+
+The **saving directory** consists of:   
+- The **labeled PNG files**: each label of each image is represented by a labeled PNG file.
+- The **JSON file** contains several information about labels: identifier, name, color and type.
+
+### **Load/Save and Image Management**
+
+| **Tool**          | **Functionality**                                                                                      |
+|-------------------|--------------------------------------------------------------------------------------------------------|
+| **Load**          | Load images and/or labeled images from a **working or saving directory**                               |
+| **Save**          | Save current labeled images in a **saving directory**                                                  |
+| **Next**          | Select the next image                                                                                  |
+| **Previous**      | Select the previous image                                                                              |
 
 ## Navigation & Controls
 
