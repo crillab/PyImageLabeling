@@ -14,7 +14,7 @@ A powerful tool with a **user-friendly interface** based on PyQT6 for creating i
 
 Two types of labeling are available: 
 - **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
-- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling.
+- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling (not yet available, under development).
 
 ![PyImageLabeling Interface](assets/screenshot3.png)
 *Main interface showing the comprehensive toolset for image annotation*
@@ -112,7 +112,7 @@ The **saving directory** consists of:
 | **Add Label**     | Add a new label (by chosing the name, the type and the color of the new label)                         |
 | **Label Opacity** | Adjust the transparency of the labeled layers.                                                         |
 
-Moreover, you can set some parameters of each label: 
+Moreover, for each label, you can set some parameters: 
 
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
@@ -121,25 +121,21 @@ Moreover, you can set some parameters of each label:
 | **Setting**       | Set the parameters of the selected label                                                               |
 | **Remove**        | Remove the selected label (warning: delete all saving files containing this label)                     |
 
+### Labeling Tools
 
-### **Annotation Tools**
 | **Tool**             | **Pixel-by-pixel**                                                                                  |
 |----------------------|-----------------------------------------------------------------------------------------------------|
-| **Contour Filling**  | Shape detection and extraction - click to fill detected shape                                       |
-| **Paintbrush**       | Paint brush tool to mark desired area                                                               |
-| **Magic Pen**        | Intelligent fill tool based on color similarity and tolerance                                       |
+| **Contour Filling**  | Shape detection: click inside a detected shape to fill with the label (tolerance in parameter)      |
+| **Paintbrush**       | Paint with the selected label (Paintbrush size in parameter)                                        |
+| **Magic Pen**        | Intelligent fill tool based on color similarity (tolerance, pixel limit and method in paramter)     |
 
-![PyImageLabeling Interface](assets/Creenshot2.png)
-
-**IS COMING**
-
-| **Tool**             | **Geometric shapes**                                                                                |
+| **Tool**             | **Geometric shapes (Not yet available: under development)**                                           |
 |----------------------|-----------------------------------------------------------------------------------------------------|
 | **Ellipse**          | Precision ellipse selection for label assignment                                                    |
 | **Rectangle**        | Precision rectangular selection for label assignment                                                |
 | **Polygon**          | Precision polygon selection for label assignment                                                    |
 
-### **Editing Tools**
+### Editing Tools
 Each editing tools is proper to each selected label.
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
