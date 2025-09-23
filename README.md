@@ -97,12 +97,16 @@ The **saving directory** consists of:
 | **Next**          | Select the next image                                                                                  |
 | **Previous**      | Select the previous image                                                                              |
 
-## Navigation & Controls
+### Navigation & Controls
 
-| **Movement**      | **Function**                                     |
-|-------------------|--------------------------------------------------|
-| Mouse wheel       | Zoom in/out                                      |
-| Left-click + drag | Move the image (when "Move" tool is active)     |
+| **Movement**      | **Function**                                                                                           |
+|-------------------|--------------------------------------------------------------------------------------------------------|
+| **Zoom in**       | Click to zoom in (up mouse wheel shorcut)                                                              |
+| **Zoom out**      | Click to zoom out (down mouse wheel shorcut)                                                           |
+| **Move**          | Click and drag to move the current (wheel mouse click shorcut)                                         |
+| **Reset**         | Reset to default view (zoom and position)                                                              |
+
+
 
 ## Toolset
 
@@ -117,10 +121,6 @@ The **saving directory** consists of:
 ### **Navigation Tools**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Zoom in**       | Click to zoom in                                                                                       |
-| **Zoom out**      | Click to zoom out                                                                                      |
-| **Move**          | Activate pan mode for image navigation (enabled by default)                                            |
-| **Reset**         | Reset zoom and pan to default view                                                                     |
 
 
 ### **Visual Controls**
