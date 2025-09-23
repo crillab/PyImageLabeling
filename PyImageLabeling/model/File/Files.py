@@ -63,6 +63,45 @@ class Files(Core):
 
         super().save()
 
+    def save_copy(self):
+        """Save a copy of the project to a different directory."""
+        print("save_copy")
+        
+        # Get the default save path from parameters
+        default_path_save_copy = Utils.load_parameters()["save"]["path"]
+        
+        # Open directory selection dialog
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.Directory)
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
+        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+        dialog.setOption(QFileDialog.Option.ReadOnly, False)  
+        dialog.setDirectory(default_path_save_copy)
+        dialog.setWindowTitle("Select Directory to Save Copy")
+        
+        def check_selection(path):
+            info = QFileInfo(path)
+            if info.isFile():
+                dialog.done(0)  
+                self.controller.error_message("Save Copy Error", "You cannot select a file, choose a folder!")
+                self.save_copy()  # Retry
+                
+        dialog.currentChanged.connect(check_selection)
+        dialog.setModal(True)
+        
+        if dialog.exec() == 0: 
+            return 
+        
+        # Get the selected directory
+        selected_directories = dialog.selectedFiles()
+        if len(selected_directories) == 0 or len(selected_directories[0]) == 0:
+            return
+        
+        target_directory = selected_directories[0]
+        
+        # Call the parent class save_copy method with the target directory
+        super().save_copy(target_directory)
+
     def load(self):
         print("load")
         self.default_path = Utils.load_parameters()["load"]["path"]

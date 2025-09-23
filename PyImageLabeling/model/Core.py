@@ -707,6 +707,18 @@ class Core():
         self.save_labels(self.save_directory)
         self.save_overlays(self.save_directory)
 
+    def save_copy(self, target_directory):
+        if not os.path.exists(target_directory):
+            os.makedirs(target_directory)
+        
+        self.save_labels(target_directory)
+        
+        for file in self.file_paths:
+            image_item = self.image_items[file] 
+            if image_item is not None:
+                for labeling_overlay in image_item.labeling_overlays.values():
+                    labeling_overlay.save(target_directory, image_item.path_image)
+
     def load_labels_json(self, file):
         with open(file, "r") as fp:
             labels_dict = json.load(fp)

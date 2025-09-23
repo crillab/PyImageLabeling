@@ -54,6 +54,15 @@
             "checkable": false,
             "tooltip": "Save all labels."
         },
+
+        {
+            "name": "save_copy",
+            "name_view": "Save copy",
+            "icon": "save_copy",
+            "checkable": false,
+            "tooltip": "Save a copy of you save."
+        },
+
         {
             "name": "next_image",
             "name_view": "Next Image",
