@@ -88,7 +88,7 @@ The **saving directory** consists of:
 - The **labeled PNG files**: each label of each image is represented by a labeled PNG file.
 - The **JSON file** contains several information about labels: identifier, name, color and type.
 
-### **Load/Save and Image Management**
+### Load/Save and Image Management
 
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
@@ -106,36 +106,20 @@ The **saving directory** consists of:
 | **Move**          | Click and drag to move the current (wheel mouse click shorcut)                                         |
 | **Reset**         | Reset to default view (zoom and position)                                                              |
 
-
-
-## Toolset
-
-### **Image Management**
+### Label setting
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
-| **Load Image**    | Import images and label's layers from your local system with support for multiple formats              |
-| **Save**          | Export current annotations with automatic directory creation                                           |
-| **Next**          | Load next image                                                                                        |
-| **Previous**      | Load previous image                                                                                    |
+| **Add Label**     | Add a new label (by chosing the name, the type and the color of the new label)                         |
+| **Label Opacity** | Adjust the transparency of the labeled layers.                                                         |
 
-### **Navigation Tools**
-| **Tool**          | **Functionality**                                                                                      |
-|-------------------|--------------------------------------------------------------------------------------------------------|
+Moreover, you can set some parameters of each label: 
 
-
-### **Visual Controls**
-| **Tool**          | **Functionality**                                                                                      |
-|-------------------|--------------------------------------------------------------------------------------------------------|
-| **Plus**          | Add a new label                                                                                        |
-| **Opacity**       | Fine-tune layer transparency for precise overlay work                                                  |
-
-### **Label's Tools**
 | **Tool**          | **Functionality**                                                                                      |
 |-------------------|--------------------------------------------------------------------------------------------------------|
 | **Color**         | Set the color of the selected label                                                                    |
 | **Visibility**    | Set the visibilty of the selected label                                                                |
 | **Setting**       | Set the parameters of the selected label                                                               |
-| **Remove**        | Remove the selected label                                                                              |
+| **Remove**        | Remove the selected label (warning: delete all saving files containing this label)                     |
 
 
 ### **Annotation Tools**
