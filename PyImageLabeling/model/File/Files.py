@@ -1,8 +1,8 @@
 
 
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
+from PyQt6.QtCore import Qt, QFileInfo
+from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox, QLineEdit
 from PyQt6.QtGui import QPixmap, QBitmap, QImage
 
 from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
@@ -28,21 +28,31 @@ class Files(Core):
         print("save")
         if self.save_directory == "":
             # Open a directory        
-            default_path = Utils.load_parameters()["save"]["path"]
+            self.default_path_save = Utils.load_parameters()["save"]["path"]
             
             dialog = QFileDialog()
             dialog.setFileMode(QFileDialog.FileMode.Directory)
-            dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
             dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
-            dialog.setViewMode(QFileDialog.ViewMode.Detail)
-            dialog.setDirectory(default_path)
+            dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+            dialog.setOption(QFileDialog.Option.ReadOnly, False)  
+            dialog.setDirectory(self.default_path_save)
+            
+            def check_selection(path):
+                info = QFileInfo(path)
+                if info.isFile():
+                    self.default_path = info.absolutePath()
+                    dialog.done(0)  
+                    self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
+                    self.load()
+                    
+            dialog.currentChanged.connect(check_selection)
             dialog.setModal(True)
             if dialog.exec() == 0: return 
             #print("result:", result)
             #if dialog.exec():
             #print("default_path:", default_path)
-            default_path = dialog.selectedFiles()[0]
-            current_file_path = default_path
+            self.default_path_save = dialog.selectedFiles()[0]
+            current_file_path = self.default_path_save
             
             if len(current_file_path) == 0: return
 
@@ -55,7 +65,7 @@ class Files(Core):
 
     def load(self):
         print("load")
-        default_path = Utils.load_parameters()["load"]["path"]
+        self.default_path = Utils.load_parameters()["load"]["path"]
         
         # file_dialog = QFileDialog()
         # current_file_path = file_dialog.getExistingDirectory(
@@ -65,17 +75,28 @@ class Files(Core):
         
         dialog = QFileDialog()
         dialog.setFileMode(QFileDialog.FileMode.Directory)
-        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
-        dialog.setViewMode(QFileDialog.ViewMode.Detail)
-        dialog.setDirectory(default_path)
+        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+        dialog.setOption(QFileDialog.Option.ReadOnly, False)  
+        dialog.setDirectory(self.default_path)
+        
+        def check_selection(path):
+            info = QFileInfo(path)
+            if info.isFile():
+                self.default_path = info.absolutePath()
+                dialog.done(0)  
+                self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
+                self.load()
+                 
+        dialog.currentChanged.connect(check_selection)
         dialog.setModal(True)
+
         if dialog.exec() == 0: return 
         #print("result:", result)
         #if dialog.exec():
         #print("default_path:", default_path)
-        default_path = dialog.selectedFiles()[0]
-        current_file_path = default_path
+        self.default_path = dialog.selectedFiles()[0]
+        current_file_path = self.default_path
         
         if len(current_file_path) == 0: return
         current_file_path = current_file_path + os.sep
