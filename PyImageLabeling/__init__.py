@@ -39,3 +39,15 @@ if sys.argv:
         #controller.set_model(model)    
     else:
         __main__()
+
+
+### Set like this to build the exec ###
+# import sys
+# # In PyImageLabeling/__init__.py
+# def __main__():
+#     # Your main application code here
+#     sys.exit(app.exec())
+
+# # Only run if this module is executed directly, not when imported
+# if __name__ == "__main__":
+#     __main__()
