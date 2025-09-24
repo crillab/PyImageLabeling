@@ -21,7 +21,7 @@ Two types of labeling are available:
 <br><br>
 <figure>
   <img src="https://i.postimg.cc/gJhN1YGc/screenshot2.png" alt="PyImageLabeling Interface" width="800"/>
-  <figcaption>Overview of PyImageLabeling with the [Flood Area Segmentation](https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation) dataset.</figcaption>
+  <figcaption>Overview of PyImageLabeling with the <a href="https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation">Flood Area Segmentation</a> dataset.</figcaption>
 </figure>
 
 ## Installation and Run
