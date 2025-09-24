@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['PyImageLabeling\\__init__.py'],
     pathex=[],
     binaries=[],
-    datas=[('PyImageLabeling/config.json', '.'), ('PyImageLabeling/parameters.json', '.'), ('PyImageLabeling/style.css', '.'), ('PyImageLabeling/icons/*.png', 'icons')],
+    datas=[('config.json', '.'), ('parameters.json', '.'), ('style.css', '.'), ('icons/*.png', 'icons')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['PyImageLabeling\\icons\\maia3.ico'],
+    icon=['icons\\maia3.ico'],
 )
