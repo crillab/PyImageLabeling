@@ -29,7 +29,7 @@ if sys.argv:
             print("PyImageLabeling version: ", __version__)
             print("PyImageLabeling location: ", __location__)
 
-    if  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
+    elif  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
         #config = Utils.get_config()
         #app = QApplication(sys.argv)
         print("Tests ...")
@@ -37,17 +37,5 @@ if sys.argv:
         #view = View(controller, config)
         #model = Model(, controller, config)
         #controller.set_model(model)    
-    else:
+    elif __name__ == "__main__":
         __main__()
-
-
-### Set like this to build the exec ###
-# import sys
-# # In PyImageLabeling/__init__.py
-# def __main__():
-#     # Your main application code here
-#     sys.exit(app.exec())
-
-# # Only run if this module is executed directly, not when imported
-# if __name__ == "__main__":
-#     __main__()
