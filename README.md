@@ -13,8 +13,11 @@ Two types of labeling are available:
 - **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
 - **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling (not yet available, under development).
 
-![PyImageLabeling Interface](assets/screenshot3.png)
-*Main interface showing the comprehensive toolset for image annotation*
+![PyImageLabeling Interface](assets/screenshot1.png)
+*Overview of PyImageLabeling in the context of an application related to pancreatic cancer.*
+
+![PyImageLabeling Interface](assets/screenshot2.png)
+*Overview of PyImageLabeling with the [Flood Area Segmentation](https://www.kaggle.com/datasets/faizalkarim/flood-area-segmentation) dataset.*
 
 ## Installation and Run
 
