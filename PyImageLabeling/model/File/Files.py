@@ -25,7 +25,6 @@ class Files(Core):
         super().select_image(path_image)
         
     def save(self):
-        print("save")
         if self.save_directory == "":
             # Open a directory        
             self.default_path_save = Utils.load_parameters()["save"]["path"]
@@ -51,9 +50,7 @@ class Files(Core):
             dialog.currentChanged.connect(check_selection)
             dialog.setModal(True)
             if dialog.exec() == 0: return 
-            #print("result:", result)
-            #if dialog.exec():
-            #print("default_path:", default_path)
+            
             self.default_path_save = dialog.selectedFiles()[0]
             current_file_path = self.default_path_save
             
@@ -68,7 +65,6 @@ class Files(Core):
 
     def save_copy(self):
         """Save a copy of the project to a different directory."""
-        print("save_copy")
         
         # Get the default save path from parameters
         default_path_save_copy = Utils.load_parameters()["save"]["path"]
@@ -106,7 +102,6 @@ class Files(Core):
         super().save_copy(target_directory)
 
     def load(self):
-        print("load")
         self.default_path = Utils.load_parameters()["load"]["path"]
         
         # file_dialog = QFileDialog()
@@ -138,9 +133,7 @@ class Files(Core):
         dialog.setModal(True)
 
         if dialog.exec() == 0: return 
-        #print("result:", result)
-        #if dialog.exec():
-        #print("default_path:", default_path)
+        
         self.default_path = dialog.selectedFiles()[0]
         current_file_path = self.default_path
         
@@ -152,14 +145,12 @@ class Files(Core):
 
         # Update the model with the good images
         # The model variables is update in this method: file_paths and image_items
-        print("current_file_path:", current_file_path)
         current_files = [current_file_path+os.sep+f for f in os.listdir(current_file_path)]
         current_files_to_add = []
-        print("current_files:", current_files)
+        
         labels_json = None
         labels_images = []
         for file in current_files:
-            print("file:", file)
             if file in self.file_paths:
                 continue
             if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
@@ -168,7 +159,6 @@ class Files(Core):
                     labels_images.append(file)
                 else:
                     # It is a image 
-                    print("file2:", file)
                     self.file_paths.append(file)
                     self.image_items[file] = None
                     current_files_to_add.append(file)
