@@ -22,3 +22,4 @@ dist
 requirements-download/
 wheelhouse
 PyImageLabeling.egg-info/
+PyImageLabeling/*.spec
