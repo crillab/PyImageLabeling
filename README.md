@@ -14,7 +14,7 @@ Two types of labeling are available:
 - **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling (not yet available, under development).
 
 <figure>
-  <img src="https://drive.google.com/file/d/1roq9LlOyVgydca45rvOJt1c04pDMVEVE/view?usp=sharing" alt="PyImageLabeling Interface" width="600"/>
+  <img src="https://i.postimg.cc/VsxcS6Jg/screenshot1.png" alt="PyImageLabeling Interface" width="600"/>
   <figcaption>Overview of PyImageLabeling in the context of an application related to pancreatic cancer.</figcaption>
 </figure>
 
