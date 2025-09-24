@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['__init__.py'],
+    ['__main__.py'],
     pathex=[],
     binaries=[],
     datas=[('config.json', '.'), ('parameters.json', '.'), ('style.css', '.'), ('icons/*.png', 'icons')],

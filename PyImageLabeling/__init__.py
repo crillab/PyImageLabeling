@@ -25,9 +25,9 @@ def __main__():
 
 if sys.argv:
     if  (len(sys.argv) != 0 and sys.argv[0] == "-m"):
-            print("Python version: ", __python_version__)
-            print("PyImageLabeling version: ", __version__)
-            print("PyImageLabeling location: ", __location__)
+        print("Python version: ", __python_version__)
+        print("PyImageLabeling version: ", __version__)
+        print("PyImageLabeling location: ", __location__)
 
     elif  (len(sys.argv) == 2 and sys.argv[0] == "-m" and sys.argv[1] == "-tests"):         
         #config = Utils.get_config()
@@ -37,5 +37,6 @@ if sys.argv:
         #view = View(controller, config)
         #model = Model(, controller, config)
         #controller.set_model(model)    
+        
     else:
         __main__()
