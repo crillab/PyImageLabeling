@@ -1,6 +1,0 @@
-matplotlib==3.10.6
-numpy==2.3.3
-opencv-python==4.11.0.86
-pillow==11.3.0
-PyQt6==6.9.1
-
