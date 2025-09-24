@@ -37,5 +37,5 @@ if sys.argv:
         #view = View(controller, config)
         #model = Model(, controller, config)
         #controller.set_model(model)    
-    elif __name__ == "__main__":
+    else:
         __main__()
