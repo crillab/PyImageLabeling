@@ -101,47 +101,52 @@ class Files(Core):
         # Call the parent class save_copy method with the target directory
         super().save_copy(target_directory)
 
-    def load(self):
-        self.default_path = Utils.load_parameters()["load"]["path"]
-        
-        # file_dialog = QFileDialog()
-        # current_file_path = file_dialog.getExistingDirectory(
-        #         parent=self.view, 
-        #         caption="Open Folder", 
-        #         directory=default_path)
-        
-        dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.FileMode.Directory)
-        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
-        dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
-        dialog.setOption(QFileDialog.Option.ReadOnly, False)  
-        dialog.setDirectory(self.default_path)
-        
-        def check_selection(path):
-            info = QFileInfo(path)
-            if info.isFile():
-                self.default_path = info.absolutePath()
-                current_file_path = self.default_path + os.sep
-                data = Utils.load_parameters()
-                data["load"]["path"] = os.path.dirname(current_file_path)
-                Utils.save_parameters(data)
-                dialog.done(0)  
-                self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
-                self.load()
-                 
-        dialog.currentChanged.connect(check_selection)
-        dialog.setModal(True)
+    def load(self, default_path=None):
+        if default_path is None:
+            self.default_path = Utils.load_parameters()["load"]["path"]
+            
+            # file_dialog = QFileDialog()
+            # current_file_path = file_dialog.getExistingDirectory(
+            #         parent=self.view, 
+            #         caption="Open Folder", 
+            #         directory=default_path)
+            
+            dialog = QFileDialog()
+            dialog.setFileMode(QFileDialog.FileMode.Directory)
+            dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
+            dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+            dialog.setOption(QFileDialog.Option.ReadOnly, False)  
+            dialog.setDirectory(self.default_path)
+            
+            def check_selection(path):
+                info = QFileInfo(path)
+                if info.isFile():
+                    self.default_path = info.absolutePath()
+                    current_file_path = self.default_path + os.sep
+                    data = Utils.load_parameters()
+                    data["load"]["path"] = os.path.dirname(current_file_path)
+                    Utils.save_parameters(data)
+                    dialog.done(0)  
+                    self.controller.error_message("Load Error", "You can not select a file, chose a folder !")
+                    self.load()
+                    
+            dialog.currentChanged.connect(check_selection)
+            dialog.setModal(True)
 
-        if dialog.exec() == 0: return 
-        
-        self.default_path = dialog.selectedFiles()[0]
-        current_file_path = self.default_path
-        
-        if len(current_file_path) == 0: return
-        current_file_path = current_file_path + os.sep
-        data = Utils.load_parameters()
-        data["load"]["path"] = os.path.dirname(current_file_path)
-        Utils.save_parameters(data)
+            if dialog.exec() == 0: return 
+            
+            self.default_path = dialog.selectedFiles()[0]
+            current_file_path = self.default_path
+            
+            if len(current_file_path) == 0: return
+            current_file_path = current_file_path + os.sep
+            data = Utils.load_parameters()
+            data["load"]["path"] = os.path.dirname(current_file_path)
+            Utils.save_parameters(data)
+            
+        else:
+            self.default_path = default_path
+            current_file_path = self.default_path 
 
         # Update the model with the good images
         # The model variables is update in this method: file_paths and image_items
@@ -149,6 +154,7 @@ class Files(Core):
         current_files_to_add = []
         
         labels_json = None
+        rectangle_json = None
         labels_images = []
         for file in current_files:
             if file in self.file_paths:
@@ -164,6 +170,8 @@ class Files(Core):
                     current_files_to_add.append(file)
             elif file.endswith("labels.json"):
                 labels_json = file # Load it later 
+            elif file.endswith("Rectangles.json"):
+                rectangle_json = file # Load it later 
         self.view.file_bar_add(current_files_to_add)
 
         # Activate previous and next buttons
@@ -175,7 +183,7 @@ class Files(Core):
             self.view.file_bar_list.setCurrentRow(0) 
 
         if (len(labels_images) != 0 and labels_json is None) or \
-            (len(labels_images) == 0 and labels_json is not None):
+            (len(labels_images) == 0 and labels_json is not None and rectangle_json is None)  :
             self.controller.error_message("Load Error", "The labeling image or the `labels.json` file is missing !")
             return 
 
@@ -234,6 +242,9 @@ class Files(Core):
             self.load_labels_json(labels_json)
             first_id = list(self.get_label_items().keys())[0]
             self.controller.select_label(first_id)
+
+        if rectangle_json is not None:
+            self.load_rectangles_json(rectangle_json)
 
         # Now, we have to save in this directory :)
         self.save_directory = current_file_path

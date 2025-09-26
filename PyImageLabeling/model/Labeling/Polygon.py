@@ -205,7 +205,7 @@ class Polygon(Core):
             self.cleanup_preview()
             self.polygon_points = [pos]
             self.is_drawing = True
-            self.color = self.get_labeling_overlay().get_color()
+            self.color = self.get_current_label_item().get_color()
             self.first_point_indicator = QGraphicsEllipseItem(
                 pos.x() - 5, pos.y() - 5, 10, 10
             )

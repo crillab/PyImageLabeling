@@ -9,6 +9,7 @@ import numpy
 from collections import deque
 
 from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 
 import os
 import json
@@ -258,29 +259,28 @@ class LabelingOverlay():
         if self.labeling_overlay_item is not None:
             self.labeling_overlay_item.setVisible(is_visible)
 
+
     def save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
         name, format = name.split(".")
         format = "png"
-        save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
+        save_file = current_file_path + os.sep + name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
         
         # Get original image
         image = self.labeling_overlay_pixmap.toImage()
         
-        # Create binary image: transparent -> black, any color -> white
-        binary_image = QImage(image.size(), QImage.Format.Format_RGB32)
-        binary_image.fill(QColor(0, 0, 0))  # Fill with black
-        
-        # Use the alpha channel as mask to paint white where there's content
-        painter = QPainter(binary_image)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        white_brush = QBrush(QColor(255, 255, 255))
-        painter.fillRect(binary_image.rect(), white_brush)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
-        painter.drawImage(0, 0, image)
-        painter.end()
-        
-        binary_image.save(save_file, format.upper())
+        # Create binary mask directly from alpha channel
+        mask = image.createAlphaMask()
+        mask.invertPixels()
+
+        ptr = mask.bits()
+        packed = ptr.asstring(mask.sizeInBytes())  # packed 1-bit-per-pixel bytes
+
+        # In a packed 1-bit image: 0x00 = eight black pixels, 0xFF = eight white pixels.
+        if all(b == 0xFF for b in packed):
+            return 
+        else:
+            mask.save(save_file, format.upper())
 
     def remove_save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
@@ -323,6 +323,8 @@ class ImageItem():
 
         self.is_displayed_in_scene = False
 
+        #list to store the rectangle of my image
+        self.image_rectangles = []
 
     def get_edited(self):
         for label_id in self.labeling_overlays:
@@ -371,7 +373,7 @@ class ImageItem():
             #         # Only change if current visibility doesn't match desired state
             #         if overlay.labeling_overlay_item.isVisible() != label_item.get_visible():
             #             overlay.change_visible()
-        
+
         # Update the labeling overlays
         for label_id in self.labeling_overlays:
             self.labeling_overlays[label_id].update_scene()
@@ -498,6 +500,7 @@ class ImageItem():
     
     def update_color(self, label_id):
         self.labeling_overlays[label_id].update_color()
+        
         self.update_icon_file()   
 
     def get_image_numpy_pixels_rgb(self):
@@ -602,6 +605,9 @@ class Core():
         
         # To obtain the file path 
         self.labeling_overview_file_paths = dict() # Dictionnary: (key: basename) -> (value: file_path)
+
+        
+        self.left_rectangles= {}
     
 
 
@@ -671,14 +677,27 @@ class Core():
             image_item = self.image_items[file] 
             if image_item is not None:
                 image_item.update_color(label_id)
+                self.update_rectangle_colors_in_scene(label_id)
                 # We save the image in this case
                 image_item.save_overlays(self.save_directory)
                 image_item.update_icon_file()
+                self.save_labels(self.save_directory)
             else:
                 #TODO: if a file (ImageItem) is not open, the color is not update. 
                 # We have to open the good file and change the color of this file (only the file of the good label_id)
                 pass
             
+    def update_rectangle_colors_in_scene(self, label_id):
+        if self.current_image_item is None:
+            return
+        
+        new_color = self.label_items[label_id].get_color()
+        
+        for item in self.zoomable_graphics_view.scene.items():
+            if isinstance(item, RectangleItem) and getattr(item, "label_id", None) == label_id:
+                item.setPen(QPen(new_color, 2, Qt.PenStyle.SolidLine))
+                item.setBrush(QBrush(new_color, Qt.BrushStyle.NoBrush))
+
     def name_already_exists(self, name):
         for label_id, label_item in self.label_items.items():
             if label_item.get_name() == name:
@@ -703,9 +722,28 @@ class Core():
                     image_item.save_overlays(current_file_path)
                     image_item.update_icon_file()
 
+    def save_labels_rectangle(self, current_file_path):
+        rectangles_save = {}
+        
+        for file in self.file_paths:
+            image_item = self.image_items.get(file)  # safer way to get item
+            if image_item and image_item.image_rectangles:
+                # Only save if image_rectangles is not empty
+                rectangles_save[os.path.basename(image_item.path_image)] = image_item.image_rectangles
+
+        # If there is nothing to save, just return
+        if not rectangles_save:
+            return
+
+        # Save to JSON
+        os.makedirs(current_file_path, exist_ok=True)  # ensure directory exists
+        with open(os.path.join(current_file_path, "Rectangles.json"), 'w') as fp:
+            json.dump(rectangles_save, fp)
+
     def save(self):
         self.save_labels(self.save_directory)
         self.save_overlays(self.save_directory)
+        self.save_labels_rectangle(self.save_directory)
 
     def save_copy(self, target_directory):
         if not os.path.exists(target_directory):
@@ -738,10 +776,36 @@ class Core():
                 label_id, name, labeling_mode, color
             )
 
+    def load_rectangles_json(self, file):
+        with open(file, "r") as fp:
+            rectangles_dict = json.load(fp)
+        for image_name, rectangles in rectangles_dict.items():
+            # Find the corresponding image path
+            image_path = None
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    image_path = file_path
+            
+            if image_path in self.image_items and self.image_items[image_path] is not None:
+                # Restore rectangles for this image
+                self.image_items[image_path].image_rectangles = rectangles
+            else:
+                self.left_rectangles[image_name] = rectangles
+
+        if self.get_current_image_item() is not None:
+                if self.image_items[image_path].image_rectangles is not None:
+                    self.restore_rectangles_for_image(self.get_current_image_item().path_image)
+
+    def reload_rectangle(self, path_image):
+            if os.path.basename(path_image) in self.left_rectangles:
+                self.image_items[path_image].image_rectangles =  self.left_rectangles[os.path.basename(path_image)]
+                del self.left_rectangles[os.path.basename(path_image)]
+            else :
+                pass
+
     def load_labels_images(self, label_file_path):
         basename = os.path.basename(label_file_path)
         print("basename:", basename)
-
         if label_file_path not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
@@ -785,19 +849,24 @@ class Core():
                                                      self.labeling_overview_was_loaded,
                                                      self.labeling_overview_file_paths)
             self.current_image_item = self.image_items[path_image]
+            self.reload_rectangle(path_image)
             self.image_items[path_image].update_scene()
             if len(self.label_items) != 0:
                 self.image_items[path_image].update_labeling_overlays(
                     self.label_items, 
                     self.current_label_item.get_label_id())
+            
         else:
             print("select_image already exists")
             # Image and these labels are already loaded, display it 
             self.image_items[path_image].update_scene()
             self.current_image_item = self.image_items[path_image]
 
+        if self.get_current_image_item().image_rectangles is not None:
+            self.restore_rectangles_for_image(path_image)
+
         if self.checked_button == "contour_filling":
-            self.apply_contour()
+            self.controller.model.apply_contour()
 
         
             

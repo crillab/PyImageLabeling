@@ -282,7 +282,7 @@ class Ellipse(Core):
         self.cleanup_temporary_ellipses()
 
         self.first_click_pos = QPointF(current_position.x(), current_position.y())
-        self.color = self.get_labeling_overlay().get_color()
+        self.color = self.get_current_label_item().get_color()
         self.is_drawing = True
 
         # Preview ellipse

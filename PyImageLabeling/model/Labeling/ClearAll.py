@@ -17,6 +17,8 @@ class ClearAll(Core):
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
             self.get_current_image_item().get_labeling_overlay().reset()
+            self.clear_all_rectangles(self.get_current_label_item().get_label_id())
+
         
     
 

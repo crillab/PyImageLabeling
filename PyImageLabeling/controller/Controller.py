@@ -4,6 +4,7 @@ from PyImageLabeling.controller.LabelingEvents import LabelingEvents
 from PyImageLabeling.controller.ImageEvents import ImageEvents
 from PyImageLabeling.controller.LabelEvents import LabelEvents
 
+
 from PyQt6.QtWidgets import QMessageBox
 
 class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):

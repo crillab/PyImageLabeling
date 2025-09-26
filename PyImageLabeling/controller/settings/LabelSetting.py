@@ -1,8 +1,13 @@
-from PyQt6.QtWidgets import QComboBox, QPushButton, QHBoxLayout, QColorDialog, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox
+from PyQt6.QtWidgets import QComboBox, QPushButton, QHBoxLayout, QColorDialog, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QFileDialog
 
 from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QFileInfo
 import random
+
+from PyImageLabeling.model.Utils import Utils
+
+import os
+import shutil
 
 class LabelSetting(QDialog):
 
@@ -16,7 +21,7 @@ class LabelSetting(QDialog):
         self.name = automatic_name if name is None else name
         self.color = QColor(random.choice(QColor.colorNames())) if color is None else color
         self.labeling_mode = labeling_mode_pixel if labeling_mode is None else labeling_mode
-
+        self.importdata = False
         self.setWindowTitle("Label Setting")
         
         layout = QFormLayout()
@@ -52,6 +57,12 @@ class LabelSetting(QDialog):
         self.mode_combo.currentTextChanged.connect(self.mode_update)
         layout.addRow("Labeling Mode:", self.mode_combo)
 
+        #import label image button
+        self.import_button = QPushButton("Import existing Label")
+        self.import_button.clicked.connect(self.import_data)
+        self.import_button.setVisible(True)  # Initially hidden
+        layout.addRow("", self.import_button) 
+
         # Color selection
         self.color_button = QPushButton("Choose Color")
         self.color_button.clicked.connect(self.select_color)
@@ -70,6 +81,10 @@ class LabelSetting(QDialog):
 
     def mode_update(self, labeling_mode):
         self.labeling_mode = labeling_mode
+        if labeling_mode == self.parent().view.config["labeling_bar"]["pixel"]["name_view"]:
+            self.import_button.setVisible(True)
+        else:
+            self.import_button.setVisible(False)
 
     def color_update(self, color):
         """Update color button appearance to show current color"""
@@ -86,6 +101,87 @@ class LabelSetting(QDialog):
         """Override accept to ensure settings are updated before closing"""
         self.name = self.label_combo.currentText()
         self.labeling_mode = self.mode_combo.currentText()
+        self.process_import_data()
         return super().accept()
+    
+    def import_data(self):
+        """Import label data from a folder and copy to save directory with renamed files"""
+        
+        # Step 1: Select source folder with label data
+        source_dialog = QFileDialog()
+        source_dialog.setFileMode(QFileDialog.FileMode.Directory)
+        source_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)  
+        source_dialog.setOption(QFileDialog.Option.ShowDirsOnly, False)  
+        source_dialog.setOption(QFileDialog.Option.ReadOnly, False)  
+        source_dialog.setWindowTitle("Select folder containing label data to import")
+
+        def check_selection(path):
+                info = QFileInfo(path)
+                if info.isFile():
+                    self.default_path = info.absolutePath()
+                    data = Utils.load_parameters()
+                    data["save"]["path"] = self.default_path
+                    Utils.save_parameters(data)
+                    source_dialog.done(0)  
+                    self.parent().view.controller.error_message("Load Error", "You can not select a file, chose a folder !")
+                    self.import_data()
+                    
+        source_dialog.currentChanged.connect(check_selection)
+        
+        if source_dialog.exec() != QFileDialog.DialogCode.Accepted:
+            return
+            
+        self.source_directory = source_dialog.selectedFiles()[0]
+        if not self.source_directory:
+            return
+        
+        # Step 2: Select save/destination folder
+        if self.parent().view.controller.model.save_directory == "":
+            save_dialog = QFileDialog()
+            save_dialog.setFileMode(QFileDialog.FileMode.Directory)
+            save_dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+            save_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+            save_dialog.setWindowTitle("Select destination folder to save imported labels")
+            
+            if save_dialog.exec() != QFileDialog.DialogCode.Accepted:
+                return
+                
+            self.destination_directory = save_dialog.selectedFiles()[0]
+            if not self.destination_directory:
+                return
+            self.parent().view.controller.model.save_directory = self.destination_directory
+        else :
+            self.destination_directory == self.parent().view.controller.model.save_directory
+
+        self.import_button.setText("Import Ready")
+
+
+    def process_import_data(self):
+        try:
+            # Get label ID for renaming
+            label_id = self.parent().view.controller.model.get_static_label_id()
+            
+            # Ensure destination directory exists
+            os.makedirs(self.destination_directory, exist_ok=True)
+            
+            # Copy and rename all files directly to destination
+            for filename in os.listdir(self.source_directory):
+                source_file_path = os.path.join(self.source_directory, filename)
+                
+                # Skip directories
+                if os.path.isdir(source_file_path):
+                    continue
+                
+                # Create new filename with label extension
+                name, ext = os.path.splitext(filename)
+                new_filename = f"{name}.label.{label_id}.png"
+                dest_file_path = os.path.join(self.destination_directory, new_filename)
+                
+                # Copy file with new name directly to destination
+                shutil.copy2(source_file_path, dest_file_path)
+                self.importdata = True
+
+        except Exception as e:
+            print(f"Error importing labels: {str(e)}")
 
    

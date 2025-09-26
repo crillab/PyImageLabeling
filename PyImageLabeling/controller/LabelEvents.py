@@ -40,6 +40,11 @@ class LabelEvents(Events):
             
             # Put the good labeling buttons according to the mode 
             self.view.update_labeling_buttons(label_setting.labeling_mode)
+
+            if label_setting.importdata is True:
+                self.model.save_labels(self.model.save_directory)
+                self.model.load(self.model.save_directory)
+                
             
     def select_label(self, label_id):
         self.all_events(label_id)
@@ -151,10 +156,11 @@ class LabelEvents(Events):
                         image_item = self.model.image_items[file_path]
                         if image_item is not None and label_id in image_item.labeling_overlays:
                             image_item.labeling_overlays[label_id].reset()
+                            self.model.clear_all_rectangles(self.model.get_current_label_item().get_label_id())
 
                     # Put the good labeling buttons according to the mode 
                     self.view.update_labeling_buttons(label_setting.labeling_mode)
-            
+                    self.move_image()
             if label_item.get_color() != label_setting.color:
                 label_item.set_color(label_setting.color)
                 self.model.update_color(label_id)
