@@ -13,8 +13,8 @@ class RectangleItem(QGraphicsRectItem):
         'top_left': Qt.CursorShape.SizeFDiagCursor,
         'top_right': Qt.CursorShape.SizeBDiagCursor,
         'bottom_left': Qt.CursorShape.SizeBDiagCursor,
-        'bottom_right': Qt.CursorShape.SizeFDiagCursor,
-        'rotation': Qt.CursorShape.OpenHandCursor,
+        'bottom_right': Qt.CursorShape.SizeFDiagCursor
+#        'rotation': Qt.CursorShape.OpenHandCursor,
     }
 
     def __init__(self, x, y, width, height, color=Qt.GlobalColor.red):
@@ -63,8 +63,8 @@ class RectangleItem(QGraphicsRectItem):
             'top_left': QRectF(rect.topLeft() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'top_right': QRectF(rect.topRight() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
             'bottom_left': QRectF(rect.bottomLeft() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom_right': QRectF(rect.bottomRight() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'rotation': QRectF(rect.center() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'bottom_right': QRectF(rect.bottomRight() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
+#            'rotation': QRectF(rect.center() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
         }
 
     def check_handle_proximity(self, pos):
@@ -117,30 +117,30 @@ class RectangleItem(QGraphicsRectItem):
         painter.setPen(QPen(Qt.GlobalColor.black, 1))
         painter.setBrush(QBrush(Qt.GlobalColor.white))
         for name, handle in self.handles.items():
-            if name == "rotation":
-                painter.setPen(QPen(Qt.GlobalColor.blue, 2))
-                painter.setBrush(QBrush(Qt.GlobalColor.blue))
-                painter.drawEllipse(handle)
-            else:
-                painter.drawRect(handle)
+            # if name == "rotation":
+            #     painter.setPen(QPen(Qt.GlobalColor.blue, 2))
+            #     painter.setBrush(QBrush(Qt.GlobalColor.blue))
+            #     painter.drawEllipse(handle)
+            # else:
+            painter.drawRect(handle)
 
     def mousePressEvent(self, event):
         self.handle_selected = None
         for name, rect in self.handles.items():
             if rect.contains(event.pos()):
                 self.handle_selected = name
-                if name == "rotation":
-                    rect_center = self.rect().center()
-                    self.setTransformOriginPoint(rect_center)
+                # if name == "rotation":
+                #     rect_center = self.rect().center()
+                #     self.setTransformOriginPoint(rect_center)
 
-                    # Save starting angle
-                    rect_center_scene = self.mapToScene(rect_center)
-                    mouse_scene_pos = self.mapToScene(event.pos())
-                    self.initial_rotation = math.atan2(
-                        mouse_scene_pos.y() - rect_center_scene.y(),
-                        mouse_scene_pos.x() - rect_center_scene.x(),
-                    )
-                    self.initial_angle = self.rotation()
+                #     # Save starting angle
+                #     rect_center_scene = self.mapToScene(rect_center)
+                #     mouse_scene_pos = self.mapToScene(event.pos())
+                #     self.initial_rotation = math.atan2(
+                #         mouse_scene_pos.y() - rect_center_scene.y(),
+                #         mouse_scene_pos.x() - rect_center_scene.x(),
+                #     )
+                #     self.initial_angle = self.rotation()
                 break
 
 
@@ -151,9 +151,9 @@ class RectangleItem(QGraphicsRectItem):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if self.handle_selected == 'rotation':
-            self.rotate_item(event)
-        elif self.handle_selected:
+        # if self.handle_selected == 'rotation':
+        #     self.rotate_item(event)
+        if self.handle_selected:
             self.resize_item(event)
         else:
             if self.handle_selected:
@@ -173,21 +173,21 @@ class RectangleItem(QGraphicsRectItem):
         if not event.isAccepted():
             super().mouseReleaseEvent(event)
 
-    def rotate_item(self, event):
-        self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        rect_center_scene = self.mapToScene(self.rect().center())
-        mouse_scene_pos = self.mapToScene(event.pos())
+    # def rotate_item(self, event):
+    #     self.setCursor(Qt.CursorShape.ClosedHandCursor)
+    #     rect_center_scene = self.mapToScene(self.rect().center())
+    #     mouse_scene_pos = self.mapToScene(event.pos())
 
-        current_angle = math.atan2(
-            mouse_scene_pos.y() - rect_center_scene.y(),
-            mouse_scene_pos.x() - rect_center_scene.x(),
-        )
-        angle_diff = math.degrees(current_angle - self.initial_rotation)
-        self.setRotation(self.initial_angle + angle_diff)
+    #     current_angle = math.atan2(
+    #         mouse_scene_pos.y() - rect_center_scene.y(),
+    #         mouse_scene_pos.x() - rect_center_scene.x(),
+    #     )
+    #     angle_diff = math.degrees(current_angle - self.initial_rotation)
+    #     self.setRotation(self.initial_angle + angle_diff)
 
-        self.update_handles()
-        self.update()
-        self.update_model()
+    #     self.update_handles()
+    #     self.update()
+    #     self.update_model()
 
     def resize_item(self, event):
         rect = self.rect()
