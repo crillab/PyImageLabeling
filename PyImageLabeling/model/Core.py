@@ -707,12 +707,14 @@ class Core():
     def save_labels(self, current_file_path):
         # Get the dictionnary of labels
         labels_dict = {}
+        print("current_file_path:",current_file_path)
         for label_id, label_item in self.label_items.items():
             labels_dict[label_id] = label_item.to_dict()
 
         # Save it
-        with open(current_file_path+os.sep+"labels.json", 'w') as fp:
-            json.dump(labels_dict, fp)
+        if current_file_path is not "":
+            with open(current_file_path+os.sep+"labels.json", 'w') as fp:
+                json.dump(labels_dict, fp)
 
     def save_overlays(self, current_file_path):
         for file in self.file_paths:
