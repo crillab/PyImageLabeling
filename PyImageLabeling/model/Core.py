@@ -712,7 +712,7 @@ class Core():
             labels_dict[label_id] = label_item.to_dict()
 
         # Save it
-        if current_file_path is not "":
+        if current_file_path != "":
             with open(current_file_path+os.sep+"labels.json", 'w') as fp:
                 json.dump(labels_dict, fp)
 
