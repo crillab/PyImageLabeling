@@ -155,6 +155,7 @@ class Files(Core):
         
         labels_json = None
         rectangle_json = None
+        ellipse_json = None
         labels_images = []
         for file in current_files:
             if file in self.file_paths:
@@ -172,6 +173,8 @@ class Files(Core):
                 labels_json = file # Load it later 
             elif file.endswith("Rectangles.json"):
                 rectangle_json = file # Load it later 
+            elif file.endswith("Ellipses.json"):
+                ellipse_json = file # Load it later 
         self.view.file_bar_add(current_files_to_add)
 
         # Activate previous and next buttons
@@ -183,7 +186,7 @@ class Files(Core):
             self.view.file_bar_list.setCurrentRow(0) 
 
         if (len(labels_images) != 0 and labels_json is None) or \
-            (len(labels_images) == 0 and labels_json is not None and rectangle_json is None)  :
+            (len(labels_images) == 0 and labels_json is not None and rectangle_json is None and ellipse_json is None)  :
             self.controller.error_message("Load Error", "The labeling image or the `labels.json` file is missing !")
             return 
 
@@ -245,6 +248,9 @@ class Files(Core):
 
         if rectangle_json is not None:
             self.load_rectangles_json(rectangle_json)
+        
+        if ellipse_json is not None:
+            self.load_ellipses_json(ellipse_json)
 
         # Now, we have to save in this directory :)
         self.save_directory = current_file_path

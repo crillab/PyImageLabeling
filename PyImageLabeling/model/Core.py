@@ -325,6 +325,7 @@ class ImageItem():
 
         #list to store the rectangle of my image
         self.image_rectangles = []
+        self.image_ellipses = []
 
     def get_edited(self):
         for label_id in self.labeling_overlays:
@@ -608,6 +609,7 @@ class Core():
 
         
         self.left_rectangles= {}
+        self.left_ellipses = {}
     
 
 
@@ -724,28 +726,33 @@ class Core():
                     image_item.save_overlays(current_file_path)
                     image_item.update_icon_file()
 
-    def save_labels_rectangle(self, current_file_path):
+    def save_labels_geometric_shape(self, current_file_path):
         rectangles_save = {}
-        
+        ellipses_save = {}
         for file in self.file_paths:
             image_item = self.image_items.get(file)  # safer way to get item
             if image_item and image_item.image_rectangles:
                 # Only save if image_rectangles is not empty
                 rectangles_save[os.path.basename(image_item.path_image)] = image_item.image_rectangles
+            if image_item and image_item.image_ellipses:
+                # Only save if image_ellipses is not empty
+                ellipses_save[os.path.basename(image_item.path_image)] = image_item.image_ellipses
 
         # If there is nothing to save, just return
-        if not rectangles_save:
+        if not rectangles_save or not ellipses_save:
             return
 
         # Save to JSON
         os.makedirs(current_file_path, exist_ok=True)  # ensure directory exists
         with open(os.path.join(current_file_path, "Rectangles.json"), 'w') as fp:
             json.dump(rectangles_save, fp)
+        with open(os.path.join(current_file_path, "Ellipses.json"), 'w') as fp:
+            json.dump(ellipses_save, fp)
 
     def save(self):
         self.save_labels(self.save_directory)
         self.save_overlays(self.save_directory)
-        self.save_labels_rectangle(self.save_directory)
+        self.save_labels_geometric_shape(self.save_directory)
 
     def save_copy(self, target_directory):
         if not os.path.exists(target_directory):
@@ -802,6 +809,33 @@ class Core():
             if os.path.basename(path_image) in self.left_rectangles:
                 self.image_items[path_image].image_rectangles =  self.left_rectangles[os.path.basename(path_image)]
                 del self.left_rectangles[os.path.basename(path_image)]
+            else :
+                pass
+
+    def load_ellipses_json(self, file):
+        with open(file, "r") as fp:
+            ellipses_dict = json.load(fp)
+        for image_name, ellipses in ellipses_dict.items():
+            # Find the corresponding image path
+            image_path = None
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    image_path = file_path
+            
+            if image_path in self.image_items and self.image_items[image_path] is not None:
+                # Restore rectangles for this image
+                self.image_items[image_path].image_ellipses = ellipses
+            else:
+                self.left_ellipses[image_name] = ellipses
+
+        if self.get_current_image_item() is not None:
+                if self.image_items[image_path].image_ellipses is not None:
+                    self.restore_ellipses_for_image(self.get_current_image_item().path_image)
+
+    def reload_ellipse(self, path_image):
+            if os.path.basename(path_image) in self.left_ellipses:
+                self.image_items[path_image].image_ellipses =  self.left_ellipses[os.path.basename(path_image)]
+                del self.left_ellipses[os.path.basename(path_image)]
             else :
                 pass
 
@@ -866,6 +900,8 @@ class Core():
 
         if self.get_current_image_item().image_rectangles is not None:
             self.restore_rectangles_for_image(path_image)
+        if self.get_current_image_item().image_ellipses is not None:
+            self.restore_ellipses_for_image(path_image)
 
         if self.checked_button == "contour_filling":
             self.controller.model.apply_contour()

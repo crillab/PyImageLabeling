@@ -212,4 +212,3 @@ class RectangleItem(QGraphicsRectItem):
         self.update_handles()
         self.update()
         self.update_model()
-

@@ -12,6 +12,7 @@ class MagicPenSetting(QDialog):
         self.tolerance = Utils.load_parameters()["magic_pen"]["tolerance"] 
         self.max_pixels = Utils.load_parameters()["magic_pen"]["max_pixels"]
         self.method = Utils.load_parameters()["magic_pen"]["method"]
+        self.logic = Utils.load_parameters()["magic_pen"]["logic"]
 
         layout = QVBoxLayout()
         
@@ -90,6 +91,17 @@ class MagicPenSetting(QDialog):
 
         layout.addWidget(self.method_combobox)
         
+        logic_labeling = QLabel("Logic of filling:")
+        layout.addWidget(logic_labeling)
+        
+        self.logic_labeling_combobox   = QComboBox()
+        self.logic_labeling_combobox.addItem('Pen logic')
+        self.logic_labeling_combobox.addItem('All color logic')
+        
+        self.logic_labeling_combobox.setCurrentText(self.logic)
+        self.logic_labeling_combobox.currentTextChanged.connect(self.update_logic)
+
+        layout.addWidget(self.logic_labeling_combobox)
         
         #########################################################################################################
         method_label = QLabel(None)
@@ -115,11 +127,15 @@ class MagicPenSetting(QDialog):
         """Update method when the combobox changes"""
         self.method = value
 
+    def update_logic(self, value):
+        """Update method when the combobox changes"""
+        self.logic = value
+
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         # Update internal values one final time
         self.tolerance, self.max_pixels, self.method = self.tolerance_slider.value(), self.points_limit_slider.value(), self.method_combobox.currentText()
         data = Utils.load_parameters()
-        data["magic_pen"]["tolerance"], data["magic_pen"]["max_pixels"], data["magic_pen"]["method"] = self.tolerance, self.max_pixels, self.method
+        data["magic_pen"]["tolerance"], data["magic_pen"]["max_pixels"], data["magic_pen"]["method"],data["magic_pen"]["logic"] = self.tolerance, self.max_pixels, self.method, self.logic
         Utils.save_parameters(data)    
         return super().accept()

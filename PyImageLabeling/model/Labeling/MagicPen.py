@@ -22,8 +22,13 @@ class MagicPen(Core):
 
     def start_magic_pen(self, scene_pos):
         """Fill area with points using magic pen"""
+        logic = Utils.load_parameters()["magic_pen"]["logic"] 
         self.view.zoomable_graphics_view.change_cursor("magic")
-        self.fill_shape(scene_pos)
+        if logic == "Pen logic":
+            self.fill_shape(scene_pos)
+        elif logic == "All color logic":
+            self.fill_color_clicked(scene_pos)
+
 
     def fill_shape(self, scene_pos):
         # Create progress dialog
@@ -123,6 +128,49 @@ class MagicPen(Core):
                     queue.append((new_x, new_y))
 
         print("MagicPen: end n_pixels:", n_pixels)
+
+    def fill_color_clicked(self, scene_pos):
+        """Fill all pixels similar in color to the clicked point"""
+        self.view.progressBar.reset()
+
+        # Get initial data
+        initial_x, initial_y = int(scene_pos.x()), int(scene_pos.y())
+        width, height = self.get_current_image_item().get_width(), self.get_current_image_item().get_height()
+        if not (0 <= initial_x < width and 0 <= initial_y < height):
+            return None
+
+        self.numpy_pixels_rgb = self.get_current_image_item().get_image_numpy_pixels_rgb()
+
+        # Parameters
+        tolerance = Utils.load_parameters()["magic_pen"]["tolerance"]
+        method = Utils.load_parameters()["magic_pen"]["method"]
+
+        # Target color (RGB or HSV)
+        if method == "HSV":
+            target_color = matplotlib.colors.rgb_to_hsv(
+                numpy.divide(self.numpy_pixels_rgb[initial_y, initial_x].astype(float), 255)
+            )
+            hsv_image = matplotlib.colors.rgb_to_hsv(
+                numpy.divide(self.numpy_pixels_rgb.astype(float), 255)
+            )
+            dist = numpy.mean(100 - numpy.multiply(numpy.abs(hsv_image - target_color), 100), axis=2)
+        else:  # RGB
+            target_color = self.numpy_pixels_rgb[initial_y, initial_x].astype(int)
+            diff = numpy.abs(self.numpy_pixels_rgb.astype(int) - target_color)
+            dist = numpy.mean(100 - numpy.divide(diff * 100, 255), axis=2)
+
+        # Mask of similar pixels
+        mask = dist >= tolerance
+
+        # Draw all matching pixels on the overlay
+        painter = self.get_current_image_item().get_labeling_overlay().get_painter()
+        for y in range(height):
+            for x in range(width):
+                if mask[y, x]:
+                    painter.drawPoint(x, y)
+
+        self.get_current_image_item().update_labeling_overlay()
+        print("MagicPen: fill_color_clicked done")
    
     
     

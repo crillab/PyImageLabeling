@@ -3,9 +3,10 @@
         "tolerance": 8
     },
     "magic_pen": {
-        "tolerance": 71,
+        "tolerance": 95,
         "max_pixels": 408780,
-        "method": "RGB"
+        "method": "RGB",
+        "logic": "Pen logic"
     },
     "save": {
         "path": "C:/Users/pimfa/Pictures/label"
