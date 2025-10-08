@@ -54,13 +54,15 @@ class Ellipse(Core):
         """Mouse release → finalize ellipse"""
         if not (self.is_drawing and self.current_ellipse):
             return
-        rect = self.current_ellipse.rect()
+        ellipse = self.current_ellipse.rect()
         self.cleanup_temporary_ellipses()
-        if rect.width() > 5 and rect.height() > 5:
+        if ellipse.width() > 5 and ellipse.height() > 5:
+            # Fixed: Pass rotation=0 and color in correct order
             final_ellipse = EllipseItem(
-                rect.x(), rect.y(),
-                rect.width(), rect.height(),
-                self.color
+                ellipse.x(), ellipse.y(),
+                ellipse.width(), ellipse.height(),
+                self.color,
+                rotation=0  
             )
             final_ellipse.setZValue(2)
             final_ellipse.setFlag(QGraphicsEllipseItem.GraphicsItemFlag.ItemIsSelectable, True)
@@ -68,10 +70,11 @@ class Ellipse(Core):
             self.selected_ellipse = final_ellipse
             if self.current_image_item:
                 ellipse_data = {
-                    "x": rect.x(),
-                    "y": rect.y(),
-                    "width": rect.width(),
-                    "height": rect.height(),
+                    "x": ellipse.x(),
+                    "y": ellipse.y(),
+                    "width": ellipse.width(),
+                    "height": ellipse.height(),
+                    "rotation": 0,
                     "label": self.get_current_label_item().label_id
                 }
                 self.current_image_item.image_ellipses.append(ellipse_data)
@@ -94,9 +97,12 @@ class Ellipse(Core):
                 y = ellipse_data["y"]
                 width = ellipse_data["width"]
                 height = ellipse_data["height"]
+                rotation = ellipse_data["rotation"]
                 label_id = ellipse_data["label"]
-                # Create a new EllipseItem with the same geometry and color
-                item = EllipseItem(x, y, width, height, self.label_items[label_id].get_color())
+                # Fixed: Pass color and rotation in correct order
+                item = EllipseItem(x, y, width, height, 
+                                 self.label_items[label_id].get_color(),
+                                 rotation=rotation)
                 item.setZValue(2)
                 # Add to scene
                 self.zoomable_graphics_view.scene.addItem(item)
@@ -115,6 +121,7 @@ class Ellipse(Core):
                     ellipse_data.get("y") == ellipse.model_ref.get("y") and
                     ellipse_data.get("width") == ellipse.model_ref.get("width") and
                     ellipse_data.get("height") == ellipse.model_ref.get("height") and
+                    ellipse_data.get("rotation") == ellipse.model_ref.get("rotation") and
                     ellipse_data.get("label") == ellipse.model_ref.get("label")):
                     self.current_image_item.image_ellipses.pop(i)
                     break

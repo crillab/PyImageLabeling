@@ -8,7 +8,7 @@ HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
 
 class EllipseItem(QGraphicsEllipseItem):
-    def __init__(self, x, y, width, height, color=Qt.GlobalColor.red):
+    def __init__(self, x, y, width, height, color=Qt.GlobalColor.red, rotation=0):
         super().__init__(x, y, width, height)
 
         self.pen = QPen(color, 2)
@@ -16,6 +16,11 @@ class EllipseItem(QGraphicsEllipseItem):
         self.setPen(self.pen)
 
         self.model_ref = None  # Reference to model data dictionary
+        
+        # Set initial rotation if provided
+        if rotation != 0:
+            self.setTransformOriginPoint(self.rect().center())
+            self.setRotation(rotation)
 
         self.setFlags(
             QGraphicsEllipseItem.GraphicsItemFlag.ItemIsSelectable |
@@ -47,11 +52,21 @@ class EllipseItem(QGraphicsEllipseItem):
     def update_model(self):
         """Push the updated ellipse back to the model list."""
         if self.model_ref is not None:
-            rect = self.mapRectToScene(self.rect())
-            self.model_ref["x"] = rect.x()
-            self.model_ref["y"] = rect.y()
+            # Get the center position in scene coordinates
+            center_scene = self.mapToScene(self.rect().center())
+            
+            # Store the unrotated dimensions
+            rect = self.rect()
+            
+            # Calculate top-left position based on center
+            x = center_scene.x() - rect.width() / 2
+            y = center_scene.y() - rect.height() / 2
+            
+            self.model_ref["x"] = x
+            self.model_ref["y"] = y
             self.model_ref["width"] = rect.width()
             self.model_ref["height"] = rect.height()
+            self.model_ref["rotation"] = self.rotation()
 
     def get_ellipse_point(self, angle_degrees):
         """Get a point on the ellipse perimeter at the given angle"""
@@ -201,8 +216,10 @@ class EllipseItem(QGraphicsEllipseItem):
 
     def mouseMoveEvent(self, event):
         if self.handle_selected == 'rotation':
+            self.handles_visible = False
             self.rotate_item(event)
         elif self.handle_selected:
+            self.handles_visible = False
             self.resize_item(event)
         else:
             super().mouseMoveEvent(event)

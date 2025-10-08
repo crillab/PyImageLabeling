@@ -1,172 +1,12 @@
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsEllipseItem, QGraphicsLineItem
+from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsLineItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPen, QBrush, QPolygonF
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
+from PyQt6.QtCore import Qt, QPointF
 import math
 
-HANDLE_SIZE = 8
-HANDLE_DETECTION_DISTANCE = 15
+from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
+
 CLOSE_DISTANCE = 20
-
-
-class PolygonItem(QGraphicsPolygonItem):
-    HANDLE_TYPES = {
-        'rotation': Qt.CursorShape.OpenHandCursor,
-        # all vertex handles use SizeAll
-    }
-
-    def __init__(self, polygon, color=Qt.GlobalColor.red):
-        super().__init__(polygon)
-
-        self.setPen(QPen(color, 2))
-        self.setFlags(
-            QGraphicsPolygonItem.GraphicsItemFlag.ItemIsSelectable
-            | QGraphicsPolygonItem.GraphicsItemFlag.ItemIsMovable
-            | QGraphicsPolygonItem.GraphicsItemFlag.ItemSendsGeometryChanges
-        )
-        self.setAcceptHoverEvents(True)
-
-        self.handles = {}
-        self.handle_selected = None
-        self.handles_visible = False
-        self.initial_rotation = 0
-        self.initial_angle = 0
-
-        self.update_handles()
-
-    def update_handles(self):
-        polygon = self.polygon()
-        self.handles = {
-            f"vertex_{i}": QRectF(
-                point - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2),
-                QSizeF(HANDLE_SIZE, HANDLE_SIZE),
-            )
-            for i, point in enumerate(polygon)
-        }
-        if not polygon.isEmpty():
-            center = polygon.boundingRect().center()
-            self.handles["rotation"] = QRectF(
-                center - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2),
-                QSizeF(HANDLE_SIZE, HANDLE_SIZE),
-            )
-
-    def check_handle_proximity(self, pos):
-        near_handle = any(
-            self.distance_to_rect(pos, rect) < HANDLE_DETECTION_DISTANCE
-            for rect in self.handles.values()
-        )
-        if self.isSelected():
-            near_handle = True
-        if near_handle != self.handles_visible:
-            self.handles_visible = near_handle
-            self.update()
-
-    @staticmethod
-    def distance_to_rect(point, rect):
-        center = rect.center()
-        return math.hypot(point.x() - center.x(), point.y() - center.y())
-
-    def update_cursor(self, pos):
-        if not self.handles_visible:
-            return
-        for name, rect in self.handles.items():
-            if rect.contains(pos):
-                self.setCursor(self.HANDLE_TYPES.get(name, Qt.CursorShape.SizeAllCursor))
-                return
-        self.setCursor(Qt.CursorShape.SizeAllCursor)
-
-    def hoverEnterEvent(self, event):
-        self.check_handle_proximity(event.pos())
-        super().hoverEnterEvent(event)
-
-    def hoverMoveEvent(self, event):
-        self.check_handle_proximity(event.pos())
-        self.update_cursor(event.pos())
-        super().hoverMoveEvent(event)
-
-    def hoverLeaveEvent(self, event):
-        self.handles_visible = False
-        self.setCursor(Qt.CursorShape.ArrowCursor)
-        self.update()
-        super().hoverLeaveEvent(event)
-
-    def paint(self, painter, option, widget=None):
-        super().paint(painter, option, widget)
-        if not self.handles_visible:
-            return
-
-        # Draw vertex handles
-        painter.setPen(QPen(Qt.GlobalColor.black, 1))
-        painter.setBrush(QBrush(Qt.GlobalColor.white))
-        for name, rect in self.handles.items():
-            if name != "rotation":
-                painter.drawRect(rect)
-
-        # Draw rotation handle
-        if "rotation" in self.handles:
-            painter.setPen(QPen(Qt.GlobalColor.blue, 2))
-            painter.setBrush(QBrush(Qt.GlobalColor.blue))
-            painter.drawEllipse(self.handles["rotation"])
-
-    def mousePressEvent(self, event):
-        self.handle_selected = None
-        for name, rect in self.handles.items():
-            if rect.contains(event.pos()):
-                self.handle_selected = name
-                if name == "rotation":
-                    center = self.polygon().boundingRect().center()
-                    self.setTransformOriginPoint(center)
-                    center_scene = self.mapToScene(center)
-                    mouse_scene = self.mapToScene(event.pos())
-                    self.initial_rotation = math.atan2(
-                        mouse_scene.y() - center_scene.y(),
-                        mouse_scene.x() - center_scene.x(),
-                    )
-                    self.initial_angle = self.rotation()
-                break
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if self.handle_selected == "rotation":
-            self.rotate_item(event)
-        elif self.handle_selected and self.handle_selected.startswith("vertex_"):
-            self.move_vertex(event)
-        else:
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.handle_selected == "rotation":
-            self.setCursor(Qt.CursorShape.OpenHandCursor)
-            event.accept()
-        self.handle_selected = None
-        self.handles_visible = True
-        self.update()
-        if not event.isAccepted():
-            super().mouseReleaseEvent(event)
-
-    def rotate_item(self, event):
-        self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        center = self.polygon().boundingRect().center()
-        center_scene = self.mapToScene(center)
-        mouse_scene = self.mapToScene(event.pos())
-        current_angle = math.atan2(
-            mouse_scene.y() - center_scene.y(),
-            mouse_scene.x() - center_scene.x(),
-        )
-        angle_diff = math.degrees(current_angle - self.initial_rotation)
-        self.setRotation(self.initial_angle + angle_diff)
-        self.update_handles()
-        self.update()
-
-    def move_vertex(self, event):
-        index = int(self.handle_selected.split("_")[1])
-        polygon = self.polygon()
-        if 0 <= index < polygon.size():
-            polygon[index] = event.pos()
-            self.setPolygon(polygon)
-            self.update_handles()
-            self.update()
-        self.handles_visible = False
 
 
 class Polygon(Core):
@@ -180,50 +20,54 @@ class Polygon(Core):
         self.selected_polygon = None
 
     def polygon(self):
+        """Activate the polygon drawing tool"""
         self.checked_button = self.polygon.__name__
-        self.zoomable_graphics_view.scene.selectionChanged.connect(
-            self.update_selected_polygon
-        )
+        self.zoomable_graphics_view.scene.selectionChanged.connect(self.update_selected_polygon)
 
     def cleanup_preview(self):
+        """Remove temporary preview lines and indicator"""
         for line in self.preview_lines:
             if line in self.zoomable_graphics_view.scene.items():
                 self.zoomable_graphics_view.scene.removeItem(line)
         self.preview_lines.clear()
+
         if self.first_point_indicator and self.first_point_indicator in self.zoomable_graphics_view.scene.items():
             self.zoomable_graphics_view.scene.removeItem(self.first_point_indicator)
         self.first_point_indicator = None
+
         if self.preview_line and self.preview_line in self.zoomable_graphics_view.scene.items():
             self.zoomable_graphics_view.scene.removeItem(self.preview_line)
         self.preview_line = None
 
     def start_polygon_tool(self, current_position):
+        """Start or continue polygon drawing"""
         self.zoomable_graphics_view.change_cursor("polygon")
         pos = QPointF(current_position)
+
         if not self.is_drawing:
-            # Start new polygon
+            # Start a new polygon
             self.cleanup_preview()
             self.polygon_points = [pos]
             self.is_drawing = True
             self.color = self.get_current_label_item().get_color()
-            self.first_point_indicator = QGraphicsEllipseItem(
-                pos.x() - 5, pos.y() - 5, 10, 10
-            )
+
+            # Add a visual indicator for the first point
+            self.first_point_indicator = QGraphicsEllipseItem(pos.x() - 5, pos.y() - 5, 10, 10)
             self.first_point_indicator.setPen(QPen(self.color, 2))
             self.first_point_indicator.setBrush(QBrush(self.color))
             self.first_point_indicator.setZValue(3)
             self.zoomable_graphics_view.scene.addItem(self.first_point_indicator)
         else:
-            # Close polygon if close enough
+            # Check if the polygon should be closed
             first_point = self.polygon_points[0]
             if (
-                math.hypot(pos.x() - first_point.x(), pos.y() - first_point.y())
-                <= CLOSE_DISTANCE
+                math.hypot(pos.x() - first_point.x(), pos.y() - first_point.y()) <= CLOSE_DISTANCE
                 and len(self.polygon_points) >= 3
             ):
                 self.finalize_polygon()
                 return
-            # Add point + preview line
+
+            # Otherwise add a new edge
             prev_point = self.polygon_points[-1]
             self.polygon_points.append(pos)
             line = QGraphicsLineItem(prev_point.x(), prev_point.y(), pos.x(), pos.y())
@@ -234,6 +78,7 @@ class Polygon(Core):
             self.preview_lines.append(line)
 
     def move_polygon_tool(self, current_position):
+        """Update the preview edge while moving mouse"""
         if not (self.is_drawing and self.polygon_points):
             return
         pos = QPointF(current_position)
@@ -247,33 +92,95 @@ class Polygon(Core):
         self.zoomable_graphics_view.scene.addItem(self.preview_line)
 
     def finalize_polygon(self):
+        """Finalize polygon creation"""
         if len(self.polygon_points) < 3:
             return
+
         self.cleanup_preview()
         polygon = QPolygonF(self.polygon_points)
-        final = PolygonItem(polygon, self.color)
-        final.setZValue(2)
-        final.setFlag(QGraphicsPolygonItem.GraphicsItemFlag.ItemIsSelectable, True)
-        self.zoomable_graphics_view.scene.addItem(final)
-        self.selected_polygon = final
+        final_item = PolygonItem(polygon, self.color, rotation=0)
+        final_item.setZValue(2)
+        final_item.setFlag(QGraphicsPolygonItem.GraphicsItemFlag.ItemIsSelectable, True)
+        self.zoomable_graphics_view.scene.addItem(final_item)
+
+        # Create model entry
+        if self.current_image_item:
+            polygon_data = {
+                "points": [(p.x(), p.y()) for p in polygon],
+                "rotation": 0,
+                "label": self.get_current_label_item().label_id
+            }
+            self.current_image_item.image_polygons.append(polygon_data)
+            final_item.model_ref = polygon_data
+            final_item.label_id = self.get_current_label_item().label_id
+
+        self.selected_polygon = final_item
         self.polygon_points.clear()
         self.is_drawing = False
+        self.get_current_image_item().update_labeling_overlay()
 
     def cancel_polygon(self):
+        """Cancel current polygon drawing"""
         if self.is_drawing:
             self.cleanup_preview()
             self.polygon_points.clear()
             self.is_drawing = False
 
-    def end_polygon_tool(self):
-        pass
-
     def update_selected_polygon(self):
+        """Update current selected polygon reference"""
         items = self.zoomable_graphics_view.scene.selectedItems()
         self.selected_polygon = next((i for i in reversed(items) if isinstance(i, PolygonItem)), None)
 
+    def restore_polygons_for_image(self, image_path):
+        """Restore all polygons for a specific image"""
+        if self.current_image_item.image_polygons is not None:
+            for poly_data in self.current_image_item.image_polygons:
+                points = [QPointF(x, y) for x, y in poly_data["points"]]
+                rotation = poly_data["rotation"]
+                label_id = poly_data["label"]
+                color = self.label_items[label_id].get_color()
+
+                polygon_item = PolygonItem(QPolygonF(points), color, rotation)
+                polygon_item.setZValue(2)
+                polygon_item.model_ref = poly_data
+                polygon_item.label_id = label_id
+
+                polygon_item.setPos(0, 0)
+                polygon_item.setRotation(rotation)
+
+                self.zoomable_graphics_view.scene.addItem(polygon_item)
+
     def clear_polygon(self):
-        if self.selected_polygon and self.selected_polygon in self.zoomable_graphics_view.scene.items():
-            self.zoomable_graphics_view.scene.removeItem(self.selected_polygon)
+        """Remove the currently selected polygon from the scene and model"""
+        selected_polygons = [
+            item for item in self.zoomable_graphics_view.scene.items()
+            if isinstance(item, PolygonItem) and item.isSelected()
+        ]
+        for polygon in selected_polygons:
+            if polygon in self.zoomable_graphics_view.scene.items():
+                self.zoomable_graphics_view.scene.removeItem(polygon)
+            for i, poly_data in enumerate(self.current_image_item.image_polygons):
+                if (poly_data.get("points") == [(p.x(), p.y()) for p in polygon.polygon()] and
+                    poly_data.get("rotation") == polygon.rotation() and
+                    poly_data.get("label") == polygon.model_ref.get("label")):
+                    self.current_image_item.image_polygons.pop(i)
+                    break
         self.selected_polygon = None
-        self.cancel_polygon()
+        self.current_image_item.update_labeling_overlay()
+
+    def clear_all_polygons(self, label_id):
+        """Remove all polygons with the given label"""
+        if not self.current_image_item:
+            return
+
+        for item in list(self.zoomable_graphics_view.scene.items()):
+            if isinstance(item, PolygonItem) and getattr(item, "label_id", None) == label_id:
+                self.zoomable_graphics_view.scene.removeItem(item)
+
+        # Clean model
+        self.current_image_item.image_polygons = [
+            poly for poly in self.current_image_item.image_polygons
+            if poly.get("label") != label_id
+        ]
+        self.selected_polygon = None
+        self.current_image_item.update_labeling_overlay()

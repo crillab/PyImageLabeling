@@ -10,6 +10,8 @@ from collections import deque
 
 from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
+from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
+from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 
 import os
 import json
@@ -326,6 +328,7 @@ class ImageItem():
         #list to store the rectangle of my image
         self.image_rectangles = []
         self.image_ellipses = []
+        self.image_polygons = []
 
     def get_edited(self):
         for label_id in self.labeling_overlays:
@@ -610,7 +613,7 @@ class Core():
         
         self.left_rectangles= {}
         self.left_ellipses = {}
-    
+        self.left_polygons = {}
 
 
     def reset(self):
@@ -679,7 +682,7 @@ class Core():
             image_item = self.image_items[file] 
             if image_item is not None:
                 image_item.update_color(label_id)
-                self.update_rectangle_colors_in_scene(label_id)
+                self.update_geometric_colors_in_scene(label_id)
                 # We save the image in this case
                 image_item.save_overlays(self.save_directory)
                 image_item.update_icon_file()
@@ -689,7 +692,7 @@ class Core():
                 # We have to open the good file and change the color of this file (only the file of the good label_id)
                 pass
             
-    def update_rectangle_colors_in_scene(self, label_id):
+    def update_geometric_colors_in_scene(self, label_id):
         if self.current_image_item is None:
             return
         
@@ -697,6 +700,12 @@ class Core():
         
         for item in self.zoomable_graphics_view.scene.items():
             if isinstance(item, RectangleItem) and getattr(item, "label_id", None) == label_id:
+                item.setPen(QPen(new_color, 2, Qt.PenStyle.SolidLine))
+                item.setBrush(QBrush(new_color, Qt.BrushStyle.NoBrush))
+            if isinstance(item, EllipseItem) and getattr(item, "label_id", None) == label_id:
+                item.setPen(QPen(new_color, 2, Qt.PenStyle.SolidLine))
+                item.setBrush(QBrush(new_color, Qt.BrushStyle.NoBrush))
+            if isinstance(item, PolygonItem) and getattr(item, "label_id", None) == label_id:
                 item.setPen(QPen(new_color, 2, Qt.PenStyle.SolidLine))
                 item.setBrush(QBrush(new_color, Qt.BrushStyle.NoBrush))
 
@@ -729,25 +738,40 @@ class Core():
     def save_labels_geometric_shape(self, current_file_path):
         rectangles_save = {}
         ellipses_save = {}
+        polygons_save = {}
+        rec = False
+        ell = False
+        poly = False
         for file in self.file_paths:
             image_item = self.image_items.get(file)  # safer way to get item
             if image_item and image_item.image_rectangles:
                 # Only save if image_rectangles is not empty
                 rectangles_save[os.path.basename(image_item.path_image)] = image_item.image_rectangles
+                rec = True
             if image_item and image_item.image_ellipses:
                 # Only save if image_ellipses is not empty
                 ellipses_save[os.path.basename(image_item.path_image)] = image_item.image_ellipses
+                ell = True
+            if image_item and image_item.image_polygons:
+                # Only save if image_polygons is not empty
+                polygons_save[os.path.basename(image_item.path_image)] = image_item.image_polygons
+                poly = True
 
         # If there is nothing to save, just return
-        if not rectangles_save or not ellipses_save:
+        if not rectangles_save and not ellipses_save and not polygons_save:
             return
 
         # Save to JSON
         os.makedirs(current_file_path, exist_ok=True)  # ensure directory exists
-        with open(os.path.join(current_file_path, "Rectangles.json"), 'w') as fp:
-            json.dump(rectangles_save, fp)
-        with open(os.path.join(current_file_path, "Ellipses.json"), 'w') as fp:
-            json.dump(ellipses_save, fp)
+        if rec:
+            with open(os.path.join(current_file_path, "Rectangles.json"), 'w') as fp:
+                json.dump(rectangles_save, fp)
+        if ell:
+            with open(os.path.join(current_file_path, "Ellipses.json"), 'w') as fp:
+                json.dump(ellipses_save, fp)
+        if poly:
+            with open(os.path.join(current_file_path, "Polygons.json"), 'w') as fp:
+                json.dump(polygons_save, fp)
 
     def save(self):
         self.save_labels(self.save_directory)
@@ -802,8 +826,10 @@ class Core():
                 self.left_rectangles[image_name] = rectangles
 
         if self.get_current_image_item() is not None:
-                if self.image_items[image_path].image_rectangles is not None:
-                    self.restore_rectangles_for_image(self.get_current_image_item().path_image)
+            current_path = self.get_current_image_item().path_image
+            if current_path in self.image_items and self.image_items[current_path] is not None:
+                if self.image_items[current_path].image_rectangles is not None:
+                    self.restore_rectangles_for_image(current_path)
 
     def reload_rectangle(self, path_image):
             if os.path.basename(path_image) in self.left_rectangles:
@@ -823,19 +849,48 @@ class Core():
                     image_path = file_path
             
             if image_path in self.image_items and self.image_items[image_path] is not None:
-                # Restore rectangles for this image
                 self.image_items[image_path].image_ellipses = ellipses
             else:
                 self.left_ellipses[image_name] = ellipses
 
         if self.get_current_image_item() is not None:
-                if self.image_items[image_path].image_ellipses is not None:
-                    self.restore_ellipses_for_image(self.get_current_image_item().path_image)
+            current_path = self.get_current_image_item().path_image
+            if current_path in self.image_items and self.image_items[current_path] is not None:
+                if self.image_items[current_path].image_ellipses is not None:
+                    self.restore_ellipses_for_image(current_path)
 
     def reload_ellipse(self, path_image):
             if os.path.basename(path_image) in self.left_ellipses:
                 self.image_items[path_image].image_ellipses =  self.left_ellipses[os.path.basename(path_image)]
                 del self.left_ellipses[os.path.basename(path_image)]
+            else :
+                pass
+
+    def load_polygons_json(self, file):
+        with open(file, "r") as fp:
+            polygons_dict = json.load(fp)
+        for image_name, polygons in polygons_dict.items():
+            # Find the corresponding image path
+            image_path = None
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    image_path = file_path
+            
+            if image_path in self.image_items and self.image_items[image_path] is not None:
+                self.image_items[image_path].image_polygons = polygons
+            else:
+                self.left_polygons[image_name] = polygons
+
+        if self.get_current_image_item() is not None:
+            current_path = self.get_current_image_item().path_image
+            if current_path in self.image_items and self.image_items[current_path] is not None:
+                if self.image_items[current_path].image_polygons is not None:
+                    self.restore_polygons_for_image(current_path)
+
+    def reload_polygon(self, path_image):
+            if os.path.basename(path_image) in self.left_polygons:
+                self.image_items[path_image].image_polygons =  self.left_polygons[os.path.basename(path_image)]
+                del self.left_polygons[os.path.basename(path_image)]
             else :
                 pass
 
@@ -845,7 +900,6 @@ class Core():
         if label_file_path not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
-
 
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)
@@ -886,6 +940,8 @@ class Core():
                                                      self.labeling_overview_file_paths)
             self.current_image_item = self.image_items[path_image]
             self.reload_rectangle(path_image)
+            self.reload_ellipse(path_image)
+            self.reload_polygon(path_image)
             self.image_items[path_image].update_scene()
             if len(self.label_items) != 0:
                 self.image_items[path_image].update_labeling_overlays(
@@ -902,6 +958,8 @@ class Core():
             self.restore_rectangles_for_image(path_image)
         if self.get_current_image_item().image_ellipses is not None:
             self.restore_ellipses_for_image(path_image)
+        if self.get_current_image_item().image_polygons is not None:
+            self.restore_polygons_for_image(path_image)
 
         if self.checked_button == "contour_filling":
             self.controller.model.apply_contour()
