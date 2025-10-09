@@ -918,6 +918,17 @@ class Core():
             self.current_image_item.update_scene()
             self.current_image_item.foreground_current_labeling_overlay()
 
+        if self.save_directory:
+            json_files = ["Rectangles.json", "Ellipses.json", "Polygons.json"]
+            for json_file in json_files:
+                json_path = os.path.join(self.save_directory, json_file)
+                if os.path.isfile(json_path):
+                    try:
+                        os.remove(json_path)
+                        print(f"Removed {json_file}")
+                    except Exception as e:
+                        print(f"Error removing {json_file}: {e}")
+
     def select_image(self, path_image):
         print("select_image")
         if self.checked_button == "contour_filling":

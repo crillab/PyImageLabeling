@@ -12,7 +12,7 @@
         "path": "C:/Users/pimfa/Pictures/label"
     },
     "load": {
-        "path": "C:/Users/pimfa/Pictures/label",
+        "path": "C:/Users/pimfa/Pictures",
         "alpha_color": [
             255,
             255,
@@ -32,5 +32,5 @@
         "size": 86,
         "absolute_mode": 0
     },
-    "labeling_opacity": 45
+    "labeling_opacity": 100
 }

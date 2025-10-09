@@ -17,9 +17,12 @@ class ClearAll(Core):
         result = msgBox.exec()
         if result == QMessageBox.StandardButton.Yes:
             self.get_current_image_item().get_labeling_overlay().reset()
-            self.clear_all_rectangles(self.get_current_label_item().get_label_id())
-            self.clear_all_ellipses(self.get_current_label_item().get_label_id())
-            self.clear_all_polygons(self.get_current_label_item().get_label_id())
+            if self.checked_button == "rectangle":
+                self.clear_all_rectangles(self.get_current_label_item().get_label_id())
+            if self.checked_button == "ellipse":
+                self.clear_all_ellipses(self.get_current_label_item().get_label_id())
+            if self.checked_button == "polygon":
+                self.clear_all_polygons(self.get_current_label_item().get_label_id())
         
     
 

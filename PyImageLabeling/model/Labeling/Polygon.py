@@ -98,16 +98,14 @@ class Polygon(Core):
 
         self.cleanup_preview()
         polygon = QPolygonF(self.polygon_points)
-        final_item = PolygonItem(polygon, self.color, rotation=0)
+        final_item = PolygonItem(polygon, self.color) 
         final_item.setZValue(2)
         final_item.setFlag(QGraphicsPolygonItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.zoomable_graphics_view.scene.addItem(final_item)
 
-        # Create model entry
         if self.current_image_item:
             polygon_data = {
                 "points": [(p.x(), p.y()) for p in polygon],
-                "rotation": 0,
                 "label": self.get_current_label_item().label_id
             }
             self.current_image_item.image_polygons.append(polygon_data)
@@ -136,17 +134,13 @@ class Polygon(Core):
         if self.current_image_item.image_polygons is not None:
             for poly_data in self.current_image_item.image_polygons:
                 points = [QPointF(x, y) for x, y in poly_data["points"]]
-                rotation = poly_data["rotation"]
                 label_id = poly_data["label"]
                 color = self.label_items[label_id].get_color()
 
-                polygon_item = PolygonItem(QPolygonF(points), color, rotation)
+                polygon_item = PolygonItem(QPolygonF(points), color) 
                 polygon_item.setZValue(2)
                 polygon_item.model_ref = poly_data
                 polygon_item.label_id = label_id
-
-                polygon_item.setPos(0, 0)
-                polygon_item.setRotation(rotation)
 
                 self.zoomable_graphics_view.scene.addItem(polygon_item)
 

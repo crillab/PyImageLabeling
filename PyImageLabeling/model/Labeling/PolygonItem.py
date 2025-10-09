@@ -8,7 +8,7 @@ HANDLE_DETECTION_DISTANCE = 15
 
 
 class PolygonItem(QGraphicsPolygonItem):
-    def __init__(self, polygon, color=Qt.GlobalColor.red, rotation=0):
+    def __init__(self, polygon, color=Qt.GlobalColor.red):
         super().__init__(polygon)
 
         self.pen = QPen(color, 2)
@@ -16,17 +16,6 @@ class PolygonItem(QGraphicsPolygonItem):
         self.setPen(self.pen)
 
         self.model_ref = None  # link to model dict
-
-        # CRITICAL: Store the UNROTATED polygon shape
-        self.base_polygon = QPolygonF(polygon)
-        
-        # Set transform origin point BEFORE applying rotation
-        center = polygon.boundingRect().center()
-        self.setTransformOriginPoint(center)
-        
-        # Apply initial rotation if given
-        if rotation != 0:
-            self.setRotation(rotation)
 
         self.setFlags(
             QGraphicsPolygonItem.GraphicsItemFlag.ItemIsSelectable
@@ -52,14 +41,12 @@ class PolygonItem(QGraphicsPolygonItem):
         return super().itemChange(change, value)
 
     def update_model(self):
-        """Push updated polygon coordinates and rotation to model_ref in scene coordinates."""
+        """Push updated polygon coordinates to model_ref in scene coordinates."""
         if self.model_ref is not None:
-            # Use self.polygon(), which is a QPolygonF
             polygon_scene = [self.mapToScene(p) for p in self.polygon()]
             self.model_ref["points"] = [(p.x(), p.y()) for p in polygon_scene]
-            self.model_ref["rotation"] = self.rotation()
-
-            # Optional: store polygon center in scene coords
+            # Remove rotation line - we don't store rotation anymore
+            
             center_scene = self.mapToScene(self.polygon().boundingRect().center())
             self.model_ref["center"] = (center_scene.x(), center_scene.y())
 
@@ -92,6 +79,7 @@ class PolygonItem(QGraphicsPolygonItem):
         )
         if self.isSelected():
             near_handle = True
+        
         if near_handle != self.handles_visible:
             self.handles_visible = near_handle
             self.update()
@@ -103,8 +91,8 @@ class PolygonItem(QGraphicsPolygonItem):
             if rect.contains(pos):
                 if name == "rotation":
                     self.setCursor(Qt.CursorShape.OpenHandCursor)
-                else:
-                    self.setCursor(Qt.CursorShape.SizeAllCursor)
+                elif name.startswith("vertex_"):
+                    self.setCursor(Qt.CursorShape.SizeVerCursor)
                 return
         self.setCursor(Qt.CursorShape.SizeAllCursor)
 
@@ -181,60 +169,37 @@ class PolygonItem(QGraphicsPolygonItem):
             super().mouseReleaseEvent(event)
 
     def rotate_item(self, event):
-        """Handle rotation of the polygon."""
+        """Rotate polygon around its center (blue point)."""
         self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        center = self.polygon().boundingRect().center()
-        self.setTransformOriginPoint(center)
+
+        polygon = self.polygon()
+        center = polygon.boundingRect().center()
+
+        # Rotation center in scene coordinates (stays constant)
         center_scene = self.mapToScene(center)
         mouse_scene = self.mapToScene(event.pos())
+
         current_angle = math.atan2(
             mouse_scene.y() - center_scene.y(),
             mouse_scene.x() - center_scene.x(),
         )
-        angle_diff = math.degrees(current_angle - self.initial_rotation)
-        self.setRotation(self.initial_angle + angle_diff)
+        angle_diff = current_angle - self.initial_rotation
+
+        # Update visual rotation around the center handle
+        self.setTransformOriginPoint(center)
+        self.setRotation(self.initial_angle + math.degrees(angle_diff))
+
         self.update_handles()
         self.update()
-        self.update_model()
 
     def move_vertex(self, event):
-        """Move individual polygon vertex without affecting rotation."""
+        """Move individual polygon vertex."""
         index = int(self.handle_selected.split("_")[1])
         
-        # Get current rotation
-        current_rotation = self.rotation()
-        
-        # Temporarily remove rotation to work in unrotated space
-        self.setRotation(0)
-        
-        # Update the base polygon
-        if 0 <= index < self.base_polygon.size():
-            # Map the mouse position to the unrotated coordinate system
-            # We need to inverse-rotate the mouse position
-            angle_rad = math.radians(-current_rotation)
-            center = self.base_polygon.boundingRect().center()
-            
-            # Get mouse position relative to center
-            rel_x = event.pos().x() - center.x()
-            rel_y = event.pos().y() - center.y()
-            
-            # Rotate back to unrotated space
-            cos_a = math.cos(angle_rad)
-            sin_a = math.sin(angle_rad)
-            new_x = rel_x * cos_a - rel_y * sin_a + center.x()
-            new_y = rel_x * sin_a + rel_y * cos_a + center.y()
-            
-            # Update base polygon
-            self.base_polygon[index] = QPointF(new_x, new_y)
-            self.setPolygon(self.base_polygon)
-            
-            # Update transform origin to new center
-            new_center = self.base_polygon.boundingRect().center()
-            self.setTransformOriginPoint(new_center)
-        
-        # Reapply rotation
-        self.setRotation(current_rotation)
+        polygon = self.polygon()
+        if 0 <= index < polygon.size():
+            polygon[index] = event.pos()
+            self.setPolygon(polygon)
         
         self.update_handles()
         self.update()
-        self.update_model()
