@@ -56,7 +56,7 @@ class LabelEvents(Events):
             else:
                 self.view.buttons_label_bar_temporary[id]["activation"].setChecked(False)
         
-
+        self.move_image()
         # Active or deactivate the good labeling buttons 
         self.view.update_labeling_buttons(self.model.get_label_items()[label_id].get_labeling_mode())
         

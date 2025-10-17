@@ -52,7 +52,7 @@ class LabelSetting(QDialog):
         layout.addRow("Label:", label_layout)
 
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems([labeling_mode_pixel]) #add later:  labeling_mode_geometric
+        self.mode_combo.addItems([labeling_mode_pixel,labeling_mode_geometric]) #add later:  labeling_mode_geometric
         self.mode_combo.setCurrentText(self.labeling_mode)
         self.mode_combo.currentTextChanged.connect(self.mode_update)
         layout.addRow("Labeling Mode:", self.mode_combo)
