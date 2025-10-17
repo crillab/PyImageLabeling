@@ -1,9 +1,9 @@
 {
     "contour_filling": {
-        "tolerance": 8
+        "tolerance": 6
     },
     "magic_pen": {
-        "tolerance": 71,
+        "tolerance": 92,
         "max_pixels": 408780,
         "method": "RGB"
     },
@@ -11,7 +11,7 @@
         "path": "C:/Users/pimfa/Pictures/label"
     },
     "load": {
-        "path": "C:/Users/pimfa/Pictures",
+        "path": "/home/nicolas/Bureau",
         "alpha_color": [
             255,
             255,
