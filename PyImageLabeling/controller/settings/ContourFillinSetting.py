@@ -16,13 +16,13 @@ class ContourFillingSetting(QDialog):
 
         # Tolerance slider and spinbox
         self.tolerance_slider = QSlider(Qt.Orientation.Horizontal)
-        self.tolerance_slider.setRange(1, 10)
+        self.tolerance_slider.setRange(1, 20)
         self.tolerance_slider.setValue(self.tolerance)
         self.tolerance_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.tolerance_slider.setTickInterval(1)
 
         self.tolerance_spinbox = QSpinBox()
-        self.tolerance_spinbox.setRange(1, 10)
+        self.tolerance_spinbox.setRange(1, 20)
         self.tolerance_spinbox.setValue(self.tolerance)
 
         # Connect both ways to keep them synchronized
@@ -59,17 +59,28 @@ class ContourFillingSetting(QDialog):
     def update_tolerance_description(self):
         """Update the tolerance description label based on the current tolerance level"""
         descriptions = {
-            1: "Most Precise - Only very clear, well-defined contours",
-            2: "Very Precise - Clear contours with minimal noise",
-            3: "Precise - Well-defined contours, some fine details",
-            4: "Moderately Precise - Good balance, cleaner results",
-            5: "Balanced - Default setting, good for most images",
-            6: "Moderately Tolerant - Captures more subtle edges",
-            7: "Tolerant - Finds more contours, including faint ones",
-            8: "Very Tolerant - Detects subtle features and textures",
-            9: "Highly Tolerant - Captures most edge information",
-            10: "Most Tolerant - Maximum sensitivity, may include noise"
+            1:  "Level 1 – Ultra Precise: Detects only strong, clean, well-defined contours.",
+            2:  "Level 2 – Very Precise: Ideal for high-contrast edges with minimal texture.",
+            3:  "Level 3 – Precise: Detects clear boundaries and some fine details.",
+            4:  "Level 4 – Moderately Precise: Keeps clarity while allowing slight variation.",
+            5:  "Level 5 – Balanced (Default): Good overall trade-off for typical images.",
+            6:  "Level 6 – Slightly Tolerant: Starts to capture faint or uneven edges.",
+            7:  "Level 7 – Tolerant: Includes subtle contour variations and weak signals.",
+            8:  "Level 8 – Broad Tolerance: Handles soft edges and low contrast areas.",
+            9:  "Level 9 – Very Tolerant: Recovers most faint and fragmented contours.",
+            10: "Level 10 – Adaptive: Balances faint edge capture with minimal noise.",
+            11: "Level 11 – Gentle Expansion: More sensitive to soft and irregular boundaries.",
+            12: "Level 12 – Enhanced Sensitivity: Detects dim textures, may include noise.",
+            13: "Level 13 – High Sensitivity: Extracts nearly all visible edges.",
+            14: "Level 14 – Deep Sensitivity: Useful for blurred or unevenly lit regions.",
+            15: "Level 15 – Strongly Tolerant: Detects faint outlines even in noise.",
+            16: "Level 16 – Very Strong: Focused on recovering missing weak structures.",
+            17: "Level 17 – Aggressive: Captures nearly all gradient variations.",
+            18: "Level 18 – High Noise Mode: Very faint features included, heavy post-filtering may be needed.",
+            19: "Level 19 – Extreme Sensitivity: All possible edges detected, noise likely.",
+            20: "Level 20 – Maximum Tolerance: Detects every possible contour, heavy cleanup required."
         }
+
         description = descriptions.get(self.tolerance, "Unknown tolerance level")
         self.tolerance_description_label.setText(description)
 

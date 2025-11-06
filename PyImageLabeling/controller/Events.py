@@ -23,7 +23,11 @@ class eventEater(QObject):
         #self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
         #print("event.type() QObject", event.type())
         #print("event.type() QObject", obj)
-        
+        try:
+            event_type = event.type()
+        except RecursionError:
+            return False
+
         if event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.LeftButton:
             if self.model.checked_button == "zoom_plus":
                 self.model.start_zoom_plus()
@@ -61,7 +65,6 @@ class eventEater(QObject):
             elif self.model.checked_button == "ellipse":
                 self.model.move_ellipse_tool(event.scenePos())
                 
-
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
                 self.model.end_paint_brush()

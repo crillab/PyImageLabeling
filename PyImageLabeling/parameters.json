@@ -1,18 +1,18 @@
 {
     "contour_filling": {
-        "tolerance": 6
+        "tolerance": 13
     },
     "magic_pen": {
-        "tolerance": 92,
+        "tolerance": 99,
         "max_pixels": 408780,
         "method": "RGB",
-        "logic": "All color logic"
+        "logic": "Pen logic"
     },
     "save": {
         "path": "C:/Users/pimfa/Pictures/label"
     },
     "load": {
-        "path": "C:/Users/pimfa/Pictures",
+        "path": "C:/Users/pimfa/Documents/MAIA/Picels-main/Picels-main/raw_data/PDPN",
         "alpha_color": [
             255,
             255,
@@ -26,7 +26,7 @@
         "minus_zoom_factor": 0.9
     },
     "paint_brush": {
-        "size": 34
+        "size": 10
     },
     "eraser": {
         "size": 86,

@@ -11,17 +11,28 @@ from PyImageLabeling.model.Utils import Utils
 import time
 
 TOLERENCE_PARAMETERS = {
-            1: {'canny_low': 100, 'canny_high': 200, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 50},
-            2: {'canny_low': 80, 'canny_high': 180, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 30},
-            3: {'canny_low': 70, 'canny_high': 160, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 20},
-            4: {'canny_low': 60, 'canny_high': 140, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 15},
-            5: {'canny_low': 50, 'canny_high': 150, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 10}, 
-            6: {'canny_low': 40, 'canny_high': 120, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 8},
-            7: {'canny_low': 30, 'canny_high': 100, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 5},
-            8: {'canny_low': 25, 'canny_high': 80, 'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 3},
-            9: {'canny_low': 20, 'canny_high': 60, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
-            10: {'canny_low': 15, 'canny_high': 40, 'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 1}
-        }
+    1:  {'canny_low': 100, 'canny_high': 200, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 60},
+    2:  {'canny_low': 90,  'canny_high': 190, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 50},
+    3:  {'canny_low': 80,  'canny_high': 180, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 40},
+    4:  {'canny_low': 70,  'canny_high': 160, 'blur_kernel': 3, 'dilate_iter': 1, 'min_area': 30},
+    5:  {'canny_low': 65,  'canny_high': 150, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 25},
+    6:  {'canny_low': 60,  'canny_high': 140, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 20},
+    7:  {'canny_low': 55,  'canny_high': 130, 'blur_kernel': 5, 'dilate_iter': 1, 'min_area': 18},
+    8:  {'canny_low': 50,  'canny_high': 120, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 16},
+    9:  {'canny_low': 45,  'canny_high': 110, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 14},
+    10: {'canny_low': 40,  'canny_high': 100, 'blur_kernel': 5, 'dilate_iter': 2, 'min_area': 12},
+    11: {'canny_low': 35,  'canny_high': 90,  'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 10},
+    12: {'canny_low': 30,  'canny_high': 85,  'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 8},
+    13: {'canny_low': 28,  'canny_high': 80,  'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 6},
+    14: {'canny_low': 25,  'canny_high': 75,  'blur_kernel': 7, 'dilate_iter': 2, 'min_area': 5},
+    15: {'canny_low': 22,  'canny_high': 70,  'blur_kernel': 9, 'dilate_iter': 2, 'min_area': 4},
+    16: {'canny_low': 20,  'canny_high': 65,  'blur_kernel': 9, 'dilate_iter': 2, 'min_area': 3},
+    17: {'canny_low': 18,  'canny_high': 60,  'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 3},
+    18: {'canny_low': 16,  'canny_high': 55,  'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
+    19: {'canny_low': 15,  'canny_high': 50,  'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 2},
+    20: {'canny_low': 12,  'canny_high': 40,  'blur_kernel': 9, 'dilate_iter': 3, 'min_area': 1}
+}
+
 class ContourItem():
 
     def __init__(self, points, color):

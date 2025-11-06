@@ -1,9 +1,10 @@
 from PyImageLabeling.model.Core import Core
 import numpy as np
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene, QGraphicsItem
+from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene, QGraphicsItem, QMessageBox
+import cv2
 from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter, QPixmap, QColor
 from PyQt6.QtCore import QPointF, Qt, QRectF, QRect
-
+from collections import deque
 from PyImageLabeling.model.Utils import Utils
 
 class PaintBrushItemOld(QGraphicsItem):
@@ -90,12 +91,6 @@ class PaintBrushItem(QGraphicsItem):
         
         painter.end()
         
-        
-        
-        
-        
-        
-        
     def add_point(self, new_x, new_y):
         # Compute the bounding rect of the new point 
         new_position_x = int(new_x-(self.size/2))
@@ -177,6 +172,8 @@ class PaintBrush(Core):
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
+        self.drawn_points = [(self.current_position_x, self.current_position_y)]
+
     def move_paint_brush(self, current_position):
         self.current_position_x = int(current_position.x())
         self.current_position_y = int(current_position.y())
@@ -184,6 +181,8 @@ class PaintBrush(Core):
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
+        self.drawn_points.append((self.current_position_x, self.current_position_y))
+
         self.paint_brush_item.add_point(self.current_position_x, self.current_position_y)
         self.paint_brush_item.update()
 
@@ -194,6 +193,40 @@ class PaintBrush(Core):
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
+    def _is_shape_closed(self, points, tolerance=10):
+        """Return True if the drawn path forms a closed loop."""
+        if len(points) < 10:
+            return False
+        first, last = points[0], points[-1]
+        dist = np.hypot(first[0] - last[0], first[1] - last[1])
+        return dist < tolerance
+
+    def _fill_closed_shape(self, points):
+        """Fill a closed pen shape by creating a polygon path and filling it."""
+        # Create a QPainterPath from the points
+        path = QPainterPath()
+        if not points:
+            return
+        
+        # Start at the first point
+        path.moveTo(QPointF(points[0][0], points[0][1]))
+        
+        # Add lines to all subsequent points
+        for x, y in points[1:]:
+            path.lineTo(QPointF(x, y))
+        
+        # Close the path
+        path.closeSubpath()
+        
+        # Get the painter and fill the path
+        painter = self.get_current_image_item().get_labeling_overlay().get_painter()
+        painter.setBrush(QBrush(self.color))
+        painter.setPen(Qt.PenStyle.NoPen)  # No outline, just fill
+        painter.drawPath(path)
+        
+        # Update the display
+        self.get_current_image_item().update_labeling_overlay()
+
     def end_paint_brush(self):  
         # Paint the good pixmap 
         self.paint_brush_item.labeling_overlay_paint()
@@ -203,5 +236,16 @@ class PaintBrush(Core):
 
         # Romeve the fake item 
         self.zoomable_graphics_view.scene.removeItem(self.paint_brush_item)
+
+        if hasattr(self, "drawn_points") and self._is_shape_closed(self.drawn_points):
+            reply = QMessageBox.question(
+                self.view,
+                "Fill Shape",
+                "Detected a closed shape. Do you want to fill it automatically?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._fill_closed_shape(self.drawn_points)
+
         
 
