@@ -1,9 +1,9 @@
 {
     "contour_filling": {
-        "tolerance": 13
+        "tolerance": 17
     },
     "magic_pen": {
-        "tolerance": 99,
+        "tolerance": 89,
         "max_pixels": 408780,
         "method": "RGB",
         "logic": "Pen logic"
@@ -12,7 +12,7 @@
         "path": "C:/Users/pimfa/Pictures/label"
     },
     "load": {
-        "path": "C:/Users/pimfa/Documents/MAIA/Picels-main/Picels-main/raw_data/PDPN",
+        "path": "C:/Users/pimfa/Documents/MAIA/Picels-main/Picels-main/raw_data/Periostine",
         "alpha_color": [
             255,
             255,
@@ -26,11 +26,11 @@
         "minus_zoom_factor": 0.9
     },
     "paint_brush": {
-        "size": 10
+        "size": 70
     },
     "eraser": {
         "size": 86,
         "absolute_mode": 0
     },
-    "labeling_opacity": 45
+    "labeling_opacity": 32
 }
