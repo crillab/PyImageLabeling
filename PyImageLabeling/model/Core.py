@@ -12,11 +12,75 @@ from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
-
+import numpy as np
 import os
 import json
 
 KEYWORD_SAVE_LABEL = ".label."
+
+class CompactUndoEntry:
+    """
+    Stores pixmap in a memory-efficient way:
+    1. Only stores non-transparent pixels
+    2. Stores positions + colors instead of full grid
+    """
+    
+    def __init__(self, pixmap):
+        """Convert pixmap to compact representation"""
+        image = pixmap.toImage()
+        image = image.convertToFormat(QImage.Format.Format_ARGB32)
+        
+        width = image.width()
+        height = image.height()
+        
+        # Extract pixel data
+        ptr = image.bits()
+        ptr.setsize(image.sizeInBytes())
+        
+        # Convert to numpy for efficient processing
+        arr = np.frombuffer(ptr.asarray(), dtype=np.uint8).reshape((height, width, 4))
+        
+        # Find non-transparent pixels (alpha > 0)
+        alpha_channel = arr[:, :, 3]
+        non_transparent = np.where(alpha_channel > 0)
+        
+        if len(non_transparent[0]) > 0:
+            # Store only non-transparent pixel positions and colors
+            self.y_coords = non_transparent[0].astype(np.uint16)  # Use uint16 to save memory
+            self.x_coords = non_transparent[1].astype(np.uint16)
+            self.colors = arr[non_transparent].astype(np.uint8)  # ARGB values
+            self.width = width
+            self.height = height
+        else:
+            # Empty image
+            self.y_coords = None
+            self.x_coords = None
+            self.colors = None
+            self.width = width
+            self.height = height
+    
+    def to_pixmap(self):
+        """Reconstruct pixmap from compact representation"""
+        # Create empty pixmap
+        pixmap = QPixmap(self.width, self.height)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        if self.y_coords is None:
+            return pixmap
+        
+        # Create image to set pixels
+        image = pixmap.toImage()
+        image = image.convertToFormat(QImage.Format.Format_ARGB32)
+        
+        # Get pointer to image data
+        ptr = image.bits()
+        ptr.setsize(image.sizeInBytes())
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((self.height, self.width, 4))
+        
+        # Restore non-transparent pixels
+        arr[self.y_coords, self.x_coords] = self.colors
+        
+        return QPixmap.fromImage(image)
 
 class LabelingOverlay():
     ###
@@ -31,7 +95,7 @@ class LabelingOverlay():
         self.height = height # The height of the Labeling Overlay QPixmap
         self.zvalue = 3 # The default ZValue 
         self.opacity = Utils.load_parameters()["labeling_opacity"]/100 # To normalize
-
+        self.memory_depth = Utils.load_parameters()["undo"]["depth"] 
         #self.label_id = label_id
         #self.name = name
         #self.labeling_mode = labeling_mode
@@ -74,8 +138,8 @@ class LabelingOverlay():
         self.labeling_overlay_item = None
 
         # Initialize the deque for the `undo` feature
-        self.undo_deque = deque(maxlen=10)
-        self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
+        self.undo_deque = deque(maxlen=self.memory_depth)
+        self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap)) 
         
         # Initialize the associated QPainter
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)      
@@ -85,6 +149,7 @@ class LabelingOverlay():
         self.previous_labeling_overlay_pixmap = None
 
         # Initialize others pixmaps and painters to change the color or opacity operations
+        self.labeling_overlay_opacity_painter = QPainter()
         self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
         self.labeling_overlay_color_painter = QPainter()
 
@@ -112,15 +177,14 @@ class LabelingOverlay():
     #        self.labeling_overlay_item.setVisible(True)
 
     def reset(self):
-        #self.labeling_overlay_painter.end()
-
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         if self.is_displayed_in_scene is True:
             self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
         
-        first_labeling_overlay_pixmap = self.undo_deque[0].copy()
+        # CHANGED: Store CompactUndoEntry of first pixmap
+        first_labeling_overlay_pixmap = self.undo_deque[0].to_pixmap() if len(self.undo_deque) > 0 else self.labeling_overlay_pixmap
         self.undo_deque.clear()
-        self.undo_deque.append(first_labeling_overlay_pixmap)
+        self.undo_deque.append(CompactUndoEntry(first_labeling_overlay_pixmap))
 
         self.previous_labeling_overlay_pixmap = None
         
@@ -148,14 +212,16 @@ class LabelingOverlay():
         if len(self.undo_deque) > 0:
             self.labeling_overlay_painter.end()
             
-            self.labeling_overlay_pixmap = self.undo_deque.pop()
+            # CHANGED: Reconstruct from CompactUndoEntry
+            compact_entry = self.undo_deque.pop()
+            self.labeling_overlay_pixmap = compact_entry.to_pixmap()
             self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
 
             if len(self.undo_deque) == 0:
-                self.undo_deque.append(self.labeling_overlay_pixmap.copy())
+                # CHANGED: Store CompactUndoEntry
+                self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
             
-            # Create a new pixmap for opacity
-
+            # Update display
             self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
             self.labeling_overlay_painter.begin(self.labeling_overlay_pixmap)
             self.reset_pen()
@@ -187,13 +253,23 @@ class LabelingOverlay():
             self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
 
         # Apply the color on the undo pixmaps
-        for pixmap in self.undo_deque:
+        new_undo_deque = deque(maxlen=self.memory_depth)
+        for compact_entry in self.undo_deque:
+            # Reconstruct pixmap
+            pixmap = compact_entry.to_pixmap()
+            
+            # Apply color change
             self.labeling_overlay_color_painter.begin(pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
             self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
             self.labeling_overlay_color_painter.end()
+            
+            # Store back as compact
+            new_undo_deque.append(CompactUndoEntry(pixmap))
+        
+        self.undo_deque = new_undo_deque
 
-        # do not forget the previous undo pixmap :) 
+        # Do not forget the previous undo pixmap :) 
         if self.previous_labeling_overlay_pixmap is not None:
             self.labeling_overlay_color_painter.begin(self.previous_labeling_overlay_pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
@@ -211,7 +287,7 @@ class LabelingOverlay():
         
         # For the `undo` feature, if we have a previous, add it in the deque 
         if self.previous_labeling_overlay_pixmap is not None:
-            self.undo_deque.append(self.previous_labeling_overlay_pixmap)
+            self.undo_deque.append(CompactUndoEntry(self.previous_labeling_overlay_pixmap))
 
         # Create a copy to keep it in the previous pixmap variable
         self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()

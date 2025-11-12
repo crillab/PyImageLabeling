@@ -32,5 +32,8 @@
         "size": 50,
         "absolute_mode": 0
     },
+    "undo": {
+        "depth": 5
+    },
     "labeling_opacity": 32
 }

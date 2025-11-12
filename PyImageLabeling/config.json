@@ -252,6 +252,13 @@
                     "icon": "setting",
                     "checkable": false,
                     "tooltip": "Parameters of eraser."
+                },
+                {
+                    "name": "undo_setting",
+                    "name_view": "Undo Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of undo."
                 }
             ]},
             {"Pixel Labeling Setting":[

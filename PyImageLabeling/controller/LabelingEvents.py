@@ -2,6 +2,7 @@ from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
 from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
 from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
+from PyImageLabeling.controller.settings.UndoSetting import UndoSetting
 from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
@@ -120,4 +121,10 @@ class LabelingEvents(Events):
         if erasersetting.exec():
             self.view.desactivate_buttons(self.eraser.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
             self.eraser()
+
+    def undo_setting(self):
+        self.all_events(self.undo_setting.__name__)
+        undosetting = UndoSetting(self.view.zoomable_graphics_view)
+        if undosetting.exec():
+            print("undosetting set")
    
