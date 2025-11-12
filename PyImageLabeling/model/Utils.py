@@ -44,6 +44,7 @@
 import os
 import json
 import sys
+import shutil
 
 class Utils:
 
@@ -81,9 +82,14 @@ class Utils:
 
     @staticmethod
     def load_parameters():
+        default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
+        if not os.path.exists(default_param_path):
+            raise FileNotFoundError(f"Parameters not found at {param_path}")
+        
         param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
         if not os.path.exists(param_path):
-            raise FileNotFoundError(f"Parameters not found at {param_path}")
+            shutil.copyfile(default_param_path, param_path)
+        
         with open(param_path, 'r', encoding='utf-8') as file:
             return json.load(file)
 
