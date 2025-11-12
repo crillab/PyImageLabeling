@@ -3,16 +3,16 @@
         "tolerance": 13
     },
     "magic_pen": {
-        "tolerance": 99,
-        "max_pixels": 408780,
-        "method": "RGB",
-        "logic": "Pen logic"
+        "tolerance": 87,
+        "max_pixels": 101585,
+        "method": "HSV",
+        "logic": "All color logic"
     },
     "save": {
-        "path": "C:/Users/pimfa/Pictures/label"
+        "path": "/home/nicolas/Bureau/ProjetsMAIA/Picels/raw_data"
     },
     "load": {
-        "path": "C:/Users/pimfa/Documents/MAIA/Picels-main/Picels-main/raw_data/PDPN",
+        "path": "/home/nicolas/Bureau/ProjetsMAIA/Picels/raw_data",
         "alpha_color": [
             255,
             255,
@@ -26,10 +26,10 @@
         "minus_zoom_factor": 0.9
     },
     "paint_brush": {
-        "size": 10
+        "size": 399
     },
     "eraser": {
-        "size": 86,
+        "size": 100,
         "absolute_mode": 0
     },
     "labeling_opacity": 45
