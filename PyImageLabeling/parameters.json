@@ -1,6 +1,6 @@
 {
     "contour_filling": {
-        "tolerance": 13
+        "tolerance": 17
     },
     "magic_pen": {
         "tolerance": 87,
@@ -32,5 +32,5 @@
         "size": 100,
         "absolute_mode": 0
     },
-    "labeling_opacity": 45
+    "labeling_opacity": 32
 }

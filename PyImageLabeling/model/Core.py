@@ -74,7 +74,7 @@ class LabelingOverlay():
         self.labeling_overlay_item = None
 
         # Initialize the deque for the `undo` feature
-        self.undo_deque = deque()
+        self.undo_deque = deque(maxlen=10)
         self.undo_deque.append(self.labeling_overlay_pixmap.copy()) 
         
         # Initialize the associated QPainter
@@ -85,9 +85,6 @@ class LabelingOverlay():
         self.previous_labeling_overlay_pixmap = None
 
         # Initialize others pixmaps and painters to change the color or opacity operations
-        self.labeling_overlay_opacity_pixmap = QPixmap(self.width, self.height)
-        self.labeling_overlay_opacity_painter = QPainter()
-        
         self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
         self.labeling_overlay_color_painter = QPainter()
 
@@ -164,16 +161,15 @@ class LabelingOverlay():
             self.reset_pen()
 
     def generate_opacity_pixmap(self):
-        # Now we can fill the pixmap
-        self.labeling_overlay_opacity_pixmap.fill(Qt.GlobalColor.transparent)
+        opacity_pixmap = QPixmap(self.width, self.height)
+        opacity_pixmap.fill(Qt.GlobalColor.transparent)
         
-        # Restart the painter
-        self.labeling_overlay_opacity_painter.begin(self.labeling_overlay_opacity_pixmap)
-        self.labeling_overlay_opacity_painter.setOpacity(self.get_opacity())
-        self.labeling_overlay_opacity_painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
-        self.labeling_overlay_opacity_painter.end()
-
-        return self.labeling_overlay_opacity_pixmap
+        painter = QPainter(opacity_pixmap)
+        painter.setOpacity(self.get_opacity())
+        painter.drawPixmap(0, 0, self.labeling_overlay_pixmap)
+        painter.end()
+        
+        return opacity_pixmap
 
     def update_color(self):
         # We change this labeling overlay
@@ -321,7 +317,7 @@ class ImageItem():
         self.alpha_color = Utils.load_parameters()["load"]["alpha_color"] 
         
         #save a numpy matrix of colors
-        self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
+        #self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
 
         self.is_displayed_in_scene = False
 
@@ -508,6 +504,10 @@ class ImageItem():
         self.update_icon_file()   
 
     def get_image_numpy_pixels_rgb(self):
+        if self.image_numpy_pixels_rgb is None:
+            self.image_numpy_pixels_rgb = numpy.array(
+                Image.open(self.path_image).convert("RGB")
+            )
         return self.image_numpy_pixels_rgb
     
     def get_width(self):
