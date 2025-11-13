@@ -73,15 +73,16 @@ class PolygonItem(QGraphicsPolygonItem):
         return math.hypot(point.x() - center.x(), point.y() - center.y())
 
     def check_handle_proximity(self, pos):
+        """Show handles only when cursor is inside the polygon (not by selection)."""
+        inside_polygon = self.polygon().containsPoint(pos, Qt.FillRule.OddEvenFill)
         near_handle = any(
             self.distance_to_rect(pos, rect) < HANDLE_DETECTION_DISTANCE
             for rect in self.handles.values()
         )
-        if self.isSelected():
-            near_handle = True
-        
-        if near_handle != self.handles_visible:
-            self.handles_visible = near_handle
+        should_show = inside_polygon or near_handle
+
+        if should_show != self.handles_visible:
+            self.handles_visible = should_show
             self.update()
 
     def update_cursor(self, pos):

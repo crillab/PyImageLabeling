@@ -68,17 +68,18 @@ class RectangleItem(QGraphicsRectItem):
         }
 
     def check_handle_proximity(self, pos):
+        """Show handles only when cursor is inside the rectangle (not by selection)."""
+        inside_rect = self.rect().contains(pos)
         near_handle = any(
             self.distance_to_rect(pos, rect) < HANDLE_DETECTION_DISTANCE
             for rect in self.handles.values()
         )
-        if self.isSelected():
-            near_handle = True
+        should_show = inside_rect or near_handle
 
-        if near_handle != self.handles_visible:
-            self.handles_visible = near_handle
+        if should_show != self.handles_visible:
+            self.handles_visible = should_show
             self.update()
-
+            
     @staticmethod
     def distance_to_rect(point, rect):
         center = rect.center()

@@ -107,18 +107,21 @@ class EllipseItem(QGraphicsEllipseItem):
         }
 
     def check_handle_proximity(self, pos):
-        """Check if mouse is near any handle and make them visible"""
+        """Show handles when cursor is inside the circle or near a handle (ignore selection)."""
+        # Check if cursor is inside the ellipse (circle area)
+        inside_circle = self.rect().contains(pos)
+
+        # Check if cursor is close to any handle
         near_handle = any(
             self.distance_to_rect(pos, rect) < HANDLE_DETECTION_DISTANCE
             for rect in self.handles.values()
         )
-        
-        # Also show handles when selected
-        if self.isSelected():
-            near_handle = True
-            
-        if near_handle != self.handles_visible:
-            self.handles_visible = near_handle
+
+        # Show handles if inside or near handle
+        should_show = inside_circle or near_handle
+
+        if should_show != self.handles_visible:
+            self.handles_visible = should_show
             self.update()
 
     @staticmethod

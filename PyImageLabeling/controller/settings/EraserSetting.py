@@ -4,12 +4,15 @@ from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Utils import Utils
 
 class EraserSetting(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, model):
         super().__init__(parent)
         self.setWindowTitle("Eraser Settings")
         self.resize(500, 150)
 
         params = Utils.load_parameters()["eraser"]
+        self.max_size = int(min(model.get_current_image_item().image_qrectf.width(), model.get_current_image_item().image_qrectf.height()))
+        self.min_size = 1
+
         self.radius = params.get("size", 10)
         self.absolute_mode = params.get("absolute_mode", 0)
         self.eraser_mode = params.get("mode", "original")  # original, absolute, or intelligent
@@ -33,15 +36,16 @@ class EraserSetting(QDialog):
         
         self.radius_label = QLabel("Radius:")
         self.radius_slider = QSlider(Qt.Orientation.Horizontal)
-        self.radius_slider.setRange(0, 100)
+        self.radius_slider.setRange(self.min_size, self.max_size)
         self.radius_slider.setSingleStep(2)
         self.radius_slider.setValue(initial_radius)
         self.radius_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.radius_slider.setTickInterval(10)
+        tick_interval = max(1, self.max_size // 20)
+        self.radius_slider.setTickInterval(tick_interval)
 
         self.value_label = QLabel("Value:")
         self.radius_spinbox = QSpinBox()
-        self.radius_spinbox.setRange(0, 100)
+        self.radius_spinbox.setRange(self.min_size, self.max_size)
         self.radius_spinbox.setSingleStep(2)
         self.radius_spinbox.setValue(initial_radius)
         

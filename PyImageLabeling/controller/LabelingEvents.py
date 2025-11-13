@@ -117,7 +117,7 @@ class LabelingEvents(Events):
    
     def eraser_setting(self):
         self.all_events(self.eraser_setting.__name__)
-        erasersetting = EraserSetting(self.view.zoomable_graphics_view)
+        erasersetting = EraserSetting(self.view.zoomable_graphics_view, self.model)
         if erasersetting.exec():
             self.view.desactivate_buttons(self.eraser.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
             self.eraser()

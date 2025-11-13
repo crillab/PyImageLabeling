@@ -157,6 +157,8 @@ class LabelEvents(Events):
                         if image_item is not None and label_id in image_item.labeling_overlays:
                             image_item.labeling_overlays[label_id].reset()
                             self.model.clear_all_rectangles(self.model.get_current_label_item().get_label_id())
+                            self.model.clear_all_polygons(self.model.get_current_label_item().get_label_id())
+                            self.model.clear_all_ellipses(self.model.get_current_label_item().get_label_id())
 
                     # Put the good labeling buttons according to the mode 
                     self.view.update_labeling_buttons(label_setting.labeling_mode)
