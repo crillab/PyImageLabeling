@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsIt
 from PyImageLabeling.model.Core import Core
 import math
 from PyImageLabeling.model.Utils import Utils
-
+import numpy
+from collections import deque
 class EraserBrushItem(QGraphicsItem):
 
     def __init__(self, core, x, y, color, size, absolute_mode):
@@ -82,6 +83,7 @@ class Eraser(Core):
         self.last_position_x, self.last_position_y = None, None
         self.point_spacing = 2
         self.eraser_brush_items = []
+        self.eraser_mode = "original" 
 
     def eraser(self):
         self.checked_button = self.eraser.__name__      
@@ -94,7 +96,12 @@ class Eraser(Core):
 
         self.size_eraser_brush = Utils.load_parameters()["eraser"]["size"] 
         self.absolute_mode = Utils.load_parameters()["eraser"]["absolute_mode"]
+        self.eraser_mode = Utils.load_parameters()["eraser"].get("mode", "original")
         self.color = self.get_current_label_item().get_color()
+
+        if self.eraser_mode == "intelligent":
+            self.intelligent_erase(self.current_position_x, self.current_position_y)
+            return
         
         eraser_brush_item = EraserBrushItem(self, self.current_position_x, self.current_position_y, self.color, self.size_eraser_brush, self.absolute_mode)
         eraser_brush_item.setZValue(4) # To place in the top of the item
@@ -104,6 +111,9 @@ class Eraser(Core):
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
     def move_eraser(self, current_position):
+        if self.eraser_mode == "intelligent":
+            return
+    
         self.current_position_x = int(current_position.x())
         self.current_position_y = int(current_position.y())
 
@@ -118,6 +128,9 @@ class Eraser(Core):
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
     def end_eraser(self):  
+        if self.eraser_mode == "intelligent":
+            return
+    
         # Remove the dislay of all these item
         for item in self.eraser_brush_items:
             self.zoomable_graphics_view.scene.removeItem(item)
@@ -132,3 +145,91 @@ class Eraser(Core):
             # Update only current labeling overlay
             self.get_current_image_item().update_labeling_overlay()
             self.get_current_image_item().get_labeling_overlay().reset_pen()
+
+    def intelligent_erase(self, x, y):
+        """Erase an entire connected shape at the clicked position using flood fill"""
+        
+        # Get the current labeling overlay
+        current_overlay = self.get_current_image_item().get_labeling_overlay()
+        overlay_pixmap = current_overlay.labeling_overlay_pixmap
+        
+        # Convert pixmap to QImage for pixel access
+        image = overlay_pixmap.toImage()
+        
+        # Check bounds
+        if x < 0 or x >= image.width() or y < 0 or y >= image.height():
+            return
+        
+        # Get the color at the clicked position
+        clicked_color = image.pixelColor(x, y)
+        
+        # If the clicked pixel is transparent, nothing to erase
+        if clicked_color.alpha() == 0:
+            return
+        
+        # Perform flood fill to find all connected pixels
+        pixels_to_erase = self.flood_fill(image, x, y, clicked_color)
+        
+        if not pixels_to_erase:
+            return
+        
+        # Erase the shape
+        painter = current_overlay.get_painter()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        
+        # Draw all pixels as a single operation for efficiency
+        pen = QPen(Qt.GlobalColor.black, 1)
+        painter.setPen(pen)
+        
+        for px, py in pixels_to_erase:
+            painter.drawPoint(px, py)
+        
+        # Update the overlay
+        current_overlay.update()
+        current_overlay.reset_pen()
+
+    def flood_fill(self, image, start_x, start_y, target_color, tolerance=10):
+        """
+        Flood fill algorithm to find all connected pixels of similar color
+        Returns a set of (x, y) coordinates
+        """
+        width = image.width()
+        height = image.height()
+        
+        visited = set()
+        pixels_to_erase = []
+        stack = [(start_x, start_y)]
+        
+        def colors_match(color1, color2, tolerance):
+            """Check if two colors are similar within tolerance"""
+            return (abs(color1.red() - color2.red()) <= tolerance and
+                    abs(color1.green() - color2.green()) <= tolerance and
+                    abs(color1.blue() - color2.blue()) <= tolerance and
+                    abs(color1.alpha() - color2.alpha()) <= tolerance)
+        
+        while stack:
+            x, y = stack.pop()
+            
+            # Skip if out of bounds or already visited
+            if x < 0 or x >= width or y < 0 or y >= height or (x, y) in visited:
+                continue
+            
+            visited.add((x, y))
+            
+            # Get pixel color
+            pixel_color = image.pixelColor(x, y)
+            
+            # Check if color matches (within tolerance)
+            if not colors_match(pixel_color, target_color, tolerance):
+                continue
+            
+            # Add to erase list
+            pixels_to_erase.append((x, y))
+            
+            # Add neighbors to stack (4-connected)
+            stack.append((x + 1, y))
+            stack.append((x - 1, y))
+            stack.append((x, y + 1))
+            stack.append((x, y - 1))
+        
+        return pixels_to_erase
