@@ -203,21 +203,34 @@ class Builder:
         
         labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0, 1, 1)  
-        
     
     def build_graphics_view(self):
         self.graphics_view_container = QWidget()
-        self.graphics_view_layout = QStackedLayout(self.graphics_view_container)
-        
+        graphics_view_main_layout = QVBoxLayout(self.graphics_view_container)
+        graphics_view_main_layout.setSpacing(0)
+        graphics_view_main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Create the stacked layout for the graphics view
+        self.graphics_view_layout = QStackedLayout()
+        self.graphics_view_layout.setContentsMargins(0, 0, 0, 0)
+        graphics_view_main_layout.addLayout(self.graphics_view_layout)
 
         self.view.zoomable_graphics_view = ZoomableGraphicsView(self.view)
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)  
+        self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)
+
+        # Create the "Image Option" button as a child of the graphics view
+        self.view.image_option_button = QPushButton("Image Option", self.view.zoomable_graphics_view)
+        self.view.image_option_button.setObjectName("image_option_button")
+        self.view.image_option_button.setToolTip("Image options")
+        self.view.image_option_button.clicked.connect(self.view.controller.image_option)
+        self.view.image_option_button.raise_() 
         
+        # Position the button at top-right
+        self.view.image_option_button.move(10, 10)
+
         self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 3, 1)
-        self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])    
-        
-        #self.right_layout_container.setMinimumSize(self.view.right_panel_width, self.view.right_panel_height)
+        self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])
     
     def build_image_bar(self):
         self.image_bar_container_1 = QWidget()
