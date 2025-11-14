@@ -753,6 +753,36 @@ class Core():
             if image_item is not None:
                 image_item.update_icon_file()
 
+    def update_thickness(self, new_thickness):
+        # Update thickness in stored data for all images
+        for file in self.file_paths:
+            image_item = self.image_items[file]
+            if image_item is not None:
+                # Update thickness in stored data
+                for rect_data in image_item.image_rectangles:
+                    rect_data['thickness'] = new_thickness
+                for ellipse_data in image_item.image_ellipses:
+                    ellipse_data['thickness'] = new_thickness
+                for polygon_data in image_item.image_polygons:
+                    polygon_data['thickness'] = new_thickness
+        
+        # Restore shapes for current image to apply new thickness visually
+        if self.current_image_item is not None:
+            current_path = self.current_image_item.path_image
+            
+            # Remove existing geometric shapes from scene
+            for item in list(self.zoomable_graphics_view.scene.items()):
+                if isinstance(item, (RectangleItem, EllipseItem, PolygonItem)):
+                    self.zoomable_graphics_view.scene.removeItem(item)
+            
+            # Restore shapes with new thickness
+            if self.current_image_item.image_rectangles:
+                self.restore_rectangles_for_image(current_path)
+            if self.current_image_item.image_ellipses:
+                self.restore_ellipses_for_image(current_path)
+            if self.current_image_item.image_polygons:
+                self.restore_polygons_for_image(current_path)
+
     def update_color(self, label_id):
         for file in self.file_paths:
             image_item = self.image_items[file] 

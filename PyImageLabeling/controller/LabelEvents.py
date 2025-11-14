@@ -85,7 +85,19 @@ class LabelEvents(Events):
             print("color:", type(color))
             
             self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(color))
-            
+
+    def thickness(self, label_id, new_thickness):
+        """Handle thickness change event for a label."""
+        self.all_events(self.thickness.__name__)
+        
+        label_item = self.model.get_label_items()[label_id]
+        label_item.set_thickness(new_thickness)
+        self.model.update_thickness(new_thickness)
+        
+        # Save changes
+        self.model.save_labels(self.model.save_directory)
+        self.model.save_labels_geometric_shape(self.model.save_directory)
+
     def visibility(self, label_id):
         self.all_events(self.visibility.__name__)
         
@@ -167,7 +179,16 @@ class LabelEvents(Events):
                 label_item.set_color(label_setting.color)
                 self.model.update_color(label_id)
                 self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(label_setting.color))
-            
+
+            if label_item.get_labeling_mode() == self.view.config["labeling_bar"]["geometric"]["name_view"]:
+                print("caco")
+                old_thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
+                new_thickness = label_setting.thickness_spin.value()
+                data = Utils.load_parameters()
+                data["geometric_shape"]["thickness"] = new_thickness
+                Utils.save_parameters(data)
+                self.model.update_thickness(new_thickness)
+        
 
     def remove_label(self, label_id):
         self.all_events(self.remove_label.__name__)

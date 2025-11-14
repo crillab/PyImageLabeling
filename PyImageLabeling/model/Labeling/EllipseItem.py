@@ -3,7 +3,6 @@ from PyQt6.QtGui import QPen, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Utils import Utils
-HANDLE_SIZE = 8  # Size of handles for resizing
 HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
 
@@ -99,11 +98,11 @@ class EllipseItem(QGraphicsEllipseItem):
         
         # Create handle rectangles centered on these points
         self.handles = {
-            'right': QRectF(right_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom': QRectF(bottom_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'left': QRectF(left_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'top': QRectF(top_point - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'rotation': QRectF(QPointF(rect.center()) - QPointF(HANDLE_SIZE/2, HANDLE_SIZE/2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
+            'right': QRectF(right_point - QPointF(self.thickness/2, self.thickness/2), QSizeF(self.thickness, self.thickness)),
+            'bottom': QRectF(bottom_point - QPointF(self.thickness/2, self.thickness/2), QSizeF(self.thickness, self.thickness)),
+            'left': QRectF(left_point - QPointF(self.thickness/2, self.thickness/2), QSizeF(self.thickness, self.thickness)),
+            'top': QRectF(top_point - QPointF(self.thickness/2, self.thickness/2), QSizeF(self.thickness, self.thickness)),
+            'rotation': QRectF(QPointF(rect.center()) - QPointF(self.thickness/2, self.thickness/2), QSizeF(self.thickness, self.thickness))
         }
 
     def check_handle_proximity(self, pos):

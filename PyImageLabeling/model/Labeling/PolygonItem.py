@@ -3,7 +3,6 @@ from PyQt6.QtGui import QPen, QBrush, QPolygonF
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Utils import Utils
-HANDLE_SIZE = 8
 HANDLE_DETECTION_DISTANCE = 15
 
 
@@ -55,16 +54,16 @@ class PolygonItem(QGraphicsPolygonItem):
         polygon = self.polygon()
         self.handles = {
             f"vertex_{i}": QRectF(
-                point - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2),
-                QSizeF(HANDLE_SIZE, HANDLE_SIZE),
+                point - QPointF(self.thickness / 2, self.thickness / 2),
+                QSizeF(self.thickness, self.thickness),
             )
             for i, point in enumerate(polygon)
         }
         if not polygon.isEmpty():
             center = polygon.boundingRect().center()
             self.handles["rotation"] = QRectF(
-                center - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2),
-                QSizeF(HANDLE_SIZE, HANDLE_SIZE),
+                center - QPointF(self.thickness / 2, self.thickness / 2),
+                QSizeF(self.thickness, self.thickness),
             )
 
     @staticmethod

@@ -3,7 +3,6 @@ from PyQt6.QtGui import QPen, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Utils import Utils
-HANDLE_SIZE = 8
 HANDLE_DETECTION_DISTANCE = 15
 MIN_RECT_SIZE = 10
 
@@ -61,11 +60,11 @@ class RectangleItem(QGraphicsRectItem):
     def update_handles(self):
         rect = self.rect()
         self.handles = {
-            'top_left': QRectF(rect.topLeft() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'top_right': QRectF(rect.topRight() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom_left': QRectF(rect.bottomLeft() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
-            'bottom_right': QRectF(rect.bottomRight() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE))
-#            'rotation': QRectF(rect.center() - QPointF(HANDLE_SIZE / 2, HANDLE_SIZE / 2), QSizeF(HANDLE_SIZE, HANDLE_SIZE)),
+            'top_left': QRectF(rect.topLeft() - QPointF(self.thickness / 2, self.thickness / 2), QSizeF(self.thickness, self.thickness)),
+            'top_right': QRectF(rect.topRight() - QPointF(self.thickness / 2, self.thickness / 2), QSizeF(self.thickness, self.thickness)),
+            'bottom_left': QRectF(rect.bottomLeft() - QPointF(self.thickness / 2, self.thickness / 2), QSizeF(self.thickness, self.thickness)),
+            'bottom_right': QRectF(rect.bottomRight() - QPointF(self.thickness / 2, self.thickness / 2), QSizeF(self.thickness, self.thickness))
+#            'rotation': QRectF(rect.center() - QPointF(self.thickness / 2, self.thickness / 2), QSizeF(self.thickness, self.thickness)),
         }
 
     def check_handle_proximity(self, pos):

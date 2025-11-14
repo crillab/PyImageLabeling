@@ -23,7 +23,6 @@ class LabelSetting(QDialog):
         self.labeling_mode = labeling_mode_pixel if labeling_mode is None else labeling_mode
         self.importdata = False
         self.setWindowTitle("Label Setting")
-        
         layout = QFormLayout()
         
         label_layout = QHBoxLayout()
@@ -168,7 +167,7 @@ class LabelSetting(QDialog):
                 return
             self.parent().view.controller.model.save_directory = self.destination_directory
         else :
-            self.destination_directory == self.parent().view.controller.model.save_directory
+            self.destination_directory = self.parent().view.controller.model.save_directory
 
         self.import_button.setText("Import Ready")
 

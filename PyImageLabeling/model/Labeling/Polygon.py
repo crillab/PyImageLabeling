@@ -72,7 +72,7 @@ class Polygon(Core):
             prev_point = self.polygon_points[-1]
             self.polygon_points.append(pos)
             line = QGraphicsLineItem(prev_point.x(), prev_point.y(), pos.x(), pos.y())
-            pen = QPen(self.color, 2, Qt.PenStyle.DashLine)
+            pen = QPen(self.color, self.thickness, Qt.PenStyle.DashLine)
             line.setPen(pen)
             line.setZValue(2)
             self.zoomable_graphics_view.scene.addItem(line)
@@ -87,7 +87,7 @@ class Polygon(Core):
             self.zoomable_graphics_view.scene.removeItem(self.preview_line)
         last_point = self.polygon_points[-1]
         self.preview_line = QGraphicsLineItem(last_point.x(), last_point.y(), pos.x(), pos.y())
-        pen = QPen(self.color, 1, Qt.PenStyle.DotLine)
+        pen = QPen(self.color, self.thickness, Qt.PenStyle.DotLine)
         self.preview_line.setPen(pen)
         self.preview_line.setZValue(1)
         self.zoomable_graphics_view.scene.addItem(self.preview_line)
