@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsItem
 from PyQt6.QtGui import QPen, QBrush, QPolygonF
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
-
+from PyImageLabeling.model.Utils import Utils
 HANDLE_SIZE = 8
 HANDLE_DETECTION_DISTANCE = 15
 
@@ -10,8 +10,8 @@ HANDLE_DETECTION_DISTANCE = 15
 class PolygonItem(QGraphicsPolygonItem):
     def __init__(self, polygon, color=Qt.GlobalColor.red):
         super().__init__(polygon)
-
-        self.pen = QPen(color, 2)
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
+        self.pen = QPen(color, self.thickness)
         self.pen.setStyle(Qt.PenStyle.SolidLine)
         self.setPen(self.pen)
 

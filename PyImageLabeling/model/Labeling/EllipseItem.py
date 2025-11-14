@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem
 from PyQt6.QtGui import QPen, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
-
+from PyImageLabeling.model.Utils import Utils
 HANDLE_SIZE = 8  # Size of handles for resizing
 HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 
@@ -10,8 +10,8 @@ HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 class EllipseItem(QGraphicsEllipseItem):
     def __init__(self, x, y, width, height, color=Qt.GlobalColor.red, rotation=0):
         super().__init__(x, y, width, height)
-
-        self.pen = QPen(color, 2)
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
+        self.pen = QPen(color, self.thickness)
         self.pen.setStyle(Qt.PenStyle.SolidLine)
         self.setPen(self.pen)
 

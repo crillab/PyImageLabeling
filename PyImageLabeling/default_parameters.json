@@ -35,5 +35,8 @@
     "undo": {
         "depth": 5
     },
+    "geometric_shape": {
+        "thickness": 5
+    },
     "labeling_opacity": 32
 }

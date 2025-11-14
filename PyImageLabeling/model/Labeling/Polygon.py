@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsLineItem, QGraphicsEl
 from PyQt6.QtGui import QPen, QBrush, QPolygonF
 from PyQt6.QtCore import Qt, QPointF
 import math
-
+from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 
 CLOSE_DISTANCE = 20
@@ -18,6 +18,7 @@ class Polygon(Core):
         self.first_point_indicator = None
         self.preview_line = None
         self.selected_polygon = None
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"] 
 
     def polygon(self):
         """Activate the polygon drawing tool"""
@@ -53,7 +54,7 @@ class Polygon(Core):
 
             # Add a visual indicator for the first point
             self.first_point_indicator = QGraphicsEllipseItem(pos.x() - 5, pos.y() - 5, 10, 10)
-            self.first_point_indicator.setPen(QPen(self.color, 2))
+            self.first_point_indicator.setPen(QPen(self.color, self.thickness))
             self.first_point_indicator.setBrush(QBrush(self.color))
             self.first_point_indicator.setZValue(3)
             self.zoomable_graphics_view.scene.addItem(self.first_point_indicator)

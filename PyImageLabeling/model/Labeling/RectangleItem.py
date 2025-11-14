@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem
 from PyQt6.QtGui import QPen, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
-
+from PyImageLabeling.model.Utils import Utils
 HANDLE_SIZE = 8
 HANDLE_DETECTION_DISTANCE = 15
 MIN_RECT_SIZE = 10
@@ -19,8 +19,8 @@ class RectangleItem(QGraphicsRectItem):
 
     def __init__(self, x, y, width, height, color=Qt.GlobalColor.red):
         super().__init__(x, y, width, height)
-
-        pen = QPen(color, 2, Qt.PenStyle.SolidLine)
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
+        pen = QPen(color, self.thickness, Qt.PenStyle.SolidLine)
         self.setPen(pen)
 
 
@@ -38,6 +38,7 @@ class RectangleItem(QGraphicsRectItem):
         self.handles_visible = False
         self.initial_rotation = 0
         self.initial_angle = 0
+        
 
         self.update_handles()
 

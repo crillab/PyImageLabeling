@@ -4,7 +4,7 @@ from PyQt6.QtGui import QPen, QCursor, QBrush, QColor
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
-
+from PyImageLabeling.model.Utils import Utils
 class Ellipse(Core):
     def __init__(self):
         super().__init__()
@@ -12,7 +12,8 @@ class Ellipse(Core):
         self.current_ellipse = None
         self.is_drawing = False
         self.selected_ellipse = None
-
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"] 
+        
     def ellipse(self):
         self.checked_button = self.ellipse.__name__
         self.zoomable_graphics_view.scene.selectionChanged.connect(self.update_selected_ellipse)
@@ -36,7 +37,7 @@ class Ellipse(Core):
             self.first_click_pos.y(),
             1, 1
         )
-        pen = QPen(self.color, 2, Qt.PenStyle.DashLine)
+        pen = QPen(self.color, self.thickness, Qt.PenStyle.DashLine)
         self.current_ellipse.setPen(pen)
         self.current_ellipse.setZValue(2)
         self.zoomable_graphics_view.scene.addItem(self.current_ellipse)

@@ -68,6 +68,14 @@ class LabelSetting(QDialog):
         self.color_button.clicked.connect(self.select_color)
         self.color_update(self.color)  
         layout.addRow("Color:", self.color_button)
+
+        # Thickness selection (only for geometric mode)
+        self.thickness_spin = QSpinBox()
+        self.thickness_spin.setRange(1, 100)
+        self.thickness_spin.setValue(Utils.load_parameters()["geometric_shape"]["thickness"])
+        self.thickness_spin.setVisible(self.labeling_mode == labeling_mode_geometric)
+        layout.addRow("Thickness:", self.thickness_spin)
+        self.thickness_label = layout.labelForField(self.thickness_spin)
         
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.accepted.connect(self.accept) 
@@ -75,6 +83,7 @@ class LabelSetting(QDialog):
         layout.addRow(self.buttons)
         
         self.setLayout(layout)
+        self.mode_update(self.labeling_mode)
 
     def name_update(self, name):
         self.name = name
@@ -83,8 +92,12 @@ class LabelSetting(QDialog):
         self.labeling_mode = labeling_mode
         if labeling_mode == self.parent().view.config["labeling_bar"]["pixel"]["name_view"]:
             self.import_button.setVisible(True)
+            self.thickness_spin.setVisible(False)
+            self.thickness_label.setVisible(False)
         else:
             self.import_button.setVisible(False)
+            self.thickness_spin.setVisible(True)
+            self.thickness_label.setVisible(True)
 
     def color_update(self, color):
         """Update color button appearance to show current color"""
@@ -102,6 +115,10 @@ class LabelSetting(QDialog):
         self.name = self.label_combo.currentText()
         self.labeling_mode = self.mode_combo.currentText()
         self.process_import_data()
+        if self.labeling_mode == self.parent().view.config["labeling_bar"]["geometric"]["name_view"]:
+            data = Utils.load_parameters()
+            data["geometric_shape"]["thickness"] = self.thickness_spin.value()
+            Utils.save_parameters(data)
         return super().accept()
     
     def import_data(self):

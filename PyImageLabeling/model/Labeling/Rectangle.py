@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QGraphicsRectItem
 from PyQt6.QtGui import QPen, QCursor, QBrush, QColor
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
-
+from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 
 class Rectangle(Core):
@@ -13,6 +13,7 @@ class Rectangle(Core):
         self.current_rectangle = None
         self.is_drawing = False
         self.selected_rectangle = None
+        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"] 
 
     def rectangle(self):
         self.checked_button = self.rectangle.__name__
@@ -32,7 +33,7 @@ class Rectangle(Core):
         self.is_drawing = True
 
         self.current_rectangle = QGraphicsRectItem(self.first_click_pos.x(), self.first_click_pos.y(), 1, 1)
-        self.current_rectangle.setPen(QPen(self.color, 2, Qt.PenStyle.DashLine))
+        self.current_rectangle.setPen(QPen(self.color, self.thickness, Qt.PenStyle.DashLine))
         self.current_rectangle.setZValue(2)
         self.zoomable_graphics_view.scene.addItem(self.current_rectangle)
 
