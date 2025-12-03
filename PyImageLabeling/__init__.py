@@ -22,7 +22,7 @@ def __main__():
     controller.set_model(model)
     
     sys.exit(app.exec())
-
+    
 if sys.argv:
     if  (len(sys.argv) != 0 and sys.argv[0] == "-m"):
         print("Python version: ", __python_version__)

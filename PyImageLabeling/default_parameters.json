@@ -38,5 +38,7 @@
     "geometric_shape": {
         "thickness": 5
     },
-    "labeling_opacity": 32
+    "labeling_opacity": 32,
+    "autosave_enabled": true,
+    "autosave_interval": 300000
 }

@@ -219,15 +219,28 @@ class Builder:
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)
 
-        # Create the "Image Option" button as a child of the graphics view
-        self.view.image_option_button = QPushButton("Image Option", self.view.zoomable_graphics_view)
-        self.view.image_option_button.setObjectName("image_option_button")
-        self.view.image_option_button.setToolTip("Image options")
+        self.option_container = QWidget(self.view.zoomable_graphics_view)
+        self.option_container.setGeometry(10, 10, 1, 1)  # temporary size
+        self.option_container.raise_()
+
+        # Horizontal layout for the two buttons
+        layout = QHBoxLayout(self.option_container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        # Image Option button
+        self.view.image_option_button = QPushButton("Image Option")
         self.view.image_option_button.clicked.connect(self.view.controller.image_option)
-        self.view.image_option_button.raise_() 
-        
-        # Position the button at top-right
-        self.view.image_option_button.move(10, 10)
+        layout.addWidget(self.view.image_option_button)
+
+        # Option button
+        self.view.option_button = QPushButton("Option")
+        self.view.option_button.clicked.connect(self.view.controller.global_option)
+        layout.addWidget(self.view.option_button)
+
+        # Make the container resize to fit its contents
+        self.option_container.adjustSize()
+
 
         self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 3, 1)
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])

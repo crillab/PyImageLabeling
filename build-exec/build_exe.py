@@ -5,9 +5,4 @@ import os
 print("Type 'enter' to execute:")
 input()
 
-os.system("pyinstaller --onefile --noconsole --name 'PyImageLabeling'"
-"--add-data 'config.json;.'"
-" --add-data 'parameters.json;.'"
-" --add-data 'style.css;.'"
-" --add-data 'icons/*.png;icons'"
-" --icon 'icons/maia3.ico' __init__.py")
+os.system("pyinstaller --onefile --noconsole --name 'PyImageLabeling'--add-data 'PyImageLabeling/config.json;.' --add-data 'PyImageLabeling/default_parameters.json;.' --add-data 'PyImageLabeling/style.css;.'--add-data 'PyImageLabeling/icons/*.png;icons'--icon 'PyImageLabeling/icons/maia3.ico' PyImageLabeling/__main__.py")

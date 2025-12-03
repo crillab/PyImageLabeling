@@ -80,6 +80,13 @@ class Utils:
         with open(config_path, 'r', encoding='utf-8') as file:
             return json.load(file)
 
+    
+    @staticmethod
+    def save_parameters(data):
+        param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
+        with open(param_path, 'w', encoding='utf-8') as fp:
+            json.dump(data, fp, indent=4)
+            
     @staticmethod
     def load_parameters():
         default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
@@ -92,12 +99,6 @@ class Utils:
         
         with open(param_path, 'r', encoding='utf-8') as file:
             return json.load(file)
-
-    @staticmethod
-    def save_parameters(data):
-        param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
-        with open(param_path, 'w', encoding='utf-8') as fp:
-            json.dump(data, fp, indent=4)
 
     @staticmethod
     def color_to_stylesheet(color):

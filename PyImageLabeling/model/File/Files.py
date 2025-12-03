@@ -96,10 +96,8 @@ class Files(Core):
         if len(selected_directories) == 0 or len(selected_directories[0]) == 0:
             return
         
-        target_directory = selected_directories[0]
-        
         # Call the parent class save_copy method with the target directory
-        super().save_copy(target_directory)
+        super().save_copy()
 
     def load(self, default_path=None):
         if default_path is None:

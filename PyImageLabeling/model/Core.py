@@ -1,6 +1,6 @@
 
 from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QTimer, QDateTime
 from PyQt6.QtWidgets import QFileDialog
 from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
 
@@ -679,6 +679,7 @@ class Core():
         self.icon_button_files = dict()
 
         self.save_directory = ""
+        self.copy_save_dir = ""
 
         # For a file_path, say if a labeling overview was loaded or not   
         self.labeling_overview_was_loaded = dict() # Dictionnary: (key: basename) -> (value: True or False)
@@ -691,6 +692,35 @@ class Core():
         self.left_ellipses = {}
         self.left_polygons = {}
 
+        self.autosave_timer = QTimer()
+        self.autosave_timer.timeout.connect(self.auto_save)
+        self.autosave_interval = Utils.load_parameters().get("autosave_interval", 300000)  # Default 5 minutes in ms
+        self.autosave_enabled = Utils.load_parameters().get("autosave_enabled", True)
+        
+        if self.autosave_enabled:
+            self.autosave_timer.start(self.autosave_interval)
+
+    def auto_save(self):
+        """Automatically save if there are unsaved changes"""
+        if self.get_edited() and self.copy_save_dir:
+            self.save_labels(self.copy_save_dir)
+            self.save_overlays(self.copy_save_dir)
+            self.save_labels_geometric_shape(self.copy_save_dir)
+            print(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
+
+    def set_autosave_enabled(self, enabled):
+        """Enable or disable auto-save"""
+        self.autosave_enabled = enabled
+        if enabled and not self.autosave_timer.isActive():
+            self.autosave_timer.start(self.autosave_interval)
+        elif not enabled and self.autosave_timer.isActive():
+            self.autosave_timer.stop()
+
+    def set_autosave_interval(self, interval_ms):
+        """Set auto-save interval in milliseconds"""
+        self.autosave_interval = interval_ms
+        if self.autosave_timer.isActive():
+            self.autosave_timer.start(self.autosave_interval)
 
     def reset(self):
         
@@ -705,8 +735,10 @@ class Core():
                 for labeling_overlay_key in to_delete:
                     
                     del self.image_items[file].labeling_overlays[labeling_overlay_key]
-                    
-
+        if hasattr(self, 'autosave_timer'):
+            self.autosave_timer.stop()
+            if self.autosave_enabled:
+                self.autosave_timer.start(self.autosave_interval)
         
     def get_edited(self):
         for file in self.file_paths:
@@ -884,17 +916,23 @@ class Core():
         self.save_overlays(self.save_directory)
         self.save_labels_geometric_shape(self.save_directory)
 
-    def save_copy(self, target_directory):
-        if not os.path.exists(target_directory):
-            os.makedirs(target_directory)
-        
-        self.save_labels(target_directory)
-        
-        for file in self.file_paths:
-            image_item = self.image_items[file] 
-            if image_item is not None:
-                for labeling_overlay in image_item.labeling_overlays.values():
-                    labeling_overlay.save(target_directory, image_item.path_image)
+    def save_copy(self):
+        # Le dossier de copie n'a pas encore été défini → demander une seule fois
+        if not self.copy_save_dir:
+            directory = QFileDialog.getExistingDirectory(
+                self.view,
+                "Choisir un dossier pour Save Copy"
+            )
+            if not directory:
+                return
+            self.copy_save_dir = directory
+
+        # Sauvegarde silencieuse dans le dossier défini
+        self.save_labels(self.copy_save_dir)
+        self.save_overlays(self.copy_save_dir)
+        self.save_labels_geometric_shape(self.copy_save_dir)
+
+        print("Save Copy effectuée dans :", self.copy_save_dir)
 
     def load_labels_json(self, file):
         with open(file, "r") as fp:

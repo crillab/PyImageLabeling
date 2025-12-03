@@ -1,6 +1,6 @@
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.ImageOptionDialog import ImageOptionDialog
-        
+from PyImageLabeling.controller.settings. GlobalOptionDialog import GlobalOptionDialog
 
 class ImageEvents(Events):
     def __init__(self):
@@ -41,6 +41,11 @@ class ImageEvents(Events):
             self.model.current_image_item.image_numpy_pixels_rgb = None
             
             self.view.statusBar().showMessage("Image modifications applied")
+
+    def global_option(self):
+        dialog = GlobalOptionDialog(self.view, self.model)
+        if dialog.exec():
+            self.view.statusBar().showMessage("Global options saved")
 
 
 

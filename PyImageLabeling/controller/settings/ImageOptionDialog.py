@@ -12,6 +12,14 @@ class ImageOptionDialog(QDialog):
         super().__init__(parent)
         self.parent = parent
         self.image_item = image_item
+        self.is_valid = False
+        
+        # Check if image_item is valid
+        if image_item is None or not hasattr(image_item, 'path_image'):
+            self.reject()
+            return
+            
+        self.is_valid = True
         self.original_path = image_item.path_image
 
         # Load original image from the image_item
@@ -179,10 +187,7 @@ class ImageOptionDialog(QDialog):
         self.source_color_btn.setEnabled(enabled)
         self.target_color_btn.setEnabled(enabled)
         self.tolerance_slider.setEnabled(enabled)
-        if not enabled:
-            self.source_color = None
-            self.target_color = None
-        self.update_preview()
+        self.apply_color_btn.setEnabled(enabled)
 
     def on_tolerance_changed(self, value):
         self.color_tolerance = value
@@ -214,14 +219,6 @@ class ImageOptionDialog(QDialog):
             # Update preview with new replacement applied
             self.update_preview()
             self.parent.statusBar().showMessage(f"Color replacement added ({len(self.color_replacements)} total)")
-            
-    def on_color_replace_enabled(self, state):
-        enabled = state == Qt.CheckState.Checked.value
-        self.color_replace_enabled = enabled
-        self.source_color_btn.setEnabled(enabled)
-        self.target_color_btn.setEnabled(enabled)
-        self.tolerance_slider.setEnabled(enabled)
-        self.apply_color_btn.setEnabled(enabled)
 
     def select_source_color(self):
         color = QColorDialog.getColor()
@@ -240,6 +237,9 @@ class ImageOptionDialog(QDialog):
                 self.apply_color_btn.setEnabled(True)
 
     def update_preview(self):
+        if not self.is_valid:
+            return
+            
         # Start with original image
         image = self.original_image.copy()
         
@@ -283,6 +283,9 @@ class ImageOptionDialog(QDialog):
 
     def reset_image(self):
         """Reset to original image"""
+        if not self.is_valid:
+            return
+            
         # Reset all sliders and checkboxes
         self.invert_checkbox.setChecked(False)
         self.brightness_slider.setValue(0)
@@ -325,6 +328,10 @@ class ImageOptionDialog(QDialog):
         self.accept()
 
     def reject(self):
+        if not self.is_valid:
+            super().reject()
+            return
+            
         # Restore original image when canceling
         self.image_item.image_pixmap = self.original_pixmap.copy()
         self.image_item.image_item.setPixmap(self.original_pixmap)
