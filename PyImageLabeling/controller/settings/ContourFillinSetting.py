@@ -1,20 +1,24 @@
-from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout
+from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout, QHBoxLayout, QGroupBox
 from PyQt6.QtCore import Qt
-
 from PyImageLabeling.model.Utils import Utils
 
 class ContourFillingSetting(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
         self.setWindowTitle("Contour Filling Settings")
-        self.resize(500, 100)
-
-        self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"] 
+        self.resize(500, 200)
+        self.tolerance = Utils.load_parameters()["contour_filling"]["tolerance"]
 
         layout = QVBoxLayout()
-        form_layout = QFormLayout()
 
-        # Tolerance slider and spinbox
+        # Tolerance Group
+        tolerance_group = QGroupBox("Tolerance")
+        tolerance_layout = QVBoxLayout()
+
+        tolerance_label = QLabel("Set contour filling tolerance:")
+        tolerance_layout.addWidget(tolerance_label)
+
+        tolerance_slider_layout = QHBoxLayout()
         self.tolerance_slider = QSlider(Qt.Orientation.Horizontal)
         self.tolerance_slider.setRange(1, 20)
         self.tolerance_slider.setValue(self.tolerance)
@@ -25,23 +29,21 @@ class ContourFillingSetting(QDialog):
         self.tolerance_spinbox.setRange(1, 20)
         self.tolerance_spinbox.setValue(self.tolerance)
 
-        # Connect both ways to keep them synchronized
         self.tolerance_spinbox.valueChanged.connect(self.tolerance_slider.setValue)
         self.tolerance_slider.valueChanged.connect(self.tolerance_spinbox.setValue)
-
-        # Update internal values when sliders change
         self.tolerance_slider.valueChanged.connect(self.update_tolerance)
         self.tolerance_spinbox.valueChanged.connect(self.update_tolerance)
 
-        form_layout.addRow("Tolerance:", self.tolerance_slider)
-        form_layout.addRow("Value:", self.tolerance_spinbox)
+        tolerance_slider_layout.addWidget(self.tolerance_slider)
+        tolerance_slider_layout.addWidget(self.tolerance_spinbox)
+        tolerance_layout.addLayout(tolerance_slider_layout)
 
-        # Label to display the tolerance description
         self.tolerance_description_label = QLabel()
         self.update_tolerance_description()
-        form_layout.addRow("Description:", self.tolerance_description_label)
+        tolerance_layout.addWidget(self.tolerance_description_label)
 
-        layout.addLayout(form_layout)
+        tolerance_group.setLayout(tolerance_layout)
+        layout.addWidget(tolerance_group)
 
         # Buttons
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -80,25 +82,19 @@ class ContourFillingSetting(QDialog):
             19: "Level 19 – Extreme Sensitivity: All possible edges detected, noise likely.",
             20: "Level 20 – Maximum Tolerance: Detects every possible contour, heavy cleanup required."
         }
-
         description = descriptions.get(self.tolerance, "Unknown tolerance level")
         self.tolerance_description_label.setText(description)
 
     def get_settings(self):
         """Return current settings from the UI controls"""
-        # Get values directly from the controls to ensure we have the latest values
         tolerance = self.tolerance_slider.value()
-
-        # Also update internal variables for consistency
         self.tolerance = tolerance
         return tolerance
 
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
-        # Update internal values one final time
         self.tolerance = self.tolerance_slider.value()
         data = Utils.load_parameters()
         data["contour_filling"]["tolerance"] = self.tolerance
-        Utils.save_parameters(data) 
+        Utils.save_parameters(data)
         return super().accept()
-    

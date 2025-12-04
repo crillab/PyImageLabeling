@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QGroupBox, QColorDialog, QCheckBox, QFormLayout, QDialogButtonBox, QSpinBox, QComboBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtGui import QPixmap, QImage, QColor
 import cv2
 import numpy as np
 
@@ -13,19 +13,14 @@ class ImageOptionDialog(QDialog):
         self.parent = parent
         self.image_item = image_item
         self.is_valid = False
-        
-        # Check if image_item is valid
+
         if image_item is None or not hasattr(image_item, 'path_image'):
             self.reject()
             return
-            
+
         self.is_valid = True
         self.original_path = image_item.path_image
-
-        # Load original image from the image_item
         self.original_pixmap = QPixmap(self.original_path)
-
-        # Convert pixmap to cv2 format
         qimage = self.original_pixmap.toImage()
         qimage = qimage.convertToFormat(QImage.Format.Format_RGB888)
         width = qimage.width()
@@ -34,10 +29,8 @@ class ImageOptionDialog(QDialog):
         ptr.setsize(qimage.sizeInBytes())
         arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width, 3))
         self.original_image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-
         self.modified_image = self.original_image.copy()
 
-        # Settings
         self.invert_colors = False
         self.brightness = 0
         self.contrast = 1.0
@@ -45,23 +38,32 @@ class ImageOptionDialog(QDialog):
         self.source_color = None
         self.target_color = None
         self.color_tolerance = 30
-        self.color_replacements = [] 
+        self.color_replacements = []
 
         self.setWindowTitle("Image Options")
         self.setModal(True)
-        self.resize(500, 300)
+        self.resize(500, 500)
         self.init_ui()
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
 
-        # Invert Colors
+        # Invert Colors Group
+        invert_group = QGroupBox("Invert Colors")
+        invert_layout = QVBoxLayout()
         self.invert_checkbox = QCheckBox("Invert image colors")
         self.invert_checkbox.stateChanged.connect(self.on_invert_changed)
-        form_layout.addRow("Invert Colors:", self.invert_checkbox)
+        invert_layout.addWidget(self.invert_checkbox)
+        invert_group.setLayout(invert_layout)
+        layout.addWidget(invert_group)
 
-        # Brightness
+        # Brightness Group
+        brightness_group = QGroupBox("Brightness")
+        brightness_layout = QVBoxLayout()
+        brightness_label = QLabel("Adjust image brightness:")
+        brightness_layout.addWidget(brightness_label)
+
+        brightness_slider_layout = QHBoxLayout()
         self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
         self.brightness_slider.setMinimum(-100)
         self.brightness_slider.setMaximum(100)
@@ -76,10 +78,19 @@ class ImageOptionDialog(QDialog):
         self.brightness_spinbox.valueChanged.connect(self.brightness_slider.setValue)
         self.brightness_slider.valueChanged.connect(self.brightness_spinbox.setValue)
 
-        form_layout.addRow("Brightness:", self.brightness_slider)
-        form_layout.addRow("Brightness Value:", self.brightness_spinbox)
+        brightness_slider_layout.addWidget(self.brightness_slider)
+        brightness_slider_layout.addWidget(self.brightness_spinbox)
+        brightness_layout.addLayout(brightness_slider_layout)
+        brightness_group.setLayout(brightness_layout)
+        layout.addWidget(brightness_group)
 
-        # Contrast
+        # Contrast Group
+        contrast_group = QGroupBox("Contrast")
+        contrast_layout = QVBoxLayout()
+        contrast_label = QLabel("Adjust image contrast:")
+        contrast_layout.addWidget(contrast_label)
+
+        contrast_slider_layout = QHBoxLayout()
         self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
         self.contrast_slider.setMinimum(0)
         self.contrast_slider.setMaximum(200)
@@ -94,13 +105,18 @@ class ImageOptionDialog(QDialog):
         self.contrast_spinbox.valueChanged.connect(self.contrast_slider.setValue)
         self.contrast_slider.valueChanged.connect(self.contrast_spinbox.setValue)
 
-        form_layout.addRow("Contrast:", self.contrast_slider)
-        form_layout.addRow("Contrast Value:", self.contrast_spinbox)
+        contrast_slider_layout.addWidget(self.contrast_slider)
+        contrast_slider_layout.addWidget(self.contrast_spinbox)
+        contrast_layout.addLayout(contrast_slider_layout)
+        contrast_group.setLayout(contrast_layout)
+        layout.addWidget(contrast_group)
 
-        # Color Replacement
+        # Color Replacement Group
+        color_group = QGroupBox("Color Replacement")
+        color_layout = QVBoxLayout()
         self.color_replace_checkbox = QCheckBox("Enable color replacement")
         self.color_replace_checkbox.stateChanged.connect(self.on_color_replace_enabled)
-        form_layout.addRow("Color Replacement:", self.color_replace_checkbox)
+        color_layout.addWidget(self.color_replace_checkbox)
 
         color_buttons_layout = QHBoxLayout()
         self.source_color_btn = QPushButton("Select Source Color")
@@ -112,12 +128,10 @@ class ImageOptionDialog(QDialog):
         self.target_color_btn.clicked.connect(self.select_target_color)
         self.target_color_btn.setEnabled(False)
         color_buttons_layout.addWidget(self.target_color_btn)
-
-        form_layout.addRow("", color_buttons_layout)
+        color_layout.addLayout(color_buttons_layout)
 
         tolerance_layout = QHBoxLayout()
         tolerance_layout.addWidget(QLabel("Tolerance:"))
-
         self.tolerance_slider = QSlider(Qt.Orientation.Horizontal)
         self.tolerance_slider.setMinimum(0)
         self.tolerance_slider.setMaximum(100)
@@ -132,29 +146,25 @@ class ImageOptionDialog(QDialog):
         self.tolerance_spinbox.setValue(30)
         self.tolerance_spinbox.valueChanged.connect(self.tolerance_slider.setValue)
         self.tolerance_slider.valueChanged.connect(self.tolerance_spinbox.setValue)
-
         tolerance_layout.addWidget(self.tolerance_slider)
         tolerance_layout.addWidget(self.tolerance_spinbox)
+        color_layout.addLayout(tolerance_layout)
 
-        form_layout.addRow("", tolerance_layout)
-
-        # Add button to apply current color replacement
         self.apply_color_btn = QPushButton("Add Color Replacement")
         self.apply_color_btn.clicked.connect(self.apply_color_replacement)
         self.apply_color_btn.setEnabled(False)
-        form_layout.addRow("", self.apply_color_btn)
-        
-        # List of applied color replacements
+        color_layout.addWidget(self.apply_color_btn)
+
         self.color_replacements_list = QListWidget()
         self.color_replacements_list.setMaximumHeight(100)
-        form_layout.addRow("", self.color_replacements_list)
+        color_layout.addWidget(self.color_replacements_list)
 
-        # Clear all replacements button
         clear_colors_btn = QPushButton("Clear All Replacements")
         clear_colors_btn.clicked.connect(self.clear_color_replacements)
-        form_layout.addRow("", clear_colors_btn)
+        color_layout.addWidget(clear_colors_btn)
 
-        layout.addLayout(form_layout)
+        color_group.setLayout(color_layout)
+        layout.addWidget(color_group)
 
         # Buttons
         self.buttons = QDialogButtonBox(
@@ -195,28 +205,23 @@ class ImageOptionDialog(QDialog):
 
     def apply_color_replacement(self):
         if self.source_color and self.target_color:
-            # Store the replacement
             self.color_replacements.append({
                 'source': self.source_color,
                 'target': self.target_color,
                 'tolerance': self.color_tolerance
             })
-            
-            # Add to list widget for display
-            from PyQt6.QtGui import QColor
+
             source_qcolor = QColor(self.source_color[2], self.source_color[1], self.source_color[0])
             target_qcolor = QColor(self.target_color[2], self.target_color[1], self.target_color[0])
             list_text = f"{source_qcolor.name()} → {target_qcolor.name()} (tol: {self.color_tolerance})"
             self.color_replacements_list.addItem(list_text)
-            
-            # Reset current selection
+
             self.source_color = None
             self.target_color = None
             self.source_color_btn.setStyleSheet("")
             self.target_color_btn.setStyleSheet("")
             self.apply_color_btn.setEnabled(False)
-            
-            # Update preview with new replacement applied
+
             self.update_preview()
             self.parent.statusBar().showMessage(f"Color replacement added ({len(self.color_replacements)} total)")
 
@@ -227,7 +232,7 @@ class ImageOptionDialog(QDialog):
             self.source_color_btn.setStyleSheet(f"background-color: {color.name()};")
             if self.target_color:
                 self.apply_color_btn.setEnabled(True)
-                
+
     def select_target_color(self):
         color = QColorDialog.getColor()
         if color.isValid():
@@ -239,28 +244,20 @@ class ImageOptionDialog(QDialog):
     def update_preview(self):
         if not self.is_valid:
             return
-            
-        # Start with original image
+
         image = self.original_image.copy()
-        
-        # Apply brightness and contrast
         image = cv2.convertScaleAbs(image, alpha=self.contrast, beta=self.brightness)
-        
-        # Apply color inversion
+
         if self.invert_colors:
             image = cv2.bitwise_not(image)
-        
-        # Apply all stored color replacements
+
         for replacement in self.color_replacements:
             image = self.replace_color(image, replacement['source'], replacement['target'], replacement['tolerance'])
-        
-        # Apply current color replacement preview (if both colors selected)
+
         if self.color_replace_enabled and self.source_color and self.target_color:
             image = self.replace_color(image, self.source_color, self.target_color, self.color_tolerance)
-        
+
         self.modified_image = image
-        
-        # Update the display in real-time
         preview_pixmap = self.get_modified_pixmap()
         self.image_item.image_item.setPixmap(preview_pixmap)
         self.parent.zoomable_graphics_view.scene.update()
@@ -278,15 +275,12 @@ class ImageOptionDialog(QDialog):
         upper = np.array([min(255, source_color[i] + tolerance) for i in range(3)], dtype=np.uint8)
         mask = cv2.inRange(result, lower, upper)
         result[mask > 0] = target_color
-        
         return result
 
     def reset_image(self):
-        """Reset to original image"""
         if not self.is_valid:
             return
-            
-        # Reset all sliders and checkboxes
+
         self.invert_checkbox.setChecked(False)
         self.brightness_slider.setValue(0)
         self.contrast_slider.setValue(100)
@@ -298,16 +292,12 @@ class ImageOptionDialog(QDialog):
         self.tolerance_slider.setValue(30)
         self.color_replacements = []
         self.color_replacements_list.clear()
-        
-        # Reload original image from file
+
         self.original_pixmap = QPixmap(self.original_path)
-        
-        # Immediately update the displayed image to original
         self.image_item.image_pixmap = self.original_pixmap.copy()
         self.image_item.image_item.setPixmap(self.original_pixmap)
         self.image_item.image_numpy_pixels_rgb = None
-        
-        # Reload cv2 image
+
         qimage = self.original_pixmap.toImage()
         qimage = qimage.convertToFormat(QImage.Format.Format_RGB888)
         width = qimage.width()
@@ -317,11 +307,9 @@ class ImageOptionDialog(QDialog):
         arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width, 3))
         self.original_image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
         self.modified_image = self.original_image.copy()
-        
-        # Force scene refresh
+
         self.parent.zoomable_graphics_view.scene.update()
         self.parent.zoomable_graphics_view.viewport().update()
-        
         self.parent.statusBar().showMessage("Reset to original image")
 
     def apply_changes(self):
@@ -331,8 +319,7 @@ class ImageOptionDialog(QDialog):
         if not self.is_valid:
             super().reject()
             return
-            
-        # Restore original image when canceling
+
         self.image_item.image_pixmap = self.original_pixmap.copy()
         self.image_item.image_item.setPixmap(self.original_pixmap)
         self.image_item.image_numpy_pixels_rgb = None

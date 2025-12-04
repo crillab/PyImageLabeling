@@ -26,7 +26,8 @@
         "minus_zoom_factor": 0.9
     },
     "paint_brush": {
-        "size": 30
+        "size": 30,
+        "brush_type": "circle"
     },
     "eraser": {
         "size": 50,
