@@ -701,11 +701,18 @@ class Core():
             self.autosave_timer.start(self.autosave_interval)
 
     def auto_save(self):
-        """Automatically save if there are unsaved changes"""
-        if self.get_edited() and self.copy_save_dir:
-            self.save_labels(self.copy_save_dir)
-            self.save_overlays(self.copy_save_dir)
-            self.save_labels_geometric_shape(self.copy_save_dir)
+        if self.get_edited() and self.save_directory:
+            # Create auto_save folder path
+            auto_save_path = os.path.join(self.save_directory, "auto_save")
+            
+            # Create the auto_save folder if it doesn't exist
+            if not os.path.exists(auto_save_path):
+                os.makedirs(auto_save_path)
+            
+            # Save to auto_save folder
+            self.save_labels(auto_save_path)
+            self.save_overlays(auto_save_path)
+            self.save_labels_geometric_shape(auto_save_path)
             print(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
 
     def set_autosave_enabled(self, enabled):
