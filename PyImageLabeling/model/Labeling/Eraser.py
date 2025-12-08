@@ -6,6 +6,7 @@ import math
 from PyImageLabeling.model.Utils import Utils
 import numpy
 from collections import deque
+import numpy as np
 class EraserBrushItem(QGraphicsItem):
 
     def __init__(self, core, x, y, color, size, absolute_mode):
@@ -146,90 +147,120 @@ class Eraser(Core):
             self.get_current_image_item().update_labeling_overlay()
             self.get_current_image_item().get_labeling_overlay().reset_pen()
 
-    def intelligent_erase(self, x, y):
-        """Erase an entire connected shape at the clicked position using flood fill"""
-        
-        # Get the current labeling overlay
-        current_overlay = self.get_current_image_item().get_labeling_overlay()
-        overlay_pixmap = current_overlay.labeling_overlay_pixmap
-        
-        # Convert pixmap to QImage for pixel access
-        image = overlay_pixmap.toImage()
-        
-        # Check bounds
-        if x < 0 or x >= image.width() or y < 0 or y >= image.height():
-            return
-        
-        # Get the color at the clicked position
-        clicked_color = image.pixelColor(x, y)
-        
-        # If the clicked pixel is transparent, nothing to erase
-        if clicked_color.alpha() == 0:
-            return
-        
-        # Perform flood fill to find all connected pixels
-        pixels_to_erase = self.flood_fill(image, x, y, clicked_color)
-        
-        if not pixels_to_erase:
-            return
-        
-        # Erase the shape
-        painter = current_overlay.get_painter()
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-        
-        # Draw all pixels as a single operation for efficiency
-        pen = QPen(Qt.GlobalColor.black, 1)
-        painter.setPen(pen)
-        
-        for px, py in pixels_to_erase:
-            painter.drawPoint(px, py)
-        
-        # Update the overlay
-        current_overlay.update()
-        current_overlay.reset_pen()
 
-    def flood_fill(self, image, start_x, start_y, target_color, tolerance=10):
+    def intelligent_erase(self, x, y):
+        """Fast intelligent erase using span/scanline flood fill and batched painting."""
+        overlay = self.get_current_image_item().get_labeling_overlay()
+        pixmap = overlay.labeling_overlay_pixmap
+        image = pixmap.toImage()
+
+        w, h = image.width(), image.height()
+        if not (0 <= x < w and 0 <= y < h):
+            return
+
+        # Convert QImage -> NumPy RGBA (zero-copy)
+        ptr = image.bits()
+        ptr.setsize(w * h * 4)
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 4))
+
+        # If clicked pixel is transparent, nothing to do
+        if arr[y, x, 3] == 0:
+            return
+
+        # Build a boolean mask of matching pixels (vectorized)
+        tolerance = 10  # keep your original tolerance or parameterize it
+        # Use int16 to avoid overflow with subtraction
+        diff = np.abs(arr.astype(np.int16) - arr[y, x].astype(np.int16))
+        match_mask = np.all(diff <= tolerance, axis=2)  # shape (h, w), dtype bool
+
+        # If clicked pixel doesn't match (shouldn't happen) exit
+        if not match_mask[y, x]:
+            return
+
+        # Run span/scanline flood fill to produce horizontal spans to erase
+        spans = self.flood_fill_spans(match_mask, x, y)
+
+        if not spans:
+            return
+
+        # Paint all spans in a single batched QPainterPath
+        painter = overlay.get_painter()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setPen(QPen(Qt.GlobalColor.black, 1))
+
+        path = QPainterPath()
+        # spans is list of (y, x_left, x_right)
+        for (sy, x0, x1) in spans:
+            # add a single rect for the whole horizontal span
+            path.addRect(x0, sy, (x1 - x0 + 1), 1)
+
+        painter.drawPath(path)
+        # Do not forget to let overlay update / reset pen as before
+        overlay.update()
+        overlay.reset_pen()
+
+    def flood_fill_spans(self, match_mask, start_x, start_y):
         """
-        Flood fill algorithm to find all connected pixels of similar color
-        Returns a set of (x, y) coordinates
+        Span flood fill (scanline) using match_mask boolean array.
+        Returns a list of spans: (y, x_left, x_right)
+        Very efficient for large contiguous regions.
         """
-        width = image.width()
-        height = image.height()
-        
-        visited = set()
-        pixels_to_erase = []
-        stack = [(start_x, start_y)]
-        
-        def colors_match(color1, color2, tolerance):
-            """Check if two colors are similar within tolerance"""
-            return (abs(color1.red() - color2.red()) <= tolerance and
-                    abs(color1.green() - color2.green()) <= tolerance and
-                    abs(color1.blue() - color2.blue()) <= tolerance and
-                    abs(color1.alpha() - color2.alpha()) <= tolerance)
-        
+        h, w = match_mask.shape
+        visited = np.zeros_like(match_mask, dtype=bool)
+        stack = deque()
+        spans = []
+
+        # push initial seed
+        stack.append((start_x, start_y))
+
         while stack:
             x, y = stack.pop()
-            
-            # Skip if out of bounds or already visited
-            if x < 0 or x >= width or y < 0 or y >= height or (x, y) in visited:
+            if x < 0 or x >= w or y < 0 or y >= h:
                 continue
-            
-            visited.add((x, y))
-            
-            # Get pixel color
-            pixel_color = image.pixelColor(x, y)
-            
-            # Check if color matches (within tolerance)
-            if not colors_match(pixel_color, target_color, tolerance):
+            if not match_mask[y, x] or visited[y, x]:
                 continue
-            
-            # Add to erase list
-            pixels_to_erase.append((x, y))
-            
-            # Add neighbors to stack (4-connected)
-            stack.append((x + 1, y))
-            stack.append((x - 1, y))
-            stack.append((x, y + 1))
-            stack.append((x, y - 1))
-        
-        return pixels_to_erase
+
+            # Expand left
+            x_left = x
+            while x_left - 1 >= 0 and match_mask[y, x_left - 1] and not visited[y, x_left - 1]:
+                x_left -= 1
+
+            # Expand right
+            x_right = x
+            while x_right + 1 < w and match_mask[y, x_right + 1] and not visited[y, x_right + 1]:
+                x_right += 1
+
+            # Mark visited for this span and record it
+            visited[y, x_left:x_right+1] = True
+            spans.append((y, x_left, x_right))
+
+            # Check the line above and below for new seeds
+            ny = y - 1
+            if ny >= 0:
+                xi = x_left
+                while xi <= x_right:
+                    # skip non-matching/visited pixels
+                    if match_mask[ny, xi] and not visited[ny, xi]:
+                        # found a new seed; push it (center of contiguous block)
+                        sx = xi
+                        while sx + 1 <= x_right and match_mask[ny, sx + 1] and not visited[ny, sx + 1]:
+                            sx += 1
+                        stack.append((sx, ny))
+                        xi = sx + 1
+                    else:
+                        xi += 1
+
+            ny = y + 1
+            if ny < h:
+                xi = x_left
+                while xi <= x_right:
+                    if match_mask[ny, xi] and not visited[ny, xi]:
+                        sx = xi
+                        while sx + 1 <= x_right and match_mask[ny, sx + 1] and not visited[ny, sx + 1]:
+                            sx += 1
+                        stack.append((sx, ny))
+                        xi = sx + 1
+                    else:
+                        xi += 1
+
+        return spans
