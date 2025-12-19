@@ -3,6 +3,7 @@ from PyImageLabeling.controller.settings.MagicPenSetting import MagicPenSetting
 from PyImageLabeling.controller.settings.PaintBrushSetting import PaintBrushSetting
 from PyImageLabeling.controller.settings.EraserSetting import EraserSetting
 from PyImageLabeling.controller.settings.UndoSetting import UndoSetting
+from PyImageLabeling.controller.settings.ChangelabelSetting import ChangeLabelSetting
 from PyImageLabeling.controller.settings.ContourFillinSetting import ContourFillingSetting
 from PyQt6.QtWidgets import QDialog
 
@@ -77,6 +78,13 @@ class LabelingEvents(Events):
         self.all_events(self.clear_all.__name__)
         self.model.clear_all()
 
+    
+    def change_label (self):
+        self.model.remove_contour()
+        self.all_events(self.change_label.__name__)
+        self.desactivate_buttons_labeling_image_bar(self.change_label.__name__)
+        self.model.change_label()
+
     ### Setting Buttons events
 
 
@@ -121,10 +129,19 @@ class LabelingEvents(Events):
         if erasersetting.exec():
             self.view.desactivate_buttons(self.eraser.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
             self.eraser()
+    
+    def change_label_setting(self):
+        self.all_events(self.change_label_setting.__name__)
+        changelabelsetting = ChangeLabelSetting(self.view.zoomable_graphics_view, self.model)
+        if changelabelsetting.exec():
+            self.view.desactivate_buttons(self.change_label.__name__, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
+            self.change_label()
 
     def undo_setting(self):
         self.all_events(self.undo_setting.__name__)
         undosetting = UndoSetting(self.view.zoomable_graphics_view)
         if undosetting.exec():
             print("undosetting set")
+
+
    

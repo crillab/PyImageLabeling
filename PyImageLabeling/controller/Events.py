@@ -39,6 +39,8 @@ class eventEater(QObject):
                 self.model.start_paint_brush(event.scenePos())
             elif self.model.checked_button == "magic_pen":
                 self.model.start_magic_pen(event.scenePos())
+            elif self.model.checked_button == "change_label":
+                self.model.start_change_label(event.scenePos())
             elif self.model.checked_button == "contour_filling":
                 # Fill the contour clicked
                 self.model.fill_contour(event.scenePos())

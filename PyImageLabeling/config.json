@@ -60,7 +60,7 @@
             "name_view": "Save copy",
             "icon": "save_copy",
             "checkable": false,
-            "tooltip": "Save a copy of you save."
+            "tooltip": "Export a copy."
         },
 
         {
@@ -219,6 +219,13 @@
                 "name_view": "Edition",
                 "buttons": [
                 {
+                    "name": "change_label",
+                    "name_view": "Change Labeled Area",
+                    "checkable": true,
+                    "icon": "changelabel",
+                    "tooltip": "Click to change the label of an laready labeled area."
+                },
+                {
                     "name": "undo",
                     "name_view": "Undo",
                     "checkable": false,
@@ -246,6 +253,13 @@
     "labeling_bar_setting": 
     [
             {"Edit Setting":[
+                {
+                    "name": "change_label_setting",
+                    "name_view": "Chaneg Labeled Area Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of change labeled area."
+                },
                 {
                     "name": "eraser_setting",
                     "name_view": "Eraser Setting",

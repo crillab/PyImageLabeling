@@ -36,6 +36,10 @@
     "undo": {
         "depth": 5
     },
+    "change_labele": {
+        "max_pixels": 5000,
+        "target_label_id": 0
+    },
     "geometric_shape": {
         "thickness": 5
     },
