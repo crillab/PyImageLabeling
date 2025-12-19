@@ -39,6 +39,8 @@ class MagicPen(Core):
     
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
+        self.color = self.get_current_label_item().get_color()
+
         initial_position_x, initial_position_y = int(scene_pos.x()), int(scene_pos.y()) 
         width, height = self.get_current_image_item().get_width(), self.get_current_image_item().get_height()
         if not (0 <= initial_position_x < width and 0 <= initial_position_y < height): return None
@@ -82,7 +84,9 @@ class MagicPen(Core):
             
             #Color the new_overlay
             #self.labeling_overlay.setPixel(x, y, 1)
-            self.get_current_image_item().get_labeling_overlay().get_painter().drawPoint(x, y)
+            painter = self.get_current_image_item().get_labeling_overlay().get_painter()
+            painter.setPen(self.color)
+            painter.drawPoint(x, y)
             n_pixels += 1
 
             # Add neighbors
@@ -118,7 +122,9 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            self.get_current_image_item().get_labeling_overlay().get_painter().drawPoint(x, y)
+            painter = self.get_current_image_item().get_labeling_overlay().get_painter()
+            painter.setPen(self.color)
+            painter.drawPoint(x, y)
             n_pixels += 1
             
             # Add neighbors
@@ -132,6 +138,7 @@ class MagicPen(Core):
     def fill_color_clicked(self, scene_pos):
         """Fill all pixels similar in color to the clicked point"""
         self.view.progressBar.reset()
+        self.color = self.get_current_label_item().get_color()
         # Get initial data
         initial_x, initial_y = int(scene_pos.x()), int(scene_pos.y())
         width, height = self.get_current_image_item().get_width(), self.get_current_image_item().get_height()
@@ -162,6 +169,7 @@ class MagicPen(Core):
         # Draw all matching pixels on the overlay
         painter = self.get_current_image_item().get_labeling_overlay().get_painter()
         # Draw all points at once if possible (depends on your painter API)
+        painter.setPen(self.color)
         for point in points:
             painter.drawPoint(point[0], point[1])
         self.get_current_image_item().update_labeling_overlay()
