@@ -90,15 +90,36 @@ class Utils:
     @staticmethod
     def load_parameters():
         default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
-        if not os.path.exists(default_param_path):
-            raise FileNotFoundError(f"Parameters not found at {param_path}")
-        
         param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
+
+        # If parameters.json does not exist, copy from default
         if not os.path.exists(param_path):
+            if not os.path.exists(default_param_path):
+                raise FileNotFoundError(f"Default parameters not found at {default_param_path}")
             shutil.copyfile(default_param_path, param_path)
-        
-        with open(param_path, 'r', encoding='utf-8') as file:
-            return json.load(file)
+
+        # Load both files
+        with open(default_param_path, 'r', encoding='utf-8') as default_file:
+            default_data = json.load(default_file)
+        with open(param_path, 'r', encoding='utf-8') as param_file:
+            user_data = json.load(param_file)
+
+        # Recursively update missing keys in user_data from default_data
+        def update_missing_keys(default, user):
+            for key, value in default.items():
+                if key not in user:
+                    user[key] = value
+                elif isinstance(value, dict) and isinstance(user[key], dict):
+                    update_missing_keys(value, user[key])
+            return user
+
+        updated_data = update_missing_keys(default_data, user_data)
+
+        # Save the updated data back to parameters.json
+        with open(param_path, 'w', encoding='utf-8') as fp:
+            json.dump(updated_data, fp, indent=4)
+
+        return updated_data
 
     @staticmethod
     def color_to_stylesheet(color):
