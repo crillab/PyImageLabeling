@@ -48,6 +48,8 @@ import shutil
 
 class Utils:
 
+    __version__ = "1.0.5"
+
     @staticmethod
     def get_base_dir():
         """Return project root, compatible with PyInstaller."""
@@ -129,3 +131,14 @@ class Utils:
     @staticmethod
     def compute_diagonal(x_1, y_1, x_2, y_2):
         return ((x_1 - x_2) ** 2 + (y_1 - y_2) ** 2) ** 0.5
+    
+    @staticmethod
+    def get_version():
+        return Utils.__version__
+    
+    @staticmethod
+    def update_version():
+        major, minor, patch = map(int, Utils.__version__.split("."))
+        patch += 1
+        Utils.__version__ = f"{major}.{minor}.{patch}"
+        return Utils.__version__

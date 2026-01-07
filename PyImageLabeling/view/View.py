@@ -245,7 +245,8 @@ class View(QMainWindow):
     
 
     def initialize(self):
-        self.setWindowTitle("PyImageLabeling")
+        version = Utils.get_version()
+        self.setWindowTitle("PyImageLabeling - "+ str(version))
         self.label_properties_dialogs = []
         # Get screen information
         self.screen = QApplication.primaryScreen()
