@@ -99,6 +99,7 @@ The **saving directory** consists of:
 |-------------------|--------------------------------------------------------------------------------------------------------|
 | **Load**          | Load images and/or labeled images from a **working or saving directory**                               |
 | **Save**          | Save current labeled images in a **saving directory**                                                  |
+| **Export copy**   | Create a copy of the saving in another folder                                                          |
 | **Next**          | Select the next image                                                                                  |
 | **Previous**      | Select the previous image                                                                              |
 
@@ -134,7 +135,7 @@ Moreover, for each label, you can set some parameters:
 | **Paintbrush**       | Paint with the selected label (Paintbrush size in parameter)                                        |
 | **Magic Pen**        | Intelligent fill tool based on color similarity (tolerance, pixel limit and method in paramter)     |
 
-| **Tool**             | **Geometric shapes (Not yet available: under development)**                                           |
+| **Tool**             | **Geometric shapes**                                                                                |
 |----------------------|-----------------------------------------------------------------------------------------------------|
 | **Ellipse**          | Precision ellipse selection for label assignment                                                    |
 | **Rectangle**        | Precision rectangular selection for label assignment                                                |
@@ -144,11 +145,12 @@ Moreover, for each label, you can set some parameters:
 
 Each editing tools is proper to each selected label.
 
-| **Tool**          | **Functionality**                                                                                      |
-|-------------------|--------------------------------------------------------------------------------------------------------|
-| **Undo**          | Revert the last action with full history support                                                       |
-| **Eraser**        | Brush that erases the selected label (Eraser brush size and "all labels" mode in parameter)            |
-| **Clear All**     | Clear all label areas.                                                                                 |
+| **Tool**               | **Functionality**                                                                                             |
+|------------------------|---------------------------------------------------------------------------------------------------------------|
+| **change labeled area**| Change the lebel of an area for another one with a click                                                      |
+| **Undo**               | Revert the last action with full history support                                                              |
+| **Eraser**             | Brush that erases the selected label (Eraser brush size and "all labels" mode in parameter)                   |
+| **Clear All**          | Clear all label areas.                                                                                        |
 
 ## License
 
