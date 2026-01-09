@@ -99,25 +99,30 @@ class LabelEvents(Events):
         self.model.save_labels_geometric_shape(self.model.save_directory)
 
     def visibility(self, label_id):
+        """Toggle visibility of a label and all its associated shapes."""
         self.all_events(self.visibility.__name__)
-        
-        if self.model.get_current_label_item().get_label_id() == label_id:
-            # Do nothing 
+
+        current_label_id = self.model.get_current_label_item().get_label_id()
+        if current_label_id == label_id:
+            # Always keep current label visible
             self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)
-        else:
-            # Get the label visibility state
-            label_item = self.model.get_label_items()[label_id]
-            new_visibility = not label_item.get_visible() 
-            label_item.set_visible(new_visibility)
-            self.model.get_current_image_item().update_scene()
-            # Apply to all loaded images
-            # image_items = self.model.get_image_items()
-            # for file_path, image_item in image_items.items():
-            #     if image_item is not None and label_id in image_item.labeling_overlays:
-            #         overlay = image_item.labeling_overlays[label_id]
-            #         if overlay.is_displayed_in_scene:
-            #             overlay.set_visible(new_visibility)
-        
+            return
+
+        # Toggle visibility in the label model
+        label_item = self.model.get_label_items()[label_id]
+        new_visibility = not label_item.get_visible()
+        label_item.set_visible(new_visibility)
+
+        # Update overlays and scene
+        image_item = self.model.get_current_image_item()
+        if image_item is not None:
+            image_item.update_scene()
+
+        # Update geometric shapes in the scene
+        for item in self.model.zoomable_graphics_view.scene.items():
+            if hasattr(item, "label_id") and item.label_id == label_id:
+                item.setVisible(new_visibility)
+
     def opacity(self):
         self.all_events(self.opacity.__name__)
         opacity_setting = OpacitySetting(self.view.zoomable_graphics_view)
