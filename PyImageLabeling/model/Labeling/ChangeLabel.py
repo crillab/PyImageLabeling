@@ -1,6 +1,6 @@
 from PyQt6.QtCore import Qt, QRectF
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtGui import QColor, QPixmap, QImage, QPen, QBrush
+from PyQt6.QtGui import QColor, QPixmap, QImage, QPen, QBrush, QPainter
 from PyQt6.QtWidgets import QMessageBox
 from PyImageLabeling.model.Utils import Utils
 from collections import deque
@@ -122,15 +122,12 @@ class ChangeLabel(Core):
         shape.update()
 
     def _change_label_worker(self, scene_pos):
-        """Pixel-based flood-fill labeling for drawn regions."""
         x0, y0 = int(scene_pos.x()), int(scene_pos.y())
         image_item = self.get_current_image_item()
-
         width, height = image_item.get_width(), image_item.get_height()
         if not (0 <= x0 < width and 0 <= y0 < height):
             return
 
-        # Find source label overlay
         source_overlay = self._find_source_overlay(x0, y0)
         if source_overlay is None:
             print("No source overlay found at clicked position")
@@ -143,56 +140,53 @@ class ChangeLabel(Core):
 
         target_overlay = image_item.labeling_overlays[self.target_label_id]
 
-        src_img = source_overlay.labeling_overlay_pixmap.toImage().convertToFormat(
-            QImage.Format.Format_ARGB32
-        )
-        tgt_img = target_overlay.labeling_overlay_pixmap.toImage().convertToFormat(
-            QImage.Format.Format_ARGB32
-        )
+        # End any active painters
+        if source_overlay.labeling_overlay_painter.isActive():
+            source_overlay.labeling_overlay_painter.end()
+        if target_overlay.labeling_overlay_painter.isActive():
+            target_overlay.labeling_overlay_painter.end()
+
+        src_img = source_overlay.labeling_overlay_pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        tgt_img = target_overlay.labeling_overlay_pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
 
         visited = numpy.full((width, height), False)
-
-        # Undo snapshots
-        source_overlay.previous_labeling_overlay_pixmap = (
-            source_overlay.labeling_overlay_pixmap.copy()
-        )
-        target_overlay.previous_labeling_overlay_pixmap = (
-            target_overlay.labeling_overlay_pixmap.copy()
-        )
-
-        queue = deque()
-        queue.append((x0, y0))
+        queue = deque([(x0, y0)])
         n_pixels = 0
 
-        # Flood-fill ONLY inside source label
         while queue and n_pixels <= self.max_pixels:
             x, y = queue.popleft()
-
             if visited[x][y]:
                 continue
             visited[x][y] = True
-
             if src_img.pixelColor(x, y).alpha() == 0:
                 continue
-
-            # Remove from source
             src_img.setPixelColor(x, y, QColor(0, 0, 0, 0))
-
-            # Add to target
-            tgt_img.setPixelColor(x, y, target_overlay.label.get_color())
-
+            new_color = target_overlay.label.get_color()
+            new_color.setAlpha(255)
+            tgt_img.setPixelColor(x, y, new_color)
             n_pixels += 1
-
             for dx, dy in DIRECTIONS:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < width and 0 <= ny < height:
                     queue.append((nx, ny))
 
+        # Update pixmaps
         source_overlay.labeling_overlay_pixmap = QPixmap.fromImage(src_img)
         target_overlay.labeling_overlay_pixmap = QPixmap.fromImage(tgt_img)
 
+        # Restart painters
+        source_overlay.labeling_overlay_painter.begin(source_overlay.labeling_overlay_pixmap)
+        target_overlay.labeling_overlay_painter.begin(target_overlay.labeling_overlay_pixmap)
+        source_overlay.reset_pen()
+        target_overlay.reset_pen()
+
+        # Update the overlays
         source_overlay.update()
         target_overlay.update()
+
+        # Debug: save pixmaps
+        source_overlay.labeling_overlay_pixmap.save("source_debug.png")
+        target_overlay.labeling_overlay_pixmap.save("target_debug.png")
 
         print(f"ChangeLabel: moved {n_pixels} pixels from label {source_label_id} to {self.target_label_id}")
 
