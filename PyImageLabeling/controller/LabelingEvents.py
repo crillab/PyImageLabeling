@@ -139,7 +139,7 @@ class LabelingEvents(Events):
 
     def undo_setting(self):
         self.all_events(self.undo_setting.__name__)
-        undosetting = UndoSetting(self.view.zoomable_graphics_view)
+        undosetting = UndoSetting(self.view.zoomable_graphics_view, self.model)
         if undosetting.exec():
             print("undosetting set")
 

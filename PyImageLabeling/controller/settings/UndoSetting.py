@@ -3,8 +3,9 @@ from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Utils import Utils
 
 class UndoSetting(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, model):
         super().__init__(parent)
+        self.model = model
         self.setWindowTitle("Undo Settings")
         self.resize(500, 150)
         self.depth = Utils.load_parameters()["undo"]["depth"]
@@ -67,4 +68,6 @@ class UndoSetting(QDialog):
         data = Utils.load_parameters()
         data["undo"]["depth"] = self.depth
         Utils.save_parameters(data)
+        self.model.get_current_image_item().get_labeling_overlay().resize_undo_deque(self.depth)
+
         return super().accept()

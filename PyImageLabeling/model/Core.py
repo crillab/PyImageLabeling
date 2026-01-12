@@ -212,19 +212,35 @@ class LabelingOverlay():
         if len(self.undo_deque) > 0:
             self.labeling_overlay_painter.end()
             
-            # CHANGED: Reconstruct from CompactUndoEntry
+            # Reconstruct from CompactUndoEntry
             compact_entry = self.undo_deque.pop()
             self.labeling_overlay_pixmap = compact_entry.to_pixmap()
             self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
 
             if len(self.undo_deque) == 0:
-                # CHANGED: Store CompactUndoEntry
+                # Store CompactUndoEntry
                 self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
             
             # Update display
             self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
             self.labeling_overlay_painter.begin(self.labeling_overlay_pixmap)
             self.reset_pen()
+    
+    def resize_undo_deque(self, new_depth):
+        if new_depth <= 0:
+            self.undo_deque.clear()
+            self.undo_deque = deque(maxlen=0)
+            return
+
+        # Copy existing entries (keep newest)
+        old_entries = list(self.undo_deque)
+
+        # Trim oldest entries if needed
+        if len(old_entries) > new_depth:
+            old_entries = old_entries[-new_depth:]
+
+        # Rebuild deque with new maxlen
+        self.undo_deque = deque(old_entries, maxlen=new_depth)
 
     def generate_opacity_pixmap(self):
         opacity_pixmap = QPixmap(self.width, self.height)
