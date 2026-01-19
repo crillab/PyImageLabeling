@@ -22,17 +22,19 @@ exe_name = f"PyImageLabeling_v{version}"
 # Use the correct separator based on the OS
 separator = ';' if platform.system() == 'Windows' else ':'
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
+upx_path = os.path.join(script_dir, 'upx-5.1.0-win64', 'upx-5.1.0-win64')
+
 command = (
     f'pyinstaller --onefile --noconsole '
+    f'--upx-dir="{upx_path}" '
     f'--name "{exe_name}" '
     f'--add-data "PyImageLabeling/config.json{separator}." '
     f'--add-data "PyImageLabeling/default_parameters.json{separator}." '
     f'--add-data "PyImageLabeling/style.css{separator}." '
     f'--add-data "PyImageLabeling/icons/*.png{separator}icons" '
     f'--icon "PyImageLabeling/icons/maia3.ico" '
-    f'--strip '  
     f'PyImageLabeling/__main__.py'
 )
 
-print(f"\nExecuting: {command}\n")
 os.system(command)
