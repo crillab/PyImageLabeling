@@ -117,6 +117,7 @@ class Polygon(Core):
         self.polygon_points.clear()
         self.is_drawing = False
         self.get_current_image_item().update_labeling_overlay()
+        self.controller.ml_update_stats() 
 
     def cancel_polygon(self):
         """Cancel current polygon drawing"""
@@ -152,17 +153,15 @@ class Polygon(Core):
             if isinstance(item, PolygonItem) and item.isSelected()
         ]
         for polygon in selected_polygons:
-            if polygon in self.zoomable_graphics_view.scene.items():
-                self.zoomable_graphics_view.scene.removeItem(polygon)
-            for i, poly_data in enumerate(self.current_image_item.image_polygons):
-                if (poly_data.get("points") == [(p.x(), p.y()) for p in polygon.polygon()] and
-                    poly_data.get("rotation") == polygon.rotation() and
-                    poly_data.get("label") == polygon.model_ref.get("label")):
-                    self.current_image_item.image_polygons.pop(i)
-                    break
+            self.zoomable_graphics_view.scene.removeItem(polygon)
+            if polygon.model_ref in self.current_image_item.image_polygons:
+                self.current_image_item.image_polygons.remove(polygon.model_ref)
+                break
+
         self.selected_polygon = None
         self.current_image_item.update_labeling_overlay()
-
+        self.controller.ml_update_stats() 
+        
     def clear_all_polygons(self, label_id):
         """Remove all polygons with the given label"""
         if not self.current_image_item:
@@ -179,3 +178,4 @@ class Polygon(Core):
         ]
         self.selected_polygon = None
         self.current_image_item.update_labeling_overlay()
+        self.controller.ml_update_stats() 

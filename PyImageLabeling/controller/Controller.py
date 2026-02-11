@@ -3,11 +3,11 @@ from PyImageLabeling.controller.FileEvents import FileEvents
 from PyImageLabeling.controller.LabelingEvents import LabelingEvents
 from PyImageLabeling.controller.ImageEvents import ImageEvents
 from PyImageLabeling.controller.LabelEvents import LabelEvents
-
+from PyImageLabeling.controller.MLEvents import MLEvents
 
 from PyQt6.QtWidgets import QMessageBox
 
-class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents):
+class Controller(FileEvents, LabelingEvents, ImageEvents, LabelEvents, MLEvents):
     def __init__(self, config):
         super().__init__()
         

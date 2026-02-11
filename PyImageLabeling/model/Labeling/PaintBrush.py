@@ -312,3 +312,6 @@ class PaintBrush(Core):
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self._fill_closed_shape(self.drawn_points)
+        
+        
+        self.controller.ml_update_stats() 

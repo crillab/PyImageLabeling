@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Utils import Utils
+
 class Ellipse(Core):
     def __init__(self):
         super().__init__()
@@ -84,6 +85,7 @@ class Ellipse(Core):
         self.first_click_pos = None
         self.is_drawing = False
         self.get_current_image_item().update_labeling_overlay()
+        self.controller.ml_update_stats()
 
     def update_selected_ellipse(self):
         """Update selected_ellipse when user clicks on an ellipse"""
@@ -128,6 +130,7 @@ class Ellipse(Core):
                     break
         self.selected_ellipse = None
         self.current_image_item.update_labeling_overlay()
+        self.controller.ml_update_stats() 
 
     def clear_all_ellipses(self, label_id):
         """Remove all ellipses of a specific label from the scene and model"""
@@ -144,3 +147,4 @@ class Ellipse(Core):
         ]
         self.selected_ellipse = None
         self.current_image_item.update_labeling_overlay()
+        self.controller.ml_update_stats() 

@@ -53,7 +53,7 @@ class Rectangle(Core):
                 y = rect_data["y"]
                 width = rect_data["width"]
                 height = rect_data["height"]
-                label_id = rect_data["label"]
+                label_id = rect_data["label_id"]
                 # Create a new RectangleItem with the same geometry and color
                 item = RectangleItem(x, y, width, height, self.label_items[label_id].get_color())
                 item.setZValue(2)
@@ -80,7 +80,7 @@ class Rectangle(Core):
                     "y":  final_rectangle.rect().y(),
                     "width":  final_rectangle.rect().width(),
                     "height":  final_rectangle.rect().height(),
-                    "label": self.get_current_label_item().label_id
+                    "label_id": self.get_current_label_item().label_id
                 }
                 self.zoomable_graphics_view.scene.addItem(final_rectangle)
                 self.current_image_item.image_rectangles.append(rect_data)
@@ -91,7 +91,8 @@ class Rectangle(Core):
         self.first_click_pos = None
         self.is_drawing = False
         self.get_current_image_item().update_labeling_overlay()
-        
+        self.controller.ml_update_stats() 
+
     def update_selected_rectangle(self):
         items = self.zoomable_graphics_view.scene.selectedItems()
         self.selected_rectangle = next((i for i in reversed(items) if isinstance(i, RectangleItem)), None)
@@ -110,12 +111,13 @@ class Rectangle(Core):
                     rect_data.get("y") == rectangle.model_ref.get("y") and
                     rect_data.get("width") == rectangle.model_ref.get("width") and
                     rect_data.get("height") == rectangle.model_ref.get("height") and
-                    rect_data.get("label") == rectangle.model_ref.get("label")):
+                    rect_data.get("label_id") == rectangle.model_ref.get("label_id")):
                     self.current_image_item.image_rectangles.pop(i)
                     break
 
         self.selected_rectangle = None
         self.current_image_item.update_labeling_overlay()
+        self.controller.ml_update_stats() 
 
     def clear_all_rectangles(self, label_id):
         if not self.current_image_item:
@@ -129,9 +131,10 @@ class Rectangle(Core):
         # Remove matching rectangles from the image model
         self.current_image_item.image_rectangles = [
             rect for rect in self.current_image_item.image_rectangles
-            if rect.get("label") != label_id
+            if rect.get("label_id") != label_id
         ]
 
         self.selected_rectangle = None
         self.current_image_item.update_labeling_overlay()
+        self.controller.ml_update_stats() 
 

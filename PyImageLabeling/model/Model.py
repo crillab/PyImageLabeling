@@ -21,8 +21,11 @@ from PyImageLabeling.model.Image.ZoomMinus import ZoomMinus
 from PyImageLabeling.model.Image.ZoomPlus import ZoomPlus
 from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
+from PyImageLabeling.model.ML.MLPredictor import MLPredictor
+from PyImageLabeling.model.ML.DataManager import DataManager
 
-class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ChangeLabel, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage):
+
+class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ChangeLabel, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, MLPredictor, DataManager):
     def __init__(self, view, controller, config):
         super().__init__()
         self.config = config

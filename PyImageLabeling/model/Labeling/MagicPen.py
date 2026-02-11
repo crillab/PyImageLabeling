@@ -173,6 +173,7 @@ class MagicPen(Core):
         for point in points:
             painter.drawPoint(point[0], point[1])
         self.get_current_image_item().update_labeling_overlay()
+        self.controller.ml_update_stats()
         print("MagicPen: fill_color_clicked done")
 
    

@@ -158,6 +158,49 @@
                 }
                 
             ]},
+    "ml_buttons_config": 
+        [
+            {
+                "name": "ml_train_button",
+                "name_view": "Train Model",
+                "icon": "brain",
+                "tooltip": "Train ML model on current annotations",
+                "checkable": false,
+                "slot": "ml_train_model"
+            },
+            {
+                "name": "ml_predict_button",
+                "name_view": "Predict Current",
+                "icon": "magic_ball",
+                "tooltip": "Generate predictions for current image",
+                "checkable": false,
+                "slot": "ml_predict_current"
+            },
+            {
+                "name": "ml_predict_all_button",
+                "name_view": "Predict All Unlabeled",
+                "icon": "batch",
+                "tooltip": "Generate predictions for all unlabeled images",
+                "checkable": false,
+                "slot": "ml_predict_all"
+            },
+            {
+                "name": "ml_accept_button",
+                "name_view": "Accept Predictions",
+                "icon": "check",
+                "tooltip": "Convert predictions to annotations",
+                "checkable": false,
+                "slot": "ml_accept_predictions"
+            },
+            {
+                "name": "ml_clear_button",
+                "name_view": "Clear Predictions",
+                "icon": "cleaner",
+                "tooltip": "Remove all predictions from current image",
+                "checkable": false,
+                "slot": "ml_clear_predictions"
+            }
+        ],
     "labeling_bar": 
             {"pixel": {
                 "name_view": "Pixel-by-pixel",

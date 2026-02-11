@@ -1,8 +1,4 @@
-
-
-
-
-from PyQt6.QtWidgets import QVBoxLayout, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar
+from PyQt6.QtWidgets import QVBoxLayout, QSizePolicy, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar, QSlider, QCheckBox, QSpinBox
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
@@ -24,41 +20,37 @@ class Builder:
         self.view.setCentralWidget(self.view.central_widget)
         self.view.main_layout = QGridLayout(self.view.central_widget)
         self.view.main_layout.setSpacing(0)
-        #self.view.main_layout.setRowMinimumHeight(0, 1000)
         
-        self.build_labeling_bar()
+        self.build_left_mode_bar()
         self.build_graphics_view()
         self.build_label_bar()
         self.build_image_bar()
         self.build_file_bar()
         self.build_status_bar()
 
-        #self.build_apply_cancel_bar()
+        self.view.switch_mode_button.setText("Switch to ML")
 
-    # def build_apply_cancel_bar(self):
-    #     self.apply_cancel_bar_container = QWidget()
-    #     apply_cancel_bar_layout = QHBoxLayout(self.apply_cancel_bar_container)
-
-    #     for button in self.view.config["apply_cancel_bar"]:
-    #         button_name = button["name"]
-    #         self.view.buttons_apply_cancel_bar[button_name] = QPushButton()
-    #         self.view.buttons_apply_cancel_bar[button_name].setToolTip(button["tooltip"]) # Detailed tooltip
-    #         self.view.buttons_apply_cancel_bar[button_name].setObjectName("permanent")
-    #         icon_path = Utils.get_icon_path(button["icon"])
-    #         if os.path.exists(icon_path):
-    #             self.view.buttons_apply_cancel_bar[button_name].setIcon(QIcon(icon_path))
-    #             self.view.buttons_apply_cancel_bar[button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
-    #         self.view.buttons_apply_cancel_bar[button_name].clicked.connect(getattr(self.view.controller, button["name"]))
-    #         self.view.buttons_apply_cancel_bar[button_name].setCheckable(button["checkable"])
-
-    #         apply_cancel_bar_layout.addWidget(self.view.buttons_apply_cancel_bar[button_name])
-    #     self.apply_cancel_bar_container.setGeometry(QRect(0, 0, 200, 220))
-    #     self.view.main_layout.addWidget(self.apply_cancel_bar_container)
+    def switch_left_mode(self):
+        if self.view.current_mode == "labeling":
+            self.labeling_bar_scroll.hide()
+            self.ml_bar_scroll.show()
+            self.view.current_mode = "ml"
+            self.view.switch_mode_button.setText("Switch to Labeling")
+        else:
+            self.ml_bar_scroll.hide()
+            self.labeling_bar_scroll.show()
+            self.view.current_mode = "labeling"
+            self.view.switch_mode_button.setText("Switch to ML")
 
     def build_status_bar(self):
         self.view.statusBar().showMessage('Ready')
         self.view.progressBar = QProgressBar()
         self.view.statusBar().addPermanentWidget(self.view.progressBar) 
+        
+        # Add ML status indicator
+        self.view.ml_status_label = QLabel("ML: Not trained")
+        self.view.ml_status_label.setStyleSheet("color: gray;")
+        self.view.statusBar().addPermanentWidget(self.view.ml_status_label)
         
     def build_file_bar(self):
         self.view.file_bar_container = QWidget()
@@ -89,12 +81,7 @@ class Builder:
 
         self.view.file_bar_list = QListWidget()
         self.view.file_bar_list.itemSelectionChanged.connect(self.view.file_bar_select)
-        #self.view.file_bar_list.itemClicked.connect(self.view.controller.on_file_double_clicked)
-        """
-        self.file_bar_list.addItem("un tres llllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnng fichier.png")
-        for i in range(100):
-            self.file_bar_list.addItem("file_"+str(i)+".png")
-        """
+        
         self.view.file_bar_list.setMinimumWidth(0)
         
         self.view.file_bar_layout.setSpacing(0)
@@ -104,13 +91,142 @@ class Builder:
         self.view.file_bar_container.setMinimumWidth(self.view.config["window_size"]["file_bar"]["width"])
         self.view.file_bar_container.setMaximumWidth(self.view.config["window_size"]["file_bar"]["width"])
         
-        #self.view.file_bar_container.setMinimumHeight(self.view.config["window_size"]["file_bar"]["width"])
-        #self.view.file_bar_container.setMaximumHeight(700)
-        
-
         self.view.file_bar_layout.addWidget(self.view.file_bar_list)
         
         self.view.main_layout.addWidget(self.view.file_bar_container, 0, 3, 3, 1)
+
+    def build_left_mode_bar(self):
+        self.build_labeling_bar()
+        self.build_ml_bar()
+
+        self.ml_bar_scroll.hide()
+        self.view.current_mode = "labeling"
+
+        self.view.main_layout.addWidget(self.ml_bar_scroll, 0, 0, 1, 1)
+
+    def build_ml_bar(self):
+        """
+        Build ML prediction panel on the left sidebar using config["ml_buttons_config"].
+        Matches the aesthetic of the labeling bar with QGroupBox sections.
+        """
+
+        # Container for scroll area content
+        self.ml_bar_container = QWidget()
+        ml_bar_layout = QVBoxLayout(self.ml_bar_container)
+        ml_bar_layout.setContentsMargins(0, 0, 0, 0)
+        ml_bar_layout.setSpacing(0)
+        ml_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # ML Actions Section 
+        actions_frame = QGroupBox()
+        actions_frame.setTitle("ML Actions")
+        actions_layout = QVBoxLayout(actions_frame)
+        
+        # Dynamically create buttons from config
+        self.view.buttons_ml_bar = {}  # store buttons
+
+        for btn_cfg in self.view.config["ml_buttons_config"]:
+            btn = QPushButton(btn_cfg["name_view"])
+            btn.setObjectName("without_parameters")
+            btn.setToolTip(btn_cfg["tooltip"])
+            btn.setCheckable(btn_cfg["checkable"])
+            icon_path = Utils.get_icon_path(btn_cfg["icon"])
+            if os.path.exists(icon_path):
+                btn.setIcon(QIcon(icon_path))
+                btn.setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+
+            btn.clicked.connect(getattr(self.view.controller, btn_cfg["slot"]))
+            actions_layout.addWidget(btn)
+            self.view.buttons_ml_bar[btn_cfg["name"]] = btn
+
+        ml_bar_layout.addWidget(actions_frame)
+
+        display_frame = QGroupBox()
+        display_frame.setTitle("Display Settings")
+        display_layout = QVBoxLayout(display_frame)
+
+        # redictions checkbox
+        self.view.ml_show_predictions_checkbox = QCheckBox("Show Predictions")
+        self.view.ml_show_predictions_checkbox.setChecked(True)
+        self.view.ml_show_predictions_checkbox.setToolTip("Toggle visibility of ML predictions")
+        self.view.ml_show_predictions_checkbox.stateChanged.connect(self.view.controller.ml_toggle_predictions)
+        display_layout.addWidget(self.view.ml_show_predictions_checkbox)
+
+        # Confidence Threshold
+        confidence_label = QLabel("Confidence Threshold:")
+        display_layout.addWidget(confidence_label)
+
+        confidence_container = QWidget()
+        confidence_layout = QHBoxLayout(confidence_container)
+        confidence_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.view.ml_confidence_slider = QSlider(Qt.Orientation.Horizontal)
+        self.view.ml_confidence_slider.setMinimum(10)
+        self.view.ml_confidence_slider.setMaximum(100)
+        self.view.ml_confidence_slider.setValue(70)
+        self.view.ml_confidence_slider.setToolTip("Adjust confidence threshold for predictions")
+        self.view.ml_confidence_slider.valueChanged.connect(self.view.controller.ml_update_confidence)
+        confidence_layout.addWidget(self.view.ml_confidence_slider)
+
+        self.view.ml_confidence_label = QLabel("0.70")
+        self.view.ml_confidence_label.setMinimumWidth(40)
+        confidence_layout.addWidget(self.view.ml_confidence_label)
+        display_layout.addWidget(confidence_container)
+
+        ml_bar_layout.addWidget(display_frame)
+
+        training_frame = QGroupBox()
+        training_frame.setTitle("Training Settings")
+        training_layout = QVBoxLayout(training_frame)
+
+        # Auto-retrain spinbox
+        retrain_label = QLabel("Auto-retrain every:")
+        training_layout.addWidget(retrain_label)
+
+        retrain_container = QWidget()
+        retrain_layout = QHBoxLayout(retrain_container)
+        retrain_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.view.ml_retrain_spinbox = QSpinBox()
+        self.view.ml_retrain_spinbox.setMinimum(0)
+        self.view.ml_retrain_spinbox.setMaximum(100)
+        self.view.ml_retrain_spinbox.setValue(20)
+        self.view.ml_retrain_spinbox.setSuffix(" annotations")
+        self.view.ml_retrain_spinbox.setToolTip("Auto-retrain model every N annotations (0 = disabled)")
+        self.view.ml_retrain_spinbox.setSpecialValueText("Disabled")
+        retrain_layout.addWidget(self.view.ml_retrain_spinbox)
+        training_layout.addWidget(retrain_container)
+
+        ml_bar_layout.addWidget(training_frame)
+
+        stats_frame = QGroupBox()
+        stats_frame.setTitle("Statistics")
+        stats_layout = QVBoxLayout(stats_frame)
+
+        self.view.ml_stats_label = QLabel(
+            "Annotated Images: 0\n"
+            "Total Annotations: 0\n"
+            "Model Status: Not trained"
+        )
+        self.view.ml_stats_label.setWordWrap(True)
+        stats_layout.addWidget(self.view.ml_stats_label)
+
+        ml_bar_layout.addWidget(stats_frame)
+
+        # Scroll Area - 
+        self.ml_bar_scroll = QScrollArea()
+        self.ml_bar_scroll.setWidget(self.ml_bar_container)
+        self.ml_bar_scroll.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.ml_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.ml_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.ml_bar_scroll.setWidgetResizable(True)
+        self.ml_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
+        self.ml_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        
+        self.ml_bar_scroll.setMinimumHeight(self.view.config["window_size"]["labeling_bar"]["height"]) 
+        self.ml_bar_scroll.setMaximumHeight(583)     
+
+        self.ml_bar_scroll.hide()
 
     def build_labeling_bar(self):
         self.labeling_bar_container = QWidget()
@@ -202,7 +318,7 @@ class Builder:
         self.labeling_bar_scroll.setWidget(self.labeling_bar_container)
         
         labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0, 1, 1)  
+        self.view.main_layout.addWidget(self.labeling_bar_scroll, 0, 0, 1, 1)    
     
     def build_graphics_view(self):
         self.graphics_view_container = QWidget()
@@ -219,31 +335,58 @@ class Builder:
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)
 
+        # Menu container
         self.option_container = QWidget(self.view.zoomable_graphics_view)
         self.option_container.setGeometry(10, 10, 1, 1)  # temporary size
         self.option_container.raise_()
 
-        # Horizontal layout for the two buttons
-        layout = QHBoxLayout(self.option_container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
+        # Main menu button
+        self.view.menu_button = QPushButton("Menu")
+        self.view.menu_button.setObjectName("menu_button")
+        self.view.menu_button.setToolTip("Show/hide options")
+        self.view.menu_button.clicked.connect(self.toggle_menu)
 
-        # Image Option button
+        # Menu content (hidden by default)
+        self.menu_content = QWidget()
+        self.menu_content.setVisible(False)
+        self.menu_content.setStyleSheet("background-color: white; border: 1px solid gray;")
+
+        # Vertical layout for menu items
+        menu_layout = QVBoxLayout(self.menu_content)
+        menu_layout.setContentsMargins(0, 0, 0, 0)
+        menu_layout.setSpacing(5)
+
+        # Add the three buttons to the menu
         self.view.image_option_button = QPushButton("Image Option")
         self.view.image_option_button.clicked.connect(self.view.controller.image_option)
-        layout.addWidget(self.view.image_option_button)
+        menu_layout.addWidget(self.view.image_option_button)
 
-        # Option button
         self.view.option_button = QPushButton("Option")
         self.view.option_button.clicked.connect(self.view.controller.global_option)
-        layout.addWidget(self.view.option_button)
+        menu_layout.addWidget(self.view.option_button)
+
+        self.view.switch_mode_button = QPushButton("Switch mode")
+        self.view.switch_mode_button.setObjectName("mode_switch")
+        self.view.switch_mode_button.setToolTip("Switch between Labeling and ML modes")
+        self.view.switch_mode_button.clicked.connect(self.switch_left_mode)
+        menu_layout.addWidget(self.view.switch_mode_button)
+
+        # Layout for the menu button and its content
+        layout = QVBoxLayout(self.option_container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.view.menu_button)
+        layout.addWidget(self.menu_content)
 
         # Make the container resize to fit its contents
         self.option_container.adjustSize()
-
-
         self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 3, 1)
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])
+
+    # New method to toggle menu visibility
+    def toggle_menu(self):
+        self.menu_content.setVisible(not self.menu_content.isVisible())
+        self.option_container.adjustSize()
     
     def build_image_bar(self):
         self.image_bar_container_1 = QWidget()
@@ -314,13 +457,9 @@ class Builder:
         self.label_bar_scroll.setWidgetResizable(True)
         self.label_bar_scroll.setWidget(self.label_bar_container)
         self.label_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
-        #self.label_bar_container.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"]) 
     
         self.view.main_layout.addWidget(self.label_bar_scroll, 4, 0, 1, 4) 
         self.view.main_layout.setRowMinimumHeight(2, 100)
-        
-
-        
 
     def build_new_layer_label_bar(self, label_id, name, labeling_mode, color):
         
@@ -375,10 +514,7 @@ class Builder:
         
             new_layer_label_bar_layout.addWidget(push_buttons[type_name_button])
         
-
         self.view.label_bar_layout.addWidget(new_layer_label_bar_container)
 
         self.view.buttons_label_bar_temporary[label_id] = push_buttons # Usefull to control all buttons :)
-        self.view.container_label_bar_temporary[label_id] = (new_layer_label_bar_container, separator) # Usefull to delete these qwidget :) 
-        
-        
+        self.view.container_label_bar_temporary[label_id] = (new_layer_label_bar_container, separator) # Usefull to delete these qwidget :)

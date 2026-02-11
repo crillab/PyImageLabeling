@@ -28,6 +28,12 @@ class CompactUndoEntry:
     def __init__(self, pixmap):
         """Convert pixmap to compact representation"""
         image = pixmap.toImage()
+
+        if image.isNull():
+            # fallback: create an empty 1x1 transparent image
+            image = QImage(1, 1, QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            
         image = image.convertToFormat(QImage.Format.Format_ARGB32)
         
         width = image.width()
@@ -417,6 +423,7 @@ class ImageItem():
         self.image_rectangles = []
         self.image_ellipses = []
         self.image_polygons = []
+        self.ml_predictions = []
 
     def get_edited(self):
         for label_id in self.labeling_overlays:

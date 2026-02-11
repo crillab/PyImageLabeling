@@ -154,4 +154,5 @@ class ContourFilling(Core):
         
         # Update the labeling overlay
         self.get_current_image_item().update_labeling_overlay()
+        self.controller.ml_update_stats()
         

@@ -142,3 +142,4 @@ class Utils:
         patch += 1
         Utils.__version__ = f"{major}.{minor}.{patch}"
         return Utils.__version__
+    

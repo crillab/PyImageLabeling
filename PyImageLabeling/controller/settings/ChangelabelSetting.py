@@ -24,9 +24,6 @@ class ChangeLabelSetting(QDialog):
 
         layout = QVBoxLayout()
 
-        # -------------------------------------------------
-        # Target Label Group
-        # -------------------------------------------------
         target_group = QGroupBox("Target Label")
         target_layout = QVBoxLayout()
 
@@ -52,9 +49,6 @@ class ChangeLabelSetting(QDialog):
         target_group.setLayout(target_layout)
         layout.addWidget(target_group)
 
-        # -------------------------------------------------
-        # Max Pixels Group
-        # -------------------------------------------------
         max_pixels_group = QGroupBox("Max Pixels")
         max_pixels_layout = QVBoxLayout()
 
@@ -84,9 +78,6 @@ class ChangeLabelSetting(QDialog):
         max_pixels_group.setLayout(max_pixels_layout)
         layout.addWidget(max_pixels_group)
 
-        # -------------------------------------------------
-        # Buttons
-        # -------------------------------------------------
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel
@@ -97,18 +88,12 @@ class ChangeLabelSetting(QDialog):
 
         self.setLayout(layout)
 
-    # -------------------------------------------------
-    # Updates
-    # -------------------------------------------------
     def update_target_label(self, text):
         self.target_label_id = self.label_id_map.get(text)
 
     def update_max_pixels(self, value):
         self.max_pixels = value
 
-    # -------------------------------------------------
-    # Save
-    # -------------------------------------------------
     def accept(self):
         data = Utils.load_parameters()
 
