@@ -173,9 +173,12 @@ class LabelEvents(Events):
                         image_item = self.model.image_items[file_path]
                         if image_item is not None and label_id in image_item.labeling_overlays:
                             image_item.labeling_overlays[label_id].reset()
-                            self.model.clear_all_rectangles(self.model.get_current_label_item().get_label_id())
-                            self.model.clear_all_polygons(self.model.get_current_label_item().get_label_id())
-                            self.model.clear_all_ellipses(self.model.get_current_label_item().get_label_id())
+                            image_item.image_rectangles = [r for r in image_item.image_rectangles if r["label_id"] != label_id]
+                            image_item.image_polygons = [p for p in image_item.image_polygons if p["label"] != label_id]
+                            image_item.image_ellipses = [e for e in image_item.image_ellipses if e["label"] != label_id]
+                            for item in image_item.zoomable_graphics_view.scene.items():
+                                if hasattr(item, "label_id") and item.label_id == label_id:
+                                    image_item.zoomable_graphics_view.scene.removeItem(item)
 
                     # Put the good labeling buttons according to the mode 
                     self.view.update_labeling_buttons(label_setting.labeling_mode)
