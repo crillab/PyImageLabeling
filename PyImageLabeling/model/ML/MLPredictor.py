@@ -1,13 +1,3 @@
-"""
-UPDATED MLPredictor.py with Paintbrush Segmentation Support
-
-Key changes:
-1. Collects paintbrush overlay data from image_item.labeling_overlays
-2. Trains segmentation head on painted pixels
-3. Predicts pixel-level segmentation masks
-4. Returns predictions as QPixmap that can be merged with labeling_overlay
-"""
-
 from PyImageLabeling.model.Core import Core
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtGui import QPen, QColor, QBrush, QPixmap, QImage, QPainter
@@ -40,17 +30,19 @@ except ImportError:
 
 
 class ObjectDetectionDataset(Dataset):
-    """Custom dataset for object detection training"""
+    """
+    FIXED Dataset that properly maps label_ids to class indices
+    """
     
-    def __init__(self, image_paths, annotations_list, label_to_id, image_size=416, augment=True):
+    def __init__(self, image_paths, annotations_list, label_id_to_class, image_size=416, augment=True):
         self.image_paths = image_paths
         self.annotations_list = annotations_list
-        self.label_to_id = label_to_id  # NEW: label mapping
+        self.label_id_to_class = label_id_to_class  # Maps original label_id → class for network
         self.image_size = image_size
         self.augment = augment
         self.use_albumentations = ALBUMENTATIONS_AVAILABLE
         
-        # Setup transforms as before...
+        # Setup transforms
         if ALBUMENTATIONS_AVAILABLE:
             try:
                 if augment:
@@ -109,7 +101,7 @@ class ObjectDetectionDataset(Dataset):
         boxes = []
         labels = []
         
-        for x, y, box_w, box_h, label_name in annotations:
+        for x, y, box_w, box_h, label_id in annotations:
             x1 = max(0, min(x, w - 1))
             y1 = max(0, min(y, h - 1))
             x2 = max(0, min(x + box_w, w))
@@ -117,9 +109,10 @@ class ObjectDetectionDataset(Dataset):
             
             if (x2 - x1) >= 2 and (y2 - y1) >= 2:
                 boxes.append([float(x1), float(y1), float(x2), float(y2)])
-                # FIX: Use actual label ID from label_name
-                label_id = self.label_to_id.get(label_name, 0)
-                labels.append(label_id)
+                
+                # CRITICAL FIX: Map original label_id to class_id for network
+                class_id = self.label_id_to_class.get(label_id, 0)
+                labels.append(class_id)
         
         if len(boxes) == 0:
             boxes = [[0.0, 0.0, 2.0, 2.0]]
@@ -379,7 +372,7 @@ class MLPredictor(Core):
         
         # Detection parameters
         self.image_size = 416
-        self.confidence_threshold = 0.7
+        self.confidence_threshold = 0.3
         self.nms_threshold = 0.4
         
         # Segmentation parameters (NEW)
@@ -430,18 +423,44 @@ class MLPredictor(Core):
         return images, targets
     
     def collect_training_data(self):
-        """Collect bounding box annotations"""
+        """
+        Collect bounding box annotations
+        FIXED: Now properly maps label_id to consistent class indices
+        """
         training_data = []
+        
+        # First pass: collect all unique label_ids that actually exist in annotations
+        all_label_ids_in_use = set()
         
         for file_path in self.file_paths:
             image_item = self.image_items.get(file_path)
+            if image_item is None:
+                continue
             
+            # Collect all label_ids used in this image
+            for rect_data in image_item.image_rectangles:
+                label_id = rect_data.get('label_id', 0)
+                all_label_ids_in_use.add(label_id)
+            
+            for ellipse_data in image_item.image_ellipses:
+                label_id = ellipse_data.get('label', 0)
+                all_label_ids_in_use.add(label_id)
+            
+            for polygon_data in image_item.image_polygons:
+                label_id = polygon_data.get('label_id', 0)
+                all_label_ids_in_use.add(label_id)
+        
+        print(f"\n✓ Found label_ids in use: {sorted(all_label_ids_in_use)}")
+        
+        # Second pass: collect annotations with label_id
+        for file_path in self.file_paths:
+            image_item = self.image_items.get(file_path)
             if image_item is None:
                 continue
             
             annotations = []
             
-            # Collect rectangles, ellipses, polygons as before
+            # Collect rectangles
             for rect_data in image_item.image_rectangles:
                 x = rect_data.get('x', 0)
                 y = rect_data.get('y', 0)
@@ -449,9 +468,10 @@ class MLPredictor(Core):
                 height = rect_data.get('height', 0)
                 label_id = rect_data.get('label_id', 0)
                 
-                label_name = self._get_label_name(label_id)
-                annotations.append((x, y, width, height, label_name))
+                # CRITICAL: Store label_id directly, not label_name
+                annotations.append((x, y, width, height, label_id))
             
+            # Collect ellipses (as bounding boxes)
             for ellipse_data in image_item.image_ellipses:
                 x = ellipse_data.get('x', 0)
                 y = ellipse_data.get('y', 0)
@@ -459,9 +479,9 @@ class MLPredictor(Core):
                 height = ellipse_data.get('height', 0)
                 label_id = ellipse_data.get('label', 0)
                 
-                label_name = self._get_label_name(label_id)
-                annotations.append((x, y, width, height, label_name))
+                annotations.append((x, y, width, height, label_id))
             
+            # Collect polygons (as bounding boxes)
             for polygon_data in image_item.image_polygons:
                 points = polygon_data.get('points', [])
                 label_id = polygon_data.get('label_id', 0)
@@ -475,8 +495,7 @@ class MLPredictor(Core):
                     width = max(x_coords) - x
                     height = max(y_coords) - y
                     
-                    label_name = self._get_label_name(label_id)
-                    annotations.append((x, y, width, height, label_name))
+                    annotations.append((x, y, width, height, label_id))
             
             if annotations:
                 training_data.append((file_path, annotations))
@@ -610,14 +629,13 @@ class MLPredictor(Core):
             return self.label_items[label_id].get_name()
         return f"label_{label_id}"
     
-    def train_model(self):  # ← REMOVED THE ARGUMENTS!
+    def train_model(self):
         """
-        Train model on EITHER detection OR segmentation data
-        Each image has only one type of annotation
+        Train model - FIXED VERSION with proper label mapping
         """
         # Collect both types of data INTERNALLY
         detection_data = self.collect_training_data()
-        segmentation_data = self.collect_segmentation_data()
+        segmentation_data = []
         
         if hasattr(self, "collect_segmentation_data"):
             segmentation_data = self.collect_segmentation_data()
@@ -625,59 +643,86 @@ class MLPredictor(Core):
         has_detection = len(detection_data) > 0
         has_segmentation = len(segmentation_data) > 0
 
-        # -------------------------
+        print("\n" + "="*50)
+        print("TRAINING DATA SUMMARY:")
+        print(f"  Detection annotations: {len(detection_data)} images")
+        print(f"  Segmentation annotations: {len(segmentation_data)} images")
+        print("="*50)
+
         # Determine training mode
-        # -------------------------
         if has_detection and not has_segmentation:
             self.training_mode = "detection"
             self.enable_detection = True
             self.enable_segmentation = False
+            print("✓ Training mode: DETECTION ONLY")
 
         elif has_segmentation and not has_detection:
             self.training_mode = "segmentation"
             self.enable_detection = False
             self.enable_segmentation = True
+            print("✓ Training mode: SEGMENTATION ONLY")
 
         elif has_detection and has_segmentation:
             self.training_mode = "both"
             self.enable_detection = True
             self.enable_segmentation = True
+            print("✓ Training mode: BOTH (detection + segmentation)")
 
         else:
-            raise RuntimeError("No training data available.")
+            raise RuntimeError("No training data available. Please annotate at least 1 image.")
 
-        print(f"Training mode set to: {self.training_mode}")
-        
-        # Build label mapping
-        all_labels = set()
+        # CRITICAL FIX: Build label mapping based on actual label_ids in annotations
+        all_label_ids = set()
         for _, annotations in detection_data:
-            for x, y, w, h, label_name in annotations:
-                all_labels.add(label_name)
+            for x, y, w, h, label_id in annotations:
+                all_label_ids.add(label_id)
         
-        # Add background class
-        if not all_labels:
-            all_labels = set(['default'])
+        # Create mapping: original label_id → class index for network
+        # Keep background as 0, then map each unique label_id to 1, 2, 3...
+        sorted_label_ids = sorted(all_label_ids)
         
-        self.label_to_id = {label: idx + 1 for idx, label in enumerate(sorted(all_labels))}
-        self.label_to_id['background'] = 0
-        self.id_to_label = {idx: label for label, idx in self.label_to_id.items()}
+        # Map original label_id to network class_id
+        self.label_id_to_class = {}
+        self.class_to_label_id = {}
         
-        # Ensure we have enough classes for all label IDs
-        max_label_id = max(self.label_items.keys()) if self.label_items else 0
-        num_classes = max(len(self.label_to_id), max_label_id + 1)
+        self.label_id_to_class[0] = 0  # Background stays 0
+        self.class_to_label_id[0] = 0
         
-        print(f"Training with {num_classes} classes: {list(self.label_to_id.keys())}")
+        for idx, original_label_id in enumerate(sorted_label_ids, start=1):
+            self.label_id_to_class[original_label_id] = idx
+            self.class_to_label_id[idx] = original_label_id
         
-        # Create detection dataset if we have detection data
+        num_classes = len(self.label_id_to_class)
+        
+        print(f"\n✓ Label mapping (original_id → class_id):")
+        for orig_id, class_id in self.label_id_to_class.items():
+            if orig_id in self.label_items:
+                label_name = self.label_items[orig_id].get_name()
+                print(f"    {orig_id} ('{label_name}') → class {class_id}")
+            else:
+                print(f"    {orig_id} → class {class_id}")
+        
+        print(f"\n✓ Training with {num_classes} classes total")
+        
+        # Create detection dataset
         detection_loader = None
         if has_detection:
+            print(f"\n✓ Creating detection dataset...")
             image_paths = [path for path, _ in detection_data]
             annotations_list = [anns for _, anns in detection_data]
+            
+            # Debug first image
+            if annotations_list:
+                print(f"  Sample annotations from first image:")
+                for ann in annotations_list[0][:3]:
+                    x, y, w, h, label_id = ann
+                    class_id = self.label_id_to_class.get(label_id, 0)
+                    print(f"    Box: ({x:.0f},{y:.0f},{w:.0f},{h:.0f}) label_id={label_id} → class={class_id}")
             
             train_dataset = ObjectDetectionDataset(
                 image_paths,
                 annotations_list,
-                self.label_to_id,
+                self.label_id_to_class,  
                 image_size=self.image_size,
                 augment=True
             )
@@ -689,8 +734,9 @@ class MLPredictor(Core):
                 num_workers=0,
                 collate_fn=MLPredictor.detection_collate_fn
             )
+            print(f"  ✓ Detection dataloader: {len(detection_loader)} batches")
         
-        # Create segmentation dataset if we have segmentation data
+        # Create segmentation dataset if needed
         segmentation_loader = None
         if has_segmentation:
             seg_image_paths = [path for path, _ in segmentation_data]
@@ -711,29 +757,41 @@ class MLPredictor(Core):
             )
         
         # Initialize model
+        print(f"\n✓ Initializing model...")
         self.model = FastObjectDetectorWithSegmentation(
-            num_classes=num_classes,
+            num_classes=max(2, num_classes),
             pretrained=True,
-            enable_segmentation=has_segmentation  # Only enable seg head if we have seg data
+            enable_segmentation=has_segmentation
         )
         self.model = self.model.to(self.device)
         
-        optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.learning_rate)
+        # IMPORTANT: Increase learning rate slightly for better convergence
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.002)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.num_epochs)
         
-        print("Training model...")
+        print(f"\n{'='*50}")
+        print("STARTING TRAINING")
+        print(f"{'='*50}")
+        print(f"Device: {self.device}")
+        print(f"Epochs: {self.num_epochs}")
+        print(f"Batch size: {self.batch_size}")
+        print(f"Learning rate: 0.002")
+        print(f"Classes: {num_classes}")
         if has_detection:
-            print("  - Detection head: ENABLED")
+            print("  - Detection: ENABLED")
         if has_segmentation:
-            print("  - Segmentation head: ENABLED")
-        print()
+            print("  - Segmentation: ENABLED")
+        print(f"{'='*50}\n")
         
         self.model.train()
         
+        best_loss = float('inf')
+        
         for epoch in range(self.num_epochs):
             total_loss = 0
-            total_det_loss = 0
-            total_seg_loss = 0
+            total_obj_loss = 0
+            total_bbox_loss = 0
+            total_cls_loss = 0
             num_batches = 0
             
             # Train on detection data
@@ -745,7 +803,7 @@ class MLPredictor(Core):
                     objectness, bbox_pred, class_pred, seg_pred = self.model(images)
                     grid_size = self.model.grid_size
                     
-                    # Detection losses
+                    # Initialize targets
                     obj_target = torch.zeros_like(objectness)
                     bbox_target = torch.zeros_like(bbox_pred)
                     class_target = torch.zeros(
@@ -774,6 +832,7 @@ class MLPredictor(Core):
                             grid_x = max(0, min(grid_x, grid_size - 1))
                             grid_y = max(0, min(grid_y, grid_size - 1))
                             
+                            # CRITICAL: Set objectness to 1.0 for cells with objects
                             obj_target[b, grid_y, grid_x, 0] = 1.0
                             
                             stride = self.image_size / grid_size
@@ -784,7 +843,21 @@ class MLPredictor(Core):
                             
                             class_target[b, grid_y, grid_x] = labels[box_idx]
                     
-                    obj_loss = F.binary_cross_entropy(objectness, obj_target)
+                    # Compute losses
+                    pos_mask = obj_target == 1
+                    neg_mask = obj_target == 0
+
+                    pos_loss = F.binary_cross_entropy(
+                        objectness[pos_mask],
+                        obj_target[pos_mask]
+                    ) if pos_mask.any() else 0
+
+                    neg_loss = F.binary_cross_entropy(
+                        objectness[neg_mask],
+                        obj_target[neg_mask]
+                    )
+
+                    obj_loss = 5.0 * pos_loss + 0.5 * neg_loss
                     
                     obj_mask = obj_target > 0.5
                     if obj_mask.any():
@@ -800,17 +873,20 @@ class MLPredictor(Core):
                         bbox_loss = torch.tensor(0.0, device=self.device)
                         cls_loss = torch.tensor(0.0, device=self.device)
                     
-                    det_loss = obj_loss + 5.0 * bbox_loss + 2.0 * cls_loss
+                    # IMPORTANT: Weight objectness loss higher
+                    det_loss = 2.0 * obj_loss + 5.0 * bbox_loss + 2.0 * cls_loss
                     
                     det_loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10.0)
                     optimizer.step()
                     
                     total_loss += det_loss.item()
-                    total_det_loss += det_loss.item()
+                    total_obj_loss += obj_loss.item()
+                    total_bbox_loss += bbox_loss.item()
+                    total_cls_loss += cls_loss.item()
                     num_batches += 1
             
-            # Train on segmentation data
+            # Train on segmentation data (if any)
             if segmentation_loader:
                 for batch_idx, (images, masks) in enumerate(segmentation_loader):
                     images = images.to(self.device)
@@ -821,7 +897,6 @@ class MLPredictor(Core):
                     _, _, _, seg_pred = self.model(images)
                     
                     if seg_pred is not None:
-                        # Segmentation loss (cross-entropy)
                         seg_loss = F.cross_entropy(seg_pred, masks)
                         
                         seg_loss.backward()
@@ -829,44 +904,56 @@ class MLPredictor(Core):
                         optimizer.step()
                         
                         total_loss += seg_loss.item()
-                        total_seg_loss += seg_loss.item()
                         num_batches += 1
             
             scheduler.step()
             
             avg_loss = total_loss / num_batches if num_batches > 0 else 0
+            avg_obj = total_obj_loss / len(detection_loader) if detection_loader else 0
+            avg_bbox = total_bbox_loss / len(detection_loader) if detection_loader else 0
+            avg_cls = total_cls_loss / len(detection_loader) if detection_loader else 0
+            
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+            
             if (epoch + 1) % 10 == 0 or epoch == 0:
-                det_avg = total_det_loss / len(detection_loader) if detection_loader else 0
-                seg_avg = total_seg_loss / len(segmentation_loader) if segmentation_loader else 0
-                print(f"Epoch [{epoch+1}/{self.num_epochs}], "
-                    f"Total: {avg_loss:.4f}, "
-                    f"Det: {det_avg:.4f}, "
-                    f"Seg: {seg_avg:.4f}")
+                print(f"Epoch [{epoch+1}/{self.num_epochs}] "
+                    f"Loss: {avg_loss:.4f} | "
+                    f"Obj: {avg_obj:.4f} | "
+                    f"BBox: {avg_bbox:.4f} | "
+                    f"Cls: {avg_cls:.4f}")
         
         self.trained = True
-        print("\nTraining complete!")
-        print(f"Model trained on:")
-        print(f"  - {len(detection_data)} images with geometric shapes")
-        print(f"  - {len(segmentation_data)} images with painted pixels")
+        
+        print(f"\n{'='*50}")
+        print("✓ TRAINING COMPLETE!")
+        print(f"{'='*50}")
+        print(f"Best loss: {best_loss:.4f}")
+        print(f"Final objectness loss: {avg_obj:.4f}")
+        print(f"Model capabilities:")
+        print(f"  - Detection: {'YES' if self.enable_detection else 'NO'}")
+        print(f"  - Segmentation: {'YES' if self.enable_segmentation else 'NO'}")
+        print(f"{'='*50}\n")
     
     @torch.no_grad()
     def predict_image(self, image_path, confidence_threshold=None):
         """
-        Predict bounding boxes.
-        Only runs if training_mode allows detection.
+        Predict bounding boxes - FIXED to use label_id_to_class mapping
         """
-
         if not self.trained or self.model is None:
+            print("pas entraîné")
             return []
 
         if not self.enable_detection:
-            return []  # ← IMPORTANT FIX
+            print("pas de detection")
+            return []
 
         if confidence_threshold is None:
             confidence_threshold = self.confidence_threshold
 
         image = cv2.imread(image_path)
         if image is None:
+            print("pas d'image'")
             return []
 
         original_h, original_w = image.shape[:2]
@@ -894,6 +981,7 @@ class MLPredictor(Core):
         classes = classes_list[0]
 
         if len(boxes) == 0:
+            print("box vide")
             return []
 
         scale_x = original_w / self.image_size
@@ -901,7 +989,7 @@ class MLPredictor(Core):
 
         predictions = []
 
-        for box, score, cls in zip(boxes, scores, classes):
+        for box, score, class_id in zip(boxes, scores, classes):
             x1, y1, x2, y2 = box
 
             x1 = int(x1 * scale_x)
@@ -912,9 +1000,20 @@ class MLPredictor(Core):
             w = x2 - x1
             h = y2 - y1
 
-            label_name = self.id_to_label.get(int(cls), f"class_{cls}")
+            # CRITICAL FIX: Map class_id back to original label_id
+            original_label_id = self.class_to_label_id.get(int(class_id), 0)
+            
+            # Get label name for display
+            if original_label_id in self.label_items:
+                label_name = self.label_items[original_label_id].get_name()
+            else:
+                label_name = f"label_{original_label_id}"
 
             predictions.append((x1, y1, w, h, float(score), label_name))
+        
+        print("Objectness max:", objectness.max().item())
+        print("Class pred max:", class_pred.max().item())
+        print("Class pred softmax max:", torch.softmax(class_pred, dim=-1).max().item())
 
         return predictions
     
@@ -1078,10 +1177,24 @@ class MLPredictor(Core):
         self.ml_prediction_items.append(segmentation_preview_item)
     
     def ml_clear_predictions_visual(self):
-        """Remove prediction graphics from scene"""
-        for item in self.ml_prediction_items:
-            self.zoomable_graphics_view.scene.removeItem(item)
-        self.ml_prediction_items = []
+        """
+        Remove prediction graphics from scene
+        FIXED VERSION - handles already-deleted Qt objects
+        """
+        items_to_remove = self.ml_prediction_items[:]  # Copy list
+        self.ml_prediction_items.clear()
+        
+        for item in items_to_remove:
+            try:
+                # Check if item still exists and is in a scene
+                if item.scene() is not None:
+                    self.zoomable_graphics_view.scene.removeItem(item)
+            except RuntimeError:
+                # Item was already deleted by Qt - this is fine
+                pass
+            except AttributeError:
+                # Item doesn't have scene() method - shouldn't happen but handle it
+                pass
     
     def ml_accept_predictions(self, ml_predictions_current):
         """Convert current bounding box predictions to rectangle annotations"""
@@ -1242,7 +1355,7 @@ class MLPredictor(Core):
             num_classes = checkpoint.get('num_classes', 2)
             
             self.model = FastObjectDetectorWithSegmentation(
-                num_classes=num_classes,
+                num_classes=max(2, num_classes),
                 pretrained=False,
                 enable_segmentation=checkpoint.get('enable_segmentation', True)
             )
@@ -1251,7 +1364,7 @@ class MLPredictor(Core):
             self.model.eval()
             
             self.image_size = checkpoint.get('image_size', 416)
-            self.confidence_threshold = checkpoint.get('confidence_threshold', 0.7)
+            self.confidence_threshold = checkpoint.get('confidence_threshold', 0.3)
             self.nms_threshold = checkpoint.get('nms_threshold', 0.4)
             self.enable_segmentation = checkpoint.get('enable_segmentation', True)
             self.segmentation_threshold = checkpoint.get('segmentation_threshold', 0.5)

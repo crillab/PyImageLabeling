@@ -36,6 +36,7 @@ class MagicPen(Core):
 
         self._fill_shape_worker(scene_pos)
         self.get_current_image_item().update_labeling_overlay()
+        self.controller.ml_update_stats() 
     
     def _fill_shape_worker(self, scene_pos):
         #Create some variables
@@ -173,7 +174,6 @@ class MagicPen(Core):
         for point in points:
             painter.drawPoint(point[0], point[1])
         self.get_current_image_item().update_labeling_overlay()
-        self.controller.ml_update_stats()
         print("MagicPen: fill_color_clicked done")
 
    

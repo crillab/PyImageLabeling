@@ -9,6 +9,7 @@ from PyQt6.QtGui import QImage
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 from PyImageLabeling.controller.Events import Events
+from PyImageLabeling.model.ML.MLPredictor import MLPredictor
 
 class MLEvents(Events):
     def __init__(self):
@@ -33,8 +34,21 @@ class MLEvents(Events):
         print("="*50)
         
         # Collect both types of data
-        detection_data = self.ml_collect_training_data()
+
+        self.ml_predictions_current = []
+        if hasattr(self.model, 'ml_segmentation_pixmap'):
+            self.model.ml_segmentation_pixmap = None
+        if hasattr(self.model, 'ml_clear_predictions_visual'):
+            self.model.ml_clear_predictions_visual()
+            
+        if hasattr(self.model, 'predictor'):
+            self.model.predictor.trained = False
+            self.model.predictor.label_id_to_class = {}
+            self.model.predictor.class_to_label_id = {}
+            self.model.predictor.model = None 
         
+        detection_data = self.ml_collect_training_data()
+
         segmentation_data = []
         if hasattr(self.model, 'collect_segmentation_data'):
             print("Collecting segmentation data...")
@@ -140,6 +154,8 @@ class MLEvents(Events):
                     self.ml_predictions_current = predictions
                     self.model.ml_visualize_predictions(predictions)
                     print(f"✓ Detection: {len(predictions)} boxes")
+                else : 
+                    print("No predictions after thresholding")
             except Exception as e:
                 print(f"Detection prediction failed: {e}")
                 import traceback
