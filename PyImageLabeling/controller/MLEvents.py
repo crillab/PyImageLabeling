@@ -175,9 +175,6 @@ class MLEvents(Events):
         else:
             self.view.statusBar().showMessage(f"No predictions found (confidence: {confidence:.2f})")
     
-    def ml_predict_all(self):
-        print("predict all")
-    
     def ml_accept_predictions(self):
         """
         Accept both box predictions AND segmentation

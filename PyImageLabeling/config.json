@@ -177,14 +177,6 @@
                 "slot": "ml_predict_current"
             },
             {
-                "name": "ml_predict_all_button",
-                "name_view": "Predict All Unlabeled",
-                "icon": "batch",
-                "tooltip": "Generate predictions for all unlabeled images",
-                "checkable": false,
-                "slot": "ml_predict_all"
-            },
-            {
                 "name": "ml_accept_button",
                 "name_view": "Accept Predictions",
                 "icon": "check",
