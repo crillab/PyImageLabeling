@@ -28,11 +28,7 @@ class MLEvents(Events):
 
     def ml_train_model(self):
         """Train the ML model on current annotations (detection + segmentation)"""
-        
-        print("\n" + "="*50)
         print("STARTING ML TRAINING")
-        print("="*50)
-        
         # Collect both types of data
 
         self.ml_predictions_current = []
@@ -58,11 +54,10 @@ class MLEvents(Events):
         
         total_data = len(detection_data) + len(segmentation_data)
         
-        print(f"\nCollected data:")
-        print(f"  Detection: {len(detection_data)} images")
-        print(f"  Segmentation: {len(segmentation_data)} images")
-        print(f"  Total: {total_data} images")
-        print("="*50 + "\n")
+        print(f"Collected data:")
+        print(f"Detection: {len(detection_data)} images")
+        print(f"Segmentation: {len(segmentation_data)} images")
+        print(f"Total: {total_data} images")
         
         if total_data < 1:
             QMessageBox.warning(
@@ -81,8 +76,6 @@ class MLEvents(Events):
         progress.setValue(10)
         
         try:
-            # CRITICAL: Just pass the raw data to model.train_model()
-            # The model will handle all the processing internally
             self.model.train_model()
             
             progress.setValue(100)
@@ -93,10 +86,8 @@ class MLEvents(Events):
             QMessageBox.information(
                 self.view,
                 "Training Complete",
-                f"Model trained successfully!\n\n"
                 f"Detection data: {len(detection_data)} images\n"
-                f"Segmentation data: {len(segmentation_data)} images\n\n"
-                "You can now use predictions on unlabeled images."
+                f"Segmentation data: {len(segmentation_data)} images\n"
             )
             
         except Exception as e:
@@ -113,7 +104,6 @@ class MLEvents(Events):
     def ml_predict_current(self):
         """
         Generate predictions for current image
-        CLEARS OLD PREDICTIONS FIRST to avoid accumulation
         """
         if not self.model.is_trained():
             QMessageBox.information(
@@ -130,7 +120,7 @@ class MLEvents(Events):
         if not current_image_path:
             return
         
-        # CRITICAL: Clear old predictions FIRST
+        # clear old predictions FIRST
         self.model.ml_clear_predictions_visual()
         self.ml_predictions_current = []
         if hasattr(self.model, 'ml_segmentation_pixmap'):
@@ -186,70 +176,7 @@ class MLEvents(Events):
             self.view.statusBar().showMessage(f"No predictions found (confidence: {confidence:.2f})")
     
     def ml_predict_all(self):
-        """Generate predictions for all unlabeled images"""
-        if not self.model.is_trained():
-            QMessageBox.information(
-                self.view,
-                "Model Not Trained",
-                "Please train the model first."
-            )
-            return
-        
-        # Get unlabeled images
-        unlabeled_images = self.model.ml_get_unlabeled_images()
-        
-        if not unlabeled_images:
-            QMessageBox.information(
-                self.view,
-                "No Unlabeled Images",
-                "All images have been annotated!"
-            )
-            return
-        
-        # Confirm with user
-        reply = QMessageBox.question(
-            self.view,
-            "Predict All",
-            f"Generate predictions for {len(unlabeled_images)} unlabeled images?\n"
-            "You can review and correct predictions afterward.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        
-        # Progress dialog
-        progress = QProgressDialog(
-            "Generating predictions...", "Cancel", 0, len(unlabeled_images), self.view
-        )
-        progress.setWindowModality(Qt.WindowModality.WindowModal)
-        
-        confidence = self.view.ml_confidence_slider.value() / 100.0
-        predictions_count = 0
-        
-        for i, image_path in enumerate(unlabeled_images):
-            if progress.wasCanceled():
-                break
-            
-            progress.setValue(i)
-            progress.setLabelText(f"Processing {os.path.basename(image_path)}...")
-            
-            # Generate predictions
-            predictions = self.model.predict_image(image_path, confidence)
-            
-            if predictions:
-                # Store predictions (you'll need to implement storage)
-                self.model.ml_store_predictions(image_path, predictions)
-                predictions_count += len(predictions)
-        
-        progress.setValue(len(unlabeled_images))
-        
-        QMessageBox.information(
-            self.view,
-            "Batch Prediction Complete",
-            f"Generated {predictions_count} predictions across {len(unlabeled_images)} images.\n"
-            "Review each image and correct predictions as needed."
-        )
+        print("predict all")
     
     def ml_accept_predictions(self):
         """
