@@ -143,7 +143,7 @@ class MLEvents(Events):
                 if predictions:
                     self.ml_predictions_current = predictions
                     self.model.ml_visualize_predictions(predictions)
-                    print(f"✓ Detection: {len(predictions)} boxes")
+                    print(f"Detection: {len(predictions)} boxes")
                 else : 
                     print("No predictions after thresholding")
             except Exception as e:
@@ -155,9 +155,9 @@ class MLEvents(Events):
         if has_segmentation:
             try:
                 segmentation = self.model.predict_segmentation(current_image_path, confidence)
-                if segmentation is not None and np.any(segmentation > 0):
+                if segmentation is not None and any(np.any(mask > 0) for mask in segmentation.values()):
                     self.model.ml_visualize_segmentation(segmentation)
-                    print(f"✓ Segmentation: displayed on screen")
+                    print(f"Segmentation: displayed on screen")
             except Exception as e:
                 print(f"Segmentation prediction failed: {e}")
                 import traceback
@@ -167,7 +167,7 @@ class MLEvents(Events):
         parts = []
         if predictions:
             parts.append(f"{len(predictions)} boxes")
-        if segmentation is not None and np.any(segmentation > 0):
+        if segmentation is not None and any(np.any(mask > 0) for mask in segmentation.values()):
             parts.append("segmentation")
         
         if parts:
@@ -189,7 +189,9 @@ class MLEvents(Events):
             self.ml_predictions_current = []
         
         # Accept segmentation
-        if hasattr(self.model, 'ml_segmentation_pixmap') and self.model.ml_segmentation_pixmap is not None:
+        if (hasattr(self.model, 'ml_segmentation_predictions') and 
+        self.model.ml_segmentation_predictions is not None and
+        len(self.model.ml_segmentation_predictions) > 0):
             accepted_segmentation = self.model.ml_accept_segmentation()
         
         # Clear ALL predictions from scene
@@ -214,7 +216,7 @@ class MLEvents(Events):
             message_parts.append("segmentation")
         
         self.view.statusBar().showMessage(
-            f"✓ Accepted {' and '.join(message_parts)} as permanent annotations"
+            f"Accepted {' and '.join(message_parts)} as permanent annotations"
         )
     
     def ml_clear_predictions(self):
@@ -259,7 +261,9 @@ class MLEvents(Events):
                 should_refresh = True
             
             # Check for segmentation predictions
-            if hasattr(self.model, 'ml_segmentation_pixmap') and self.model.ml_segmentation_pixmap is not None:
+            if (hasattr(self.model, 'ml_segmentation_predictions') and 
+            self.model.ml_segmentation_predictions is not None and
+            len(self.model.ml_segmentation_predictions) > 0):
                 should_refresh = True
             
             # Refresh if needed

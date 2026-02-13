@@ -111,41 +111,6 @@ class DataManager(Core):
                 all_annotations[file_path] = annotations
         
         return all_annotations
-    
-    def collect_segmentation_masks(self):
-        samples = []
-
-        for file_path in self.file_paths:
-            image_item = self.image_items.get(file_path)
-            if not image_item:
-                continue
-
-            for label_id, overlay in image_item.labeling_overlays.items():
-                pixmap = overlay.labeling_overlay_pixmap
-                if pixmap is None:
-                    continue
-
-                qimg = pixmap.toImage().convertToFormat(
-                    qimg.Format.Format_Grayscale8
-                )
-
-                ptr = qimg.bits()
-                ptr.setsize(qimg.sizeInBytes())
-
-                mask = np.frombuffer(ptr, np.uint8).reshape(
-                    qimg.height(), qimg.width()
-                )
-
-                if mask.max() == 0:
-                    continue
-
-                samples.append({
-                    "image_path": file_path,
-                    "label_id": label_id,
-                    "mask": mask
-                })
-
-        return samples
 
     def _get_label_name(self, label_id):
         """Get label name from label_id"""
