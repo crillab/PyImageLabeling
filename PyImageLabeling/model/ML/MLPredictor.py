@@ -1007,7 +1007,7 @@ class MLPredictor(Core):
             w = x2 - x1
             h = y2 - y1
 
-            # CRITICAL FIX: Map class_id back to original label_id
+            # Map class_id back to original label_id
             original_label_id = self.class_to_label_id.get(int(class_id), 0)
             
             # Get label name for display
@@ -1078,8 +1078,6 @@ class MLPredictor(Core):
         high_confidence = seg_confidence >= confidence_threshold
         
         for class_id, original_label_id in self.class_to_label_id.items():
-            # Process ALL classes - class 0 is a real label now!
-            
             # Find pixels predicted as this class with high confidence
             class_mask = (seg_classes == class_id) & high_confidence
             pixel_count = np.count_nonzero(class_mask)
@@ -1160,13 +1158,12 @@ class MLPredictor(Core):
     def ml_visualize_segmentation(self, predictions_by_label):
         """
         Display multi-class segmentation predictions as semi-transparent overlays
-        predictions_by_label: dict of {label_id: binary_mask}
         """
         if predictions_by_label is None or len(predictions_by_label) == 0:
-            print("✗ No segmentation predictions to visualize")
+            print("No segmentation predictions to visualize")
             return
 
-        print(f"✓ Visualizing {len(predictions_by_label)} predicted label(s)")
+        print(f"Visualizing {len(predictions_by_label)} predicted label(s)")
         
         # Store predictions for later acceptance
         self.ml_segmentation_predictions = predictions_by_label
@@ -1174,7 +1171,9 @@ class MLPredictor(Core):
         # Create composite visualization showing all labels
         for label_id, mask in predictions_by_label.items():
             if not isinstance(mask, np.ndarray):
-                print(f"✗ Mask for label {label_id} is not a numpy array")
+                print(f"Mask for label {label_id} is not a numpy array")
+                continue
+            if label_id == 255:
                 continue
 
             h, w = mask.shape
@@ -1207,7 +1206,7 @@ class MLPredictor(Core):
             
             # Add to scene
             preview_item = QGraphicsPixmapItem(pixmap)
-            preview_item.setZValue(9)  # Below prediction boxes (10) but above annotations (2)
+            preview_item.setZValue(9) 
             
             self.zoomable_graphics_view.scene.addItem(preview_item)
             
@@ -1252,7 +1251,7 @@ class MLPredictor(Core):
             else:
                 continue
 
-            # CRITICAL FIX: Get the label_id and color from the predicted label_name
+            # Get the label_id and color from the predicted label_name
             predicted_label_id, predicted_color = self._get_label_by_name(label_name)
             
             # Fallback: if we can't find the label, skip this prediction
@@ -1278,7 +1277,7 @@ class MLPredictor(Core):
                 rect_data["height"],
                 predicted_color  # Use predicted color, not current label color
             )
-            rect_item.setZValue(2)  # Proper layer for annotations (below predictions at 10)
+            rect_item.setZValue(2)  # Proper layer for annotations 
             rect_item.model_ref = rect_data
             rect_item.label_id = predicted_label_id  # Use predicted label_id
 
@@ -1306,19 +1305,18 @@ class MLPredictor(Core):
     def ml_accept_segmentation(self):
         """
         Accept multi-class segmentation predictions
-        Paints each predicted label to its corresponding overlay with correct color
         """
         if not hasattr(self, 'ml_segmentation_predictions') or self.ml_segmentation_predictions is None:
-            print("✗ No segmentation predictions to accept")
+            print("No segmentation predictions to accept")
             return False
 
         if len(self.ml_segmentation_predictions) == 0:
-            print("✗ No segmentation predictions to accept")
+            print("No segmentation predictions to accept")
             return False
 
         current_image = self.current_image_item
         if current_image is None:
-            print("✗ No current image")
+            print("No current image")
             return False
 
         print(f"Accepting segmentation predictions for {len(self.ml_segmentation_predictions)} label(s)...")
@@ -1372,7 +1370,7 @@ class MLPredictor(Core):
         current_image.update_labeling_overlay()
         self.get_current_image_item().update_labeling_overlay()
         
-        print(f"✓ Finished painting to overlays")
+        print(f"Finished painting to overlays")
         
         # Clear predictions
         self.ml_segmentation_predictions = None
@@ -1388,9 +1386,9 @@ class MLPredictor(Core):
         
         torch.save({
             'model_state_dict': self.model.state_dict(),
-            'label_id_to_class': self.label_id_to_class,  # FIXED
-            'class_to_label_id': self.class_to_label_id,  # FIXED
-            'num_classes': self.model.num_classes,  # FIXED: Use model's num_classes
+            'label_id_to_class': self.label_id_to_class,  
+            'class_to_label_id': self.class_to_label_id,  
+            'num_classes': self.model.num_classes,  
             'image_size': self.image_size,
             'confidence_threshold': self.confidence_threshold,
             'nms_threshold': self.nms_threshold,
@@ -1410,13 +1408,13 @@ class MLPredictor(Core):
         try:
             checkpoint = torch.load(model_path, map_location=self.device)
             
-            # FIXED: Load correct mapping
+            # Load correct mapping
             self.label_id_to_class = checkpoint.get('label_id_to_class', {})
             self.class_to_label_id = checkpoint.get('class_to_label_id', {})
             num_classes = checkpoint.get('num_classes', 2)
             
             self.model = FastObjectDetectorWithSegmentation(
-                num_classes=num_classes,  # FIXED: Use exact num_classes
+                num_classes=num_classes,  
                 pretrained=False,
                 enable_segmentation=checkpoint.get('enable_segmentation', True)
             )
