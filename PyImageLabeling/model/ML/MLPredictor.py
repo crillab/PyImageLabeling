@@ -369,12 +369,10 @@ class MLPredictor(Core):
         self.nms_threshold = 0.4
         
         # Segmentation parameters (NEW)
-        self.enable_segmentation = True
         self.segmentation_threshold = 0.5
         
         # Training parameters
-        self.training_mode = None         
-        self.enable_detection = False
+        self.training_mode = None
         self.enable_segmentation = False
         self.batch_size = 8
         self.num_epochs = 50
@@ -383,15 +381,11 @@ class MLPredictor(Core):
         # Prediction storage
         self.ml_predictions_current = []
         self.ml_prediction_items = []
-        self.ml_pending_predictions = {}
         self.ml_segmentation_predictions = None  # Dict of {label_id: mask} for multi-class
         
         # Label mapping - FIXED
         self.label_id_to_class = {}
         self.class_to_label_id = {}
-        
-        # Statistics
-        self.ml_annotation_counter = 0
     
     @staticmethod
     def detection_collate_fn(batch):
@@ -637,20 +631,14 @@ class MLPredictor(Core):
         # Determine training mode
         if has_detection and not has_segmentation:
             self.training_mode = "detection"
-            self.enable_detection = True
-            self.enable_segmentation = False
             print("Training mode: DETECTION ONLY")
 
         elif has_segmentation and not has_detection:
             self.training_mode = "segmentation"
-            self.enable_detection = False
-            self.enable_segmentation = True
             print("Training mode: SEGMENTATION ONLY")
 
         elif has_detection and has_segmentation:
             self.training_mode = "both"
-            self.enable_detection = True
-            self.enable_segmentation = True
             print("Training mode: BOTH (detection + segmentation)")
 
         else:
@@ -938,13 +926,10 @@ class MLPredictor(Core):
                     f"Cls: {avg_cls:.4f}")
         
         self.trained = True
-
+        torch.cuda.empty_cache()
         print("TRAINING COMPLETE!")
         print(f"Best loss: {best_loss:.4f}")
         print(f"Final objectness loss: {avg_obj:.4f}")
-        print(f"Model capabilities:")
-        print(f"  - Detection: {'YES' if self.enable_detection else 'NO'}")
-        print(f"  - Segmentation: {'YES' if self.enable_segmentation else 'NO'}")
     
     @torch.no_grad()
     def predict_image(self, image_path, confidence_threshold=None):
@@ -954,7 +939,7 @@ class MLPredictor(Core):
         if not self.trained or self.model is None:
             return []
 
-        if not self.enable_detection:
+        if self.training_mode not in ["detection", "both"]:
             return []
 
         if confidence_threshold is None:
@@ -1017,10 +1002,6 @@ class MLPredictor(Core):
                 label_name = f"label_{original_label_id}"
 
             predictions.append((x1, y1, w, h, float(score), label_name))
-        
-        print("Objectness max:", objectness.max().item())
-        print("Class pred max:", class_pred.max().item())
-        print("Class pred softmax max:", torch.softmax(class_pred, dim=-1).max().item())
 
         return predictions
     
@@ -1032,7 +1013,7 @@ class MLPredictor(Core):
         if not self.trained or self.model is None:
             return None
 
-        if not self.enable_segmentation:
+        if self.training_mode not in ["detection", "both"]:
             return None
 
         if confidence_threshold is None:
@@ -1295,10 +1276,6 @@ class MLPredictor(Core):
 
         self.ml_predictions_current = []
         self.ml_clear_predictions_visual()
-
-        path = current_image.path_image
-        if path in self.ml_pending_predictions:
-            del self.ml_pending_predictions[path]
 
         return count
     

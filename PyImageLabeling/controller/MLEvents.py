@@ -6,7 +6,6 @@ import numpy as np
 import torch
 import cv2
 from PyQt6.QtGui import QImage
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.model.ML.MLPredictor import MLPredictor
@@ -15,7 +14,6 @@ class MLEvents(Events):
     def __init__(self):
         super().__init__()
         self.ml_predictions_current = []  # Current predictions for active image
-        self.ml_annotation_counter = 0 
 
     def ml_collect_training_data(self):
         return self.model.start_data_collection()

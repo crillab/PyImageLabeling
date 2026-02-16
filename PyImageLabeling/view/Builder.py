@@ -191,7 +191,7 @@ class Builder:
         self.view.ml_retrain_spinbox.setMinimum(0)
         self.view.ml_retrain_spinbox.setMaximum(100)
         self.view.ml_retrain_spinbox.setValue(20)
-        self.view.ml_retrain_spinbox.setSuffix(" annotations")
+        self.view.ml_retrain_spinbox.setSuffix("annotations")
         self.view.ml_retrain_spinbox.setToolTip("Auto-retrain model every N annotations (0 = disabled)")
         self.view.ml_retrain_spinbox.setSpecialValueText("Disabled")
         retrain_layout.addWidget(self.view.ml_retrain_spinbox)
