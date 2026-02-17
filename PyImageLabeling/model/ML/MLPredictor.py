@@ -926,7 +926,7 @@ class MLPredictor(Core):
                     f"Cls: {avg_cls:.4f}")
         
         self.trained = True
-        torch.cuda.empty_cache()
+
         print("TRAINING COMPLETE!")
         print(f"Best loss: {best_loss:.4f}")
         print(f"Final objectness loss: {avg_obj:.4f}")
@@ -939,7 +939,7 @@ class MLPredictor(Core):
         if not self.trained or self.model is None:
             return []
 
-        if self.training_mode not in ["detection", "both"]:
+        if not self.training_mode not in ["detection", "both"]:
             return []
 
         if confidence_threshold is None:
@@ -1013,7 +1013,7 @@ class MLPredictor(Core):
         if not self.trained or self.model is None:
             return None
 
-        if self.training_mode not in ["detection", "both"]:
+        if not self.training_mode not in ["detection", "both"]:
             return None
 
         if confidence_threshold is None:
