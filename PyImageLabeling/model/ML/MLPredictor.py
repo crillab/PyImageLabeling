@@ -526,6 +526,15 @@ class MLPredictor(Core):
                 
                 alpha = arr[:, :, 3]
                 painted_pixels = alpha > 30
+                
+                if painted_pixels.shape != (height, width):
+                    painted_pixels_uint8 = painted_pixels.astype(np.uint8) * 255
+                    painted_pixels_resized = cv2.resize(
+                        painted_pixels_uint8, (width, height),
+                        interpolation=cv2.INTER_NEAREST
+                    )
+                    painted_pixels = painted_pixels_resized > 0
+
                 pixel_count = np.count_nonzero(painted_pixels)
                 
                 if pixel_count > 0:
