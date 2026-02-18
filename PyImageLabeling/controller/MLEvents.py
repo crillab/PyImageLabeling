@@ -277,7 +277,7 @@ class MLEvents(Events):
         else:
             self.view.ml_status_label.setText("ML: Not trained")
             self.view.ml_status_label.setStyleSheet("color: gray;")
-
+    
     def ml_update_stats(self):
         """Update the ML stats label with current annotation counts"""
         annotated_images = 0

@@ -564,12 +564,35 @@ class ImageItem():
     
     def get_labeling_overlay(self):
         return self.current_labeling_overlay
+    
+    def _overlay_has_content(self, overlay):
+        pixmap = overlay.labeling_overlay_pixmap
+        if pixmap is None or pixmap.isNull():
+            return False
+        else:
+            return True
 
     def update_icon_file(self):
-        if self.get_edited() is True:
-            self.icon_button.setPixmap(self.view.icon_asterisk_red)
-        else:
-            self.icon_button.setPixmap(self.view.icon_asterisk_green)
+        icons = self.view.controller.model.icon_button_files.get(self.path_image)
+        if icons is None:
+            return
+
+        # Asterisk
+        icons["asterisk"].setPixmap(
+            self.view.icon_asterisk_red if self.get_edited() else self.view.icon_asterisk_green
+        )
+
+        # Loaded: image is in memory (ImageItem exists and is not None)
+        icons["loaded"].setVisible(True)
+
+        has_labels = (
+            bool(self.image_rectangles) or
+            bool(self.image_ellipses) or
+            bool(self.image_polygons) or
+            any(self._overlay_has_content(ov) for ov in self.labeling_overlays.values())
+        )
+        print("self.labeling_overlays", self.labeling_overlays)
+        icons["label_tag"].setVisible(has_labels)
             
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -812,8 +835,16 @@ class Core():
     def update_icon_file(self):
         for file in self.file_paths:
             image_item = self.image_items[file] 
+            icons = self.icon_button_files.get(file)
+            if icons is None:
+                continue
             if image_item is not None:
                 image_item.update_icon_file()
+            else:
+                # Not loaded yet: hide loaded icon, keep asterisk green
+                icons["loaded"].setVisible(False)
+                icons["asterisk"].setPixmap(self.view.icon_asterisk_green)
+                icons["label_tag"].setVisible(False)
 
     def update_thickness(self, new_thickness):
         # Update thickness in stored data for all images

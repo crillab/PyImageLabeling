@@ -25,6 +25,7 @@ class FileEvents(Events):
             self.view.buttons_label_bar_permanent[button_names].setEnabled(True)
         
         self.move_image() # we active the move button :) 
+        self.model.update_icon_file()
         print("load")
 
 
@@ -45,6 +46,7 @@ class FileEvents(Events):
             self.model.update_labeling_overlays(self.model.get_current_label_item().get_label_id())
 
         self.view.file_bar_list.setCurrentItem(item)
+        self.model.update_icon_file()
         
         # item_widget = self.view.file_bar_list.itemWidget(item)
         # if item_widget:

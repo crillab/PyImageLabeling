@@ -2,7 +2,7 @@
 from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
-from PyQt6.QtWidgets import QListWidget, QProgressDialog, QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem
+from PyQt6.QtWidgets import QListWidget, QProgressDialog, QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem, QCheckBox
 from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
 from functools import partial
@@ -43,6 +43,12 @@ class View(QMainWindow):
         
         self.icon_asterisk_red = QPixmap(Utils.get_icon_path("asterisk-red"))
         self.icon_asterisk_red = self.icon_asterisk_red.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+
+        self.label_tag = QPixmap(Utils.get_icon_path("label_tag"))
+        self.label_tag= self.label_tag.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+
+        self.loaded = QPixmap(Utils.get_icon_path("loaded"))
+        self.loaded= self.loaded.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
         
         self.controller.set_view(self) 
         
@@ -130,12 +136,6 @@ class View(QMainWindow):
             item_layout = QHBoxLayout(item_widget)
             item_layout.setContentsMargins(5, 2, 5, 2)
 
-            # The save marker
-            icon_button = QLabel()
-            icon_button.setPixmap(self.icon_asterisk_green)
-            icon_button.setObjectName("save_marker")
-            self.controller.model.icon_button_files[file] = icon_button
-            
             # File name label
             file_label = QLabel(filename)
             file_label.setObjectName("label_files")
@@ -145,13 +145,48 @@ class View(QMainWindow):
             remove_button = QPushButton("×")
             remove_button.setToolTip("Remove file")
             remove_button.setObjectName("remove_image_button")
+
+            # labeled or not image
+            icon_button_1 = QLabel()
+            icon_button_1.setPixmap(self.label_tag)
+            icon_button_1.setObjectName("save_marker")
+            self.controller.model.icon_button_files[file] = icon_button_1
+            icon_button_1.setVisible(False)
+
+            # The save marker
+            icon_button_2 = QLabel()
+            icon_button_2.setPixmap(self.icon_asterisk_green)
+            icon_button_2.setObjectName("save_marker")
+            self.controller.model.icon_button_files[file] = icon_button_2
+
+            # The loaded marker
+            icon_button_3 = QLabel()
+            icon_button_3.setPixmap(self.loaded)
+            icon_button_3.setObjectName("save_marker")
+            self.controller.model.icon_button_files[file] = icon_button_3
+            icon_button_3.setVisible(False)
             
+            # Complete checkbox
+            complete_checkbox = QCheckBox("")
+            complete_checkbox.setObjectName("complete_checkbox")
+            complete_checkbox.setObjectName("save_marker")
+
             # Connect remove button to removal function
             remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths, self.controller.model.image_items))
 
-            item_layout.addWidget(icon_button)
+            self.controller.model.icon_button_files[file] = {
+                "label_tag": icon_button_1,
+                "asterisk": icon_button_2,
+                "loaded": icon_button_3,
+                "complete": complete_checkbox,
+            }
+
             item_layout.addWidget(file_label)
             item_layout.addWidget(remove_button)
+            item_layout.addWidget(icon_button_1)
+            item_layout.addWidget(icon_button_2)
+            item_layout.addWidget(icon_button_3)
+            item_layout.addWidget(complete_checkbox)
             item_widgets.append((item, item_widget))
             
         for item, item_widget in item_widgets:
