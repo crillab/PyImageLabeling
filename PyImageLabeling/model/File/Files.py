@@ -258,6 +258,7 @@ class Files(Core):
 
         # Now, we have to save in this directory :)
         self.save_directory = current_file_path
+        self.load_complete_state()
 
         
             

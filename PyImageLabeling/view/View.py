@@ -118,61 +118,63 @@ class View(QMainWindow):
 
     def file_bar_add(self, current_file_paths):
         
+        ICON_SIZE = QSize(*self.config["window_size"]["icon_save_marker"])
+        
         item_widgets = []
         for file in current_file_paths:
             
             filename = os.path.basename(file)
 
-            # Create list item
             item = QListWidgetItem()
             item.file_path = file
             item.filename = filename
 
             self.file_bar_list.addItem(item)
             
-            # Create custom widget for the item
             item_widget = QWidget()
             item_widget.setObjectName("file_item")
             item_layout = QHBoxLayout(item_widget)
             item_layout.setContentsMargins(5, 2, 5, 2)
+            item_layout.setSpacing(4)
 
-            # File name label
+            # File name label (takes all remaining space)
             file_label = QLabel(filename)
             file_label.setObjectName("label_files")
-            file_label.setToolTip(filename)  # Full filename as tooltip
-            
+            file_label.setToolTip(filename)
+
             # Remove button
             remove_button = QPushButton("×")
             remove_button.setToolTip("Remove file")
             remove_button.setObjectName("remove_image_button")
+            remove_button.setFixedSize(20, 20)
 
-            # labeled or not image
+            # label_tag icon — fixed size to always reserve space
             icon_button_1 = QLabel()
             icon_button_1.setPixmap(self.label_tag)
             icon_button_1.setObjectName("save_marker")
-            self.controller.model.icon_button_files[file] = icon_button_1
+            icon_button_1.setFixedSize(ICON_SIZE)
+            icon_button_1.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon_button_1.setVisible(False)
 
-            # The save marker
+            # asterisk icon — always visible
             icon_button_2 = QLabel()
             icon_button_2.setPixmap(self.icon_asterisk_green)
             icon_button_2.setObjectName("save_marker")
-            self.controller.model.icon_button_files[file] = icon_button_2
+            icon_button_2.setFixedSize(ICON_SIZE)
+            icon_button_2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-            # The loaded marker
+            # loaded icon — fixed size to always reserve space
             icon_button_3 = QLabel()
             icon_button_3.setPixmap(self.loaded)
             icon_button_3.setObjectName("save_marker")
-            self.controller.model.icon_button_files[file] = icon_button_3
+            icon_button_3.setFixedSize(ICON_SIZE)
+            icon_button_3.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon_button_3.setVisible(False)
-            
+
             # Complete checkbox
             complete_checkbox = QCheckBox("")
             complete_checkbox.setObjectName("complete_checkbox")
-            complete_checkbox.setObjectName("save_marker")
-
-            # Connect remove button to removal function
-            remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths, self.controller.model.image_items))
+            complete_checkbox.setFixedSize(20, 20)
 
             self.controller.model.icon_button_files[file] = {
                 "label_tag": icon_button_1,
@@ -181,7 +183,11 @@ class View(QMainWindow):
                 "complete": complete_checkbox,
             }
 
-            item_layout.addWidget(file_label)
+            remove_button.clicked.connect(partial(self.file_bar_remove, item, self.controller.model.file_paths, self.controller.model.image_items))
+
+            # file label stretches, icons pinned to the right
+            item_layout.addWidget(file_label, stretch=1)
+            item_layout.addStretch()
             item_layout.addWidget(remove_button)
             item_layout.addWidget(icon_button_1)
             item_layout.addWidget(icon_button_2)

@@ -93,7 +93,7 @@ class LabelingOverlay():
     # A LabelingOverlay is composed of a QPixmap, a QGraphicItem, a QPainter and a previous QPixmap
     ###
 
-    def __init__(self, label, scene, width, height, from_file=None):
+    def __init__(self, label, scene, width, height, from_file=None, image_item=None):
         self.label = label
         
         self.scene = scene # The associated QGraphicScene of the QGraphicsView
@@ -102,6 +102,7 @@ class LabelingOverlay():
         self.zvalue = 3 # The default ZValue 
         self.opacity = Utils.load_parameters()["labeling_opacity"]/100 # To normalize
         self.memory_depth = Utils.load_parameters()["undo"]["depth"] 
+        self.image_item = image_item 
         #self.label_id = label_id
         #self.name = name
         #self.labeling_mode = labeling_mode
@@ -207,6 +208,8 @@ class LabelingOverlay():
         if self.get_is_undo_none() is False:
             self.set_is_undo_none(True)
         
+        self.image_item.update_icon_file()
+        
     def remove(self):
         if self.is_displayed_in_scene is True:
             self.scene.removeItem(self.labeling_overlay_item)
@@ -237,6 +240,7 @@ class LabelingOverlay():
                 # Store CompactUndoEntry
                 self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
                 self.set_is_undo_none(True)
+                self.image_item.update_icon_file()
 
             # Update display
             self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
@@ -327,6 +331,9 @@ class LabelingOverlay():
 
         # Create a copy to keep it in the previous pixmap variable
         self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
+
+        if self.image_item is not None:
+            self.image_item.update_icon_file()
 
     #def get_color(self):
     #     return self.color
@@ -532,7 +539,8 @@ class ImageItem():
                         self.view.zoomable_graphics_view.scene,
                         self.image_qrect.width(),
                         self.image_qrect.height(),
-                        self.labeling_overview_file_paths[basename_key]
+                        self.labeling_overview_file_paths[basename_key],
+                        image_item = self
                     )
                     self.labeling_overview_was_loaded[basename_key] = True
                 else:
@@ -541,7 +549,9 @@ class ImageItem():
                         label_items[label_id],
                         self.view.zoomable_graphics_view.scene,
                         self.image_qrect.width(),
-                        self.image_qrect.height()
+                        self.image_qrect.height(),
+                        image_item = self
+
                     )
         self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
         self.current_label_id = selected_label_id
@@ -586,8 +596,10 @@ class ImageItem():
         return self.current_labeling_overlay
     
     def _overlay_has_content(self, overlay):
-        if len(overlay.undo_deque) > 1:
+        # If undo_none is False, user has painted on this overlay
+        if not overlay.get_is_undo_none():
             return True
+        # Fallback: check if the single deque entry has pixels (e.g. loaded from file)
         if len(overlay.undo_deque) == 1:
             return overlay.undo_deque[0].y_coords is not None and len(overlay.undo_deque[0].y_coords) > 0
         return False
@@ -611,8 +623,7 @@ class ImageItem():
             bool(self.image_polygons) or
             any(self._overlay_has_content(ov) for ov in self.labeling_overlays.values())
         )
-        print("self.labeling_overlays", self.labeling_overlays)
-        icons["label_tag"].setVisible(has_labels and not self.get_undo_none())
+        icons["label_tag"].setVisible(has_labels)
             
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -1005,6 +1016,7 @@ class Core():
         self.save_labels(self.save_directory)
         self.save_overlays(self.save_directory)
         self.save_labels_geometric_shape(self.save_directory)
+        self.save_complete_state()
 
     def save_copy(self):
         # Le dossier de copie n'a pas encore été défini → demander une seule fois
@@ -1028,6 +1040,20 @@ class Core():
         with open(file, "r") as fp:
             labels_dict = json.load(fp)
 
+        basename = os.path.basename(file)
+        if file not in self.labeling_overview_was_loaded:
+            self.labeling_overview_was_loaded[basename] = False
+            self.labeling_overview_file_paths[basename] = file
+        image_basename = basename.split(KEYWORD_SAVE_LABEL)[0]  # "image"
+        
+        for file_path in self.file_paths:
+            fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])  # "image"
+            if fp_basename == image_basename:
+                icons = self.icon_button_files.get(file_path)
+                if icons is not None:
+                    icons["label_tag"].setVisible(True)
+                break
+        
         for lid_str, info in labels_dict.items():
             label_id = int(lid_str)
             name = info.get("name")
@@ -1042,7 +1068,7 @@ class Core():
             self.view.builder.build_new_layer_label_bar(
                 label_id, name, labeling_mode, color
             )
-
+            
     def load_rectangles_json(self, file):
         with open(file, "r") as fp:
             rectangles_dict = json.load(fp)
@@ -1209,6 +1235,30 @@ class Core():
         if self.checked_button == "contour_filling":
             self.controller.model.apply_contour()
 
+    def save_complete_state(self):
+        if not self.save_directory:
+            return
+        complete_state = {}
+        for file_path in self.file_paths:
+            icons = self.icon_button_files.get(file_path)
+            if icons is not None:
+                complete_state[os.path.basename(file_path)] = icons["complete"].isChecked()
+        with open(os.path.join(self.save_directory, "complete_state.json"), 'w') as fp:
+            json.dump(complete_state, fp)
+
+    def load_complete_state(self):
+        if not self.save_directory:
+            return
+        complete_state_path = os.path.join(self.save_directory, "complete_state.json")
+        if not os.path.isfile(complete_state_path):
+            return
+        with open(complete_state_path, "r") as fp:
+            complete_state = json.load(fp)
+        for file_path in self.file_paths:
+            basename = os.path.basename(file_path)
+            icons = self.icon_button_files.get(file_path)
+            if icons is not None and basename in complete_state:
+                icons["complete"].setChecked(complete_state[basename])
         
             
     

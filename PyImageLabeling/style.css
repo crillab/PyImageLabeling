@@ -599,10 +599,26 @@ QSlider {
     background-color: transparent;
 }
 
-QCheckBox{
+QCheckBox#complete_checkbox {
     background-color: transparent;
 }
 
+QCheckBox#complete_checkbox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #000000;
+    border-radius: 3px;
+    background-color: #cccccc;
+}
+
+QCheckBox#complete_checkbox::indicator:checked {
+    background-color: green;
+    border: 1px solid #000000;
+}
+
+QCheckBox#complete_checkbox::indicator:hover {
+    border: 1px solid #8ba1ff;
+}
 
 
 ZoomableGraphicsView {

@@ -27,7 +27,8 @@ class ImageOptionDialog(QDialog):
         height = qimage.height()
         ptr = qimage.bits()
         ptr.setsize(qimage.sizeInBytes())
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width, 3))
+        arr = np.frombuffer(ptr, dtype=np.uint8)
+        arr = arr[:height * width * 3].reshape((height, width, 3)) 
         self.original_image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
         self.modified_image = self.original_image.copy()
 
@@ -304,7 +305,8 @@ class ImageOptionDialog(QDialog):
         height = qimage.height()
         ptr = qimage.bits()
         ptr.setsize(qimage.sizeInBytes())
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((height, width, 3))
+        arr = np.frombuffer(ptr, dtype=np.uint8)
+        arr = arr[:height * width * 3].reshape((height, width, 3)) 
         self.original_image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
         self.modified_image = self.original_image.copy()
 
