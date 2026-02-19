@@ -161,12 +161,19 @@ class LabelingOverlay():
 
         self.is_displayed_in_scene = False
         self.is_edited = False
+        self.is_undo_none = True
     
     def set_is_edited(self, is_edited):
         self.is_edited = is_edited
     
     def get_is_edited(self):
         return self.is_edited
+    
+    def set_is_undo_none(self, is_undo_none):
+        self.is_undo_none = is_undo_none
+    
+    def get_is_undo_none(self):
+        return self.is_undo_none
     
     def update_scene(self):
         if self.is_displayed_in_scene is False:
@@ -197,6 +204,9 @@ class LabelingOverlay():
         if self.get_is_edited() is False:
             self.set_is_edited(True)
         
+        if self.get_is_undo_none() is False:
+            self.set_is_undo_none(True)
+        
     def remove(self):
         if self.is_displayed_in_scene is True:
             self.scene.removeItem(self.labeling_overlay_item)
@@ -226,7 +236,8 @@ class LabelingOverlay():
             if len(self.undo_deque) == 0:
                 # Store CompactUndoEntry
                 self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
-            
+                self.set_is_undo_none(True)
+
             # Update display
             self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
             self.labeling_overlay_painter.begin(self.labeling_overlay_pixmap)
@@ -303,6 +314,9 @@ class LabelingOverlay():
         # We change this labeling overlay
         if self.get_is_edited() is False:
             self.set_is_edited(True)
+
+        if self.get_is_undo_none() is True:
+            self.set_is_undo_none(False)
         
         # Change and update the QPixmap 
         self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
@@ -428,6 +442,12 @@ class ImageItem():
     def get_edited(self):
         for label_id in self.labeling_overlays:
             if self.labeling_overlays[label_id].get_is_edited() is True:
+                return True
+        return False
+    
+    def get_undo_none(self):
+        for label_id in self.labeling_overlays:
+            if self.labeling_overlays[label_id].get_is_undo_none() is True:
                 return True
         return False
 
@@ -566,11 +586,11 @@ class ImageItem():
         return self.current_labeling_overlay
     
     def _overlay_has_content(self, overlay):
-        pixmap = overlay.labeling_overlay_pixmap
-        if pixmap is None or pixmap.isNull():
-            return False
-        else:
+        if len(overlay.undo_deque) > 1:
             return True
+        if len(overlay.undo_deque) == 1:
+            return overlay.undo_deque[0].y_coords is not None and len(overlay.undo_deque[0].y_coords) > 0
+        return False
 
     def update_icon_file(self):
         icons = self.view.controller.model.icon_button_files.get(self.path_image)
@@ -592,7 +612,7 @@ class ImageItem():
             any(self._overlay_has_content(ov) for ov in self.labeling_overlays.values())
         )
         print("self.labeling_overlays", self.labeling_overlays)
-        icons["label_tag"].setVisible(has_labels)
+        icons["label_tag"].setVisible(has_labels and not self.get_undo_none())
             
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -784,20 +804,29 @@ class Core():
                     self.image_items[file].labeling_overlays[labeling_overlay_key].reset()
                     self.image_items[file].labeling_overlays[labeling_overlay_key].remove()
                     to_delete.append(labeling_overlay_key)
+                    self.update_icon_file()
                 
                 for labeling_overlay_key in to_delete:
-                    
                     del self.image_items[file].labeling_overlays[labeling_overlay_key]
+                    self.update_icon_file()
+
         if hasattr(self, 'autosave_timer'):
             self.autosave_timer.stop()
             if self.autosave_enabled:
                 self.autosave_timer.start(self.autosave_interval)
+            
         
     def get_edited(self):
         for file in self.file_paths:
             if self.image_items[file] is not None and self.image_items[file].get_edited() is True:
                 return True
         return False
+    
+    def get_undo_none(self):
+        for label_id in self.labeling_overlays:
+            if self.labeling_overlays[label_id].get_is_undo_none() is False:
+                return False
+        return True
                  
     def get_label_items(self):
         return self.label_items
