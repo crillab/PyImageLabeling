@@ -1079,7 +1079,7 @@ class Core():
                 if os.path.basename(file_path) == image_name:
                     image_path = file_path
             
-            if image_path in self.image_items and self.image_items[image_path] is not None:
+            if image_path is not None and self.image_items.get(image_path) is not None:
                 # Restore rectangles for this image
                 self.image_items[image_path].image_rectangles = rectangles
             else:
@@ -1117,7 +1117,7 @@ class Core():
                 if os.path.basename(file_path) == image_name:
                     image_path = file_path
             
-            if image_path in self.image_items and self.image_items[image_path] is not None:
+            if image_path is not None and self.image_items.get(image_path) is not None:
                 self.image_items[image_path].image_ellipses = ellipses
             else:
                 self.left_ellipses[image_name] = ellipses
@@ -1154,7 +1154,7 @@ class Core():
                 if os.path.basename(file_path) == image_name:
                     image_path = file_path
             
-            if image_path in self.image_items and self.image_items[image_path] is not None:
+            if image_path is not None and self.image_items.get(image_path) is not None:
                 self.image_items[image_path].image_polygons = polygons
             else:
                 self.left_polygons[image_name] = polygons

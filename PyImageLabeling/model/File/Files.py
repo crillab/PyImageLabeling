@@ -209,12 +209,12 @@ class Files(Core):
         if self.view.file_bar_list.count() > 0 and self.view.file_bar_list.currentRow() == -1:
             self.view.file_bar_list.setCurrentRow(0) 
 
-        if (len(labels_images) != 0 and labels_json is None) or \
-            (len(labels_images) == 0 and labels_json is not None and rectangle_json is None and ellipse_json is None and polygon_json is None)  :
+        if len(labels_images) != 0 and labels_json is None:
             self.controller.error_message("Load Error", "The labeling image or the `labels.json` file is missing !")
-            return 
+            return
 
-        if len(labels_images) == 0 and labels_json is None:
+        if len(labels_images) == 0 and labels_json is None and \
+            rectangle_json is None and ellipse_json is None and polygon_json is None:
             return
 
         if labels_json is not None and self.get_edited():
