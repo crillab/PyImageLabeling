@@ -178,6 +178,29 @@ class Files(Core):
                 polygon_json = file # Load it later 
         self.view.file_bar_add(current_files_to_add)
 
+        for file_path in current_files_to_add:
+            fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])
+
+            # Check pixel-mask overlays
+            has_label = any(
+                k.split(KEYWORD_SAVE_LABEL)[0] == fp_basename
+                for k in self.labeling_overview_was_loaded
+            )
+
+            # Check geometric shapes
+            if not has_label:
+                image_name = os.path.basename(file_path)
+                has_label = (
+                    image_name in self.left_rectangles or
+                    image_name in self.left_ellipses or
+                    image_name in self.left_polygons
+                )
+
+            if has_label:
+                icons = self.icon_button_files.get(file_path)
+                if icons is not None:
+                    icons["label_tag"].setVisible(True)
+
         # Activate previous and next buttons
         for button_name in self.view.buttons_file_bar:
             self.view.buttons_file_bar[button_name].setEnabled(True)

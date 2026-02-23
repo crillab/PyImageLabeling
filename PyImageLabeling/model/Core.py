@@ -884,7 +884,7 @@ class Core():
                 # Not loaded yet: hide loaded icon, keep asterisk green
                 icons["loaded"].setVisible(False)
                 icons["asterisk"].setPixmap(self.view.icon_asterisk_green)
-                icons["label_tag"].setVisible(False)
+                #icons["label_tag"].setVisible(False)
 
     def update_thickness(self, new_thickness):
         # Update thickness in stored data for all images
@@ -1091,6 +1091,15 @@ class Core():
                 if self.image_items[current_path].image_rectangles is not None:
                     self.restore_rectangles_for_image(current_path)
 
+        for image_name in rectangles_dict:
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    if self.image_items.get(file_path) is None:
+                        icons = self.icon_button_files.get(file_path)
+                        if icons is not None:
+                            icons["label_tag"].setVisible(True)
+                    break
+
     def reload_rectangle(self, path_image):
             if os.path.basename(path_image) in self.left_rectangles:
                 self.image_items[path_image].image_rectangles =  self.left_rectangles[os.path.basename(path_image)]
@@ -1118,6 +1127,15 @@ class Core():
             if current_path in self.image_items and self.image_items[current_path] is not None:
                 if self.image_items[current_path].image_ellipses is not None:
                     self.restore_ellipses_for_image(current_path)
+        
+        for image_name in ellipses_dict:
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    if self.image_items.get(file_path) is None:
+                        icons = self.icon_button_files.get(file_path)
+                        if icons is not None:
+                            icons["label_tag"].setVisible(True)
+                    break
 
     def reload_ellipse(self, path_image):
             if os.path.basename(path_image) in self.left_ellipses:
@@ -1147,6 +1165,15 @@ class Core():
                 if self.image_items[current_path].image_polygons is not None:
                     self.restore_polygons_for_image(current_path)
 
+        for image_name in polygons_dict:
+            for file_path in self.file_paths:
+                if os.path.basename(file_path) == image_name:
+                    if self.image_items.get(file_path) is None:
+                        icons = self.icon_button_files.get(file_path)
+                        if icons is not None:
+                            icons["label_tag"].setVisible(True)
+                    break
+
     def reload_polygon(self, path_image):
             if os.path.basename(path_image) in self.left_polygons:
                 self.image_items[path_image].image_polygons =  self.left_polygons[os.path.basename(path_image)]
@@ -1160,6 +1187,15 @@ class Core():
         if label_file_path not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
+
+        image_basename = basename.split(KEYWORD_SAVE_LABEL)[0]  
+        for file_path in self.file_paths:
+            fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])
+            if fp_basename == image_basename:
+                icons = self.icon_button_files.get(file_path)
+                if icons is not None:
+                    icons["label_tag"].setVisible(True)
+                break
 
     def new_label(self, name, labeling_mode, color):
         label = LabelItem(name, labeling_mode, color)
