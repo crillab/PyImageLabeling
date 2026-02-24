@@ -409,143 +409,100 @@ class MLPredictor(Core):
         images = torch.stack(images, dim=0)
         return images, targets
     
-    def collect_training_data(self):
+    def collect_training_data(self, selected_paths=None):
         """
-        Collect bounding box annotations
+        Collect bounding box annotations.
+        If selected_paths is provided, only those images are used.
         """
         training_data = []
-        
-        # collect all unique label_ids that actually exist in annotations
+        paths = selected_paths if selected_paths is not None else self.file_paths
+
         all_label_ids_in_use = set()
-        
-        for file_path in self.file_paths:
+        for file_path in paths:
             image_item = self.image_items.get(file_path)
             if image_item is None:
                 continue
-            
-            # Collect all label_ids used in this image
             for rect_data in image_item.image_rectangles:
-                label_id = rect_data.get('label_id', 0)
-                all_label_ids_in_use.add(label_id)
-            
+                all_label_ids_in_use.add(rect_data.get('label_id', 0))
             for ellipse_data in image_item.image_ellipses:
-                label_id = ellipse_data.get('label', 0)
-                all_label_ids_in_use.add(label_id)
-            
+                all_label_ids_in_use.add(ellipse_data.get('label', 0))
             for polygon_data in image_item.image_polygons:
-                label_id = polygon_data.get('label_id', 0)
-                all_label_ids_in_use.add(label_id)
-        
+                all_label_ids_in_use.add(polygon_data.get('label_id', 0))
+
         print(f"Found label_ids in use: {sorted(all_label_ids_in_use)}")
-        
-        # collect annotations with label_id
-        for file_path in self.file_paths:
+
+        for file_path in paths:
             image_item = self.image_items.get(file_path)
             if image_item is None:
                 continue
-            
             annotations = []
-            
-            # Collect rectangles
             for rect_data in image_item.image_rectangles:
-                x = rect_data.get('x', 0)
-                y = rect_data.get('y', 0)
-                width = rect_data.get('width', 0)
-                height = rect_data.get('height', 0)
-                label_id = rect_data.get('label_id', 0)
-                
-                # Store label_id directly, not label_name
-                annotations.append((x, y, width, height, label_id))
-            
-            # Collect ellipses (as bounding boxes)
+                annotations.append((
+                    rect_data.get('x', 0), rect_data.get('y', 0),
+                    rect_data.get('width', 0), rect_data.get('height', 0),
+                    rect_data.get('label_id', 0)
+                ))
             for ellipse_data in image_item.image_ellipses:
-                x = ellipse_data.get('x', 0)
-                y = ellipse_data.get('y', 0)
-                width = ellipse_data.get('width', 0)
-                height = ellipse_data.get('height', 0)
-                label_id = ellipse_data.get('label', 0)
-                
-                annotations.append((x, y, width, height, label_id))
-            
-            # Collect polygons (as bounding boxes)
+                annotations.append((
+                    ellipse_data.get('x', 0), ellipse_data.get('y', 0),
+                    ellipse_data.get('width', 0), ellipse_data.get('height', 0),
+                    ellipse_data.get('label', 0)
+                ))
             for polygon_data in image_item.image_polygons:
                 points = polygon_data.get('points', [])
                 label_id = polygon_data.get('label_id', 0)
-                
                 if points:
-                    x_coords = [p['x'] for p in points]
-                    y_coords = [p['y'] for p in points]
-                    
-                    x = min(x_coords)
-                    y = min(y_coords)
-                    width = max(x_coords) - x
-                    height = max(y_coords) - y
-                    
-                    annotations.append((x, y, width, height, label_id))
-            
+                    xs = [p['x'] for p in points]; ys = [p['y'] for p in points]
+                    x = min(xs); y = min(ys)
+                    annotations.append((x, y, max(xs)-x, max(ys)-y, label_id))
             if annotations:
                 training_data.append((file_path, annotations))
-        
+
         return training_data
     
-    def collect_segmentation_data(self):
+    def collect_segmentation_data(self, selected_paths=None):
         """
-        Collect pixel-level annotations from paintbrush overlays
+        Collect pixel-level annotations from paintbrush overlays.
+        If selected_paths is provided, only those images are used.
         """
         segmentation_data = []
-        
+        paths = selected_paths if selected_paths is not None else self.file_paths
         print("COLLECTING SEGMENTATION DATA")
-        
-        for file_path in self.file_paths:
+
+        for file_path in paths:
             image_item = self.image_items.get(file_path)
             if image_item is None or not hasattr(image_item, 'labeling_overlays'):
                 continue
-            
             img = cv2.imread(file_path)
             if img is None:
                 continue
-            
             height, width = img.shape[:2]
-            
-            # Initialize with 255 (background)
             combined_mask = np.full((height, width), 255, dtype=np.uint8)
             colors_found = {}
-            
+
             for label_id, labeling_overlay in image_item.labeling_overlays.items():
                 overlay_pixmap = labeling_overlay.labeling_overlay_pixmap
-                
                 if overlay_pixmap is None or overlay_pixmap.isNull():
                     continue
-                
-                qimg = overlay_pixmap.toImage()
-                qimg = qimg.convertToFormat(QImage.Format.Format_ARGB32)
-                
-                ptr = qimg.bits()
-                ptr.setsize(qimg.sizeInBytes())
+                qimg = overlay_pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+                ptr = qimg.bits(); ptr.setsize(qimg.sizeInBytes())
                 arr = np.frombuffer(ptr, dtype=np.uint8).reshape((qimg.height(), qimg.width(), 4))
-                
                 alpha = arr[:, :, 3]
                 painted_pixels = alpha > 30
-                
                 if painted_pixels.shape != (height, width):
-                    painted_pixels_uint8 = painted_pixels.astype(np.uint8) * 255
-                    painted_pixels_resized = cv2.resize(
-                        painted_pixels_uint8, (width, height),
+                    painted_pixels = cv2.resize(
+                        painted_pixels.astype(np.uint8) * 255, (width, height),
                         interpolation=cv2.INTER_NEAREST
-                    )
-                    painted_pixels = painted_pixels_resized > 0
-
+                    ) > 0
                 pixel_count = np.count_nonzero(painted_pixels)
-                
                 if pixel_count > 0:
-                    # Overwrite 255 with actual label_id
                     combined_mask[painted_pixels] = label_id
                     colors_found[label_id] = pixel_count
                     print(f"  Label {label_id}: {pixel_count} painted pixels")
-            
-            if len(colors_found) > 0:
+
+            if colors_found:
                 segmentation_data.append((file_path, combined_mask))
-        
+
         print(f"FINAL SEGMENTATION DATA: {len(segmentation_data)} images")
         return segmentation_data
     
@@ -624,10 +581,10 @@ class MLPredictor(Core):
         
         print("\n=== END DIAGNOSIS ===\n")
     
-    def train_model(self):
+    def train_model(self, selected_paths=None):
         # Collect both types of data INTERNALLY
-        detection_data = self.collect_training_data()
-        segmentation_data = []
+        detection_data    = self.collect_training_data(selected_paths)
+        segmentation_data = self.collect_segmentation_data(selected_paths) if hasattr(self, "collect_segmentation_data") else []
         
         if hasattr(self, "collect_segmentation_data"):
             segmentation_data = self.collect_segmentation_data()
@@ -768,7 +725,8 @@ class MLPredictor(Core):
         )
         self.model = self.model.to(self.device)
         
-        optimizer = torch.optim.AdamW(self.model.parameters(), lr=0.002)
+        lr = getattr(self, 'learning_rate', 0.002)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.num_epochs)
 
         print(f"Device: {self.device}")
@@ -1384,6 +1342,44 @@ class MLPredictor(Core):
         
         print(f"ML model saved to {model_path}")
     
+    def load_image_for_training(self, path_image):
+        """
+        Minimal load of an ImageItem into memory for training purposes,
+        without displaying it in the scene.  Mirrors the relevant parts of
+        Core.select_image() but skips all Qt scene / UI work.
+        """
+        if self.image_items.get(path_image) is not None:
+            return  # Already loaded
+
+        from PyImageLabeling.model.Core import ImageItem
+        image_item = ImageItem(
+            self.view,
+            self.controller,
+            path_image,
+            self.icon_button_files.get(path_image),
+            self.labeling_overview_was_loaded,
+            self.labeling_overview_file_paths,
+        )
+        self.image_items[path_image] = image_item
+
+        # Reload geometric shapes that were parked in left_* dicts
+        basename = os.path.basename(path_image)
+        if basename in self.left_rectangles:
+            image_item.image_rectangles = self.left_rectangles.pop(basename)
+        if basename in self.left_ellipses:
+            image_item.image_ellipses = self.left_ellipses.pop(basename)
+        if basename in self.left_polygons:
+            image_item.image_polygons = self.left_polygons.pop(basename)
+
+        # Initialise labeling overlays (loads pixel masks from file if present)
+        if self.label_items and self.current_label_item is not None:
+            image_item.update_labeling_overlays(
+                self.label_items,
+                self.current_label_item.get_label_id()
+            )
+
+        print(f"[load_image_for_training] Loaded {basename} into memory for training.")
+
     def load_model_file(self, directory):
         """Load ML model from file"""
         model_path = os.path.join(directory, "ml_model.pth")

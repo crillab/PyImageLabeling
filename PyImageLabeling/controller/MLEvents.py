@@ -9,6 +9,7 @@ from PyQt6.QtGui import QImage
 
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.model.ML.MLPredictor import MLPredictor
+from PyImageLabeling.controller.settings.MLSetting import MLSetting
 
 class MLEvents(Events):
     def __init__(self):
@@ -27,73 +28,61 @@ class MLEvents(Events):
     def ml_train_model(self):
         """Train the ML model on current annotations (detection + segmentation)"""
         print("STARTING ML TRAINING")
-        # Collect both types of data
 
         self.ml_predictions_current = []
         if hasattr(self.model, 'ml_segmentation_pixmap'):
             self.model.ml_segmentation_pixmap = None
         if hasattr(self.model, 'ml_clear_predictions_visual'):
             self.model.ml_clear_predictions_visual()
-            
+
         if hasattr(self.model, 'predictor'):
             self.model.predictor.trained = False
             self.model.predictor.label_id_to_class = {}
             self.model.predictor.class_to_label_id = {}
-            self.model.predictor.model = None 
-        
-        detection_data = self.ml_collect_training_data()
+            self.model.predictor.model = None
 
+        # Use paths chosen in settings, fallback to all paths
+        selected_paths = getattr(self, '_ml_selected_image_paths', None)
+
+        # Load any selected images that are not yet in memory
+        if selected_paths:
+            for path in selected_paths:
+                if self.model.image_items.get(path) is None:
+                    self.model.load_image_for_training(path)
+
+        detection_data  = self.model.collect_training_data(selected_paths)
         segmentation_data = []
         if hasattr(self.model, 'collect_segmentation_data'):
-            print("Collecting segmentation data...")
-            segmentation_data = self.model.collect_segmentation_data()
-        else:
-            print("WARNING: model does not have collect_segmentation_data() method")
-        
+            segmentation_data = self.model.collect_segmentation_data(selected_paths)
+
         total_data = len(detection_data) + len(segmentation_data)
-        
-        print(f"Collected data:")
-        print(f"Detection: {len(detection_data)} images")
-        print(f"Segmentation: {len(segmentation_data)} images")
-        print(f"Total: {total_data} images")
-        
+        print(f"Collected: {len(detection_data)} detection images, {len(segmentation_data)} segmentation images")
+
         if total_data < 1:
             QMessageBox.warning(
-                self.view,
-                "Insufficient Data",
+                self.view, "Insufficient Data",
                 f"Please annotate at least 1 image before training.\n\n"
                 f"Found:\n"
                 f"  - {len(detection_data)} images with geometric shapes\n"
                 f"  - {len(segmentation_data)} images with painted pixels"
             )
             return
-        
-        # Show progress dialog
         progress = QProgressDialog("Training ML model...", None, 0, 100, self.view)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setValue(10)
-        
+
         try:
-            self.model.train_model()
-            
+            self.model.train_model(selected_paths)
             progress.setValue(100)
-            
-            # Update UI
             self.ml_update_status()
-            
             QMessageBox.information(
-                self.view,
-                "Training Complete",
+                self.view, "Training Complete",
                 f"Detection data: {len(detection_data)} images\n"
                 f"Segmentation data: {len(segmentation_data)} images\n"
             )
-            
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             QMessageBox.critical(
-                self.view,
-                "Training Failed",
+                self.view, "Training Failed",
                 f"Failed to train model:\n{str(e)}\n\nCheck console for details."
             )
         finally:
@@ -344,6 +333,28 @@ class MLEvents(Events):
 
         self.view.ml_status_label.setText(f"ML: {model_status}")
         self.view.ml_status_label.setStyleSheet(f"color: {color};")
+
+    
+    # Setting
+
+    def ml_train_setting(self):
+        from PyImageLabeling.controller.settings.MLSetting import MLSetting
+        mlsetting = MLSetting(self.view.zoomable_graphics_view, self.model)
+        if mlsetting.exec():
+            # Apply hyperparameters to model immediately
+            self.model.num_epochs          = mlsetting.epochs_spinbox.value()
+            self.model.batch_size          = mlsetting.batch_spinbox.value()
+            self.model.learning_rate       = mlsetting.lr_spinbox.value()
+            self.model.image_size          = mlsetting.imgsize_combo.currentData()
+            self.model.enable_segmentation = mlsetting.enable_seg_checkbox.isChecked()
+            self.model.enable_detection    = mlsetting.enable_det_checkbox.isChecked()
+            self.model.pretrained          = mlsetting.pretrained_checkbox.isChecked()
+            self.model.confidence_threshold = mlsetting.conf_spinbox.value()
+            self.model.nms_threshold        = mlsetting.nms_spinbox.value()
+
+            # Store selected paths for next training run
+            self._ml_selected_image_paths = mlsetting.selected_image_paths
+            print(f"ML settings applied. {len(self._ml_selected_image_paths)} images selected for training.")
 
 
 

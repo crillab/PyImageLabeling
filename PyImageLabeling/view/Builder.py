@@ -122,22 +122,54 @@ class Builder:
         actions_frame.setTitle("ML Actions")
         actions_layout = QVBoxLayout(actions_frame)
         
+        # Collect ML setting buttons (same pattern as labeling bar)
+        ml_setting_buttons = {}
+        for category in self.view.config["labeling_bar_setting"]:
+            category_name = tuple(category.keys())[0]
+            if "Setting" in category_name:
+                for button in category[category_name]:
+                    base_name = button["name"].replace("_setting", "")
+                    ml_setting_buttons[base_name] = button
+
         # Dynamically create buttons from config
-        self.view.buttons_ml_bar = {}  # store buttons
+        self.view.buttons_ml_bar = {}
 
         for btn_cfg in self.view.config["ml_buttons_config"]:
-            btn = QPushButton(btn_cfg["name_view"])
-            btn.setObjectName("without_parameters")
-            btn.setToolTip(btn_cfg["tooltip"])
-            btn.setCheckable(btn_cfg["checkable"])
+            btn_name = btn_cfg["name"]
+
+            self.view.buttons_ml_bar[btn_name] = QPushButton(btn_cfg["name_view"])
+            self.view.buttons_ml_bar[btn_name].setToolTip(btn_cfg["tooltip"])
+            self.view.buttons_ml_bar[btn_name].setCheckable(btn_cfg["checkable"])
             icon_path = Utils.get_icon_path(btn_cfg["icon"])
             if os.path.exists(icon_path):
-                btn.setIcon(QIcon(icon_path))
-                btn.setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+                self.view.buttons_ml_bar[btn_name].setIcon(QIcon(icon_path))
+                self.view.buttons_ml_bar[btn_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+            self.view.buttons_ml_bar[btn_name].clicked.connect(getattr(self.view.controller, btn_cfg["slot"]))
 
-            btn.clicked.connect(getattr(self.view.controller, btn_cfg["slot"]))
-            actions_layout.addWidget(btn)
-            self.view.buttons_ml_bar[btn_cfg["name"]] = btn
+            if btn_name in ml_setting_buttons:
+                setting_button_config = ml_setting_buttons[btn_name]
+
+                h_layout = QHBoxLayout()
+                self.view.buttons_ml_bar[btn_name].setObjectName("with_parameters")
+                h_layout.addWidget(self.view.buttons_ml_bar[btn_name])
+
+                setting_button_name = setting_button_config["name"]
+                self.view.buttons_ml_bar[setting_button_name] = QPushButton()
+                self.view.buttons_ml_bar[setting_button_name].setObjectName("setting_button")
+                self.view.buttons_ml_bar[setting_button_name].setToolTip(setting_button_config["tooltip"])
+                setting_icon_path = Utils.get_icon_path(setting_button_config["icon"])
+                if os.path.exists(setting_icon_path):
+                    self.view.buttons_ml_bar[setting_button_name].setIcon(QIcon(setting_icon_path))
+                    self.view.buttons_ml_bar[setting_button_name].setIconSize(QSize(*self.view.config["window_size"]["icon"]))
+                self.view.buttons_ml_bar[setting_button_name].clicked.connect(getattr(self.view.controller, setting_button_name))
+                self.view.buttons_ml_bar[setting_button_name].setCheckable(setting_button_config["checkable"])
+
+                h_layout.setSpacing(0)
+                h_layout.addWidget(self.view.buttons_ml_bar[setting_button_name])
+                actions_layout.addLayout(h_layout)
+            else:
+                self.view.buttons_ml_bar[btn_name].setObjectName("without_parameters")
+                actions_layout.addWidget(self.view.buttons_ml_bar[btn_name])
 
         ml_bar_layout.addWidget(actions_frame)
 
@@ -174,30 +206,6 @@ class Builder:
         display_layout.addWidget(confidence_container)
 
         ml_bar_layout.addWidget(display_frame)
-
-        training_frame = QGroupBox()
-        training_frame.setTitle("Training Settings")
-        training_layout = QVBoxLayout(training_frame)
-
-        # Auto-retrain spinbox
-        retrain_label = QLabel("Auto-retrain every:")
-        training_layout.addWidget(retrain_label)
-
-        retrain_container = QWidget()
-        retrain_layout = QHBoxLayout(retrain_container)
-        retrain_layout.setContentsMargins(0, 0, 0, 0)
-
-        self.view.ml_retrain_spinbox = QSpinBox()
-        self.view.ml_retrain_spinbox.setMinimum(0)
-        self.view.ml_retrain_spinbox.setMaximum(100)
-        self.view.ml_retrain_spinbox.setValue(20)
-        self.view.ml_retrain_spinbox.setSuffix("annotations")
-        self.view.ml_retrain_spinbox.setToolTip("Auto-retrain model every N annotations (0 = disabled)")
-        self.view.ml_retrain_spinbox.setSpecialValueText("Disabled")
-        retrain_layout.addWidget(self.view.ml_retrain_spinbox)
-        training_layout.addWidget(retrain_container)
-
-        ml_bar_layout.addWidget(training_frame)
 
         stats_frame = QGroupBox()
         stats_frame.setTitle("Statistics")

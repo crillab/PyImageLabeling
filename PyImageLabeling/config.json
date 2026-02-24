@@ -161,7 +161,7 @@
     "ml_buttons_config": 
         [
             {
-                "name": "ml_train_button",
+                "name": "ml_train",
                 "name_view": "Train Model",
                 "icon": "brain",
                 "tooltip": "Train ML model on current annotations",
@@ -169,7 +169,7 @@
                 "slot": "ml_train_model"
             },
             {
-                "name": "ml_predict_button",
+                "name": "ml_predict",
                 "name_view": "Predict Current",
                 "icon": "magic_ball",
                 "tooltip": "Generate predictions for current image",
@@ -177,7 +177,7 @@
                 "slot": "ml_predict_current"
             },
             {
-                "name": "ml_accept_button",
+                "name": "ml_accept",
                 "name_view": "Accept Predictions",
                 "icon": "check",
                 "tooltip": "Convert predictions to annotations",
@@ -185,7 +185,7 @@
                 "slot": "ml_accept_predictions"
             },
             {
-                "name": "ml_clear_button",
+                "name": "ml_clear",
                 "name_view": "Clear Predictions",
                 "icon": "cleaner",
                 "tooltip": "Remove all predictions from current image",
@@ -331,6 +331,15 @@
                     "icon": "setting",
                     "checkable": false,
                     "tooltip": "Parameters of magic pen."
+                }
+            ]},
+            {"ML Setting":[
+                {
+                    "name": "ml_train_setting",
+                    "name_view": "ML train Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Parameters of ML training."
                 }
             ]}
     ]

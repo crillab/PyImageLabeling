@@ -43,6 +43,17 @@
     "geometric_shape": {
         "thickness": 5
     },
+    "ml": {
+        "num_epochs": 50,
+        "batch_size": 8,
+        "learning_rate": 0.002,
+        "image_size": 416,
+        "enable_segmentation": true,
+        "enable_detection": true,
+        "pretrained": true,
+        "confidence_threshold": 0.3,
+        "nms_threshold": 0.4
+    },
     "labeling_opacity": 32,
     "autosave_enabled": true,
     "autosave_interval": 300000
