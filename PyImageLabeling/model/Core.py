@@ -379,7 +379,7 @@ class LabelingOverlay():
 
     def save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
-        name, format = name.split(".")
+        name, format = name.rsplit(".", 1)
         format = "png"
         save_file = current_file_path + os.sep + name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
         
@@ -401,7 +401,7 @@ class LabelingOverlay():
 
     def remove_save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
-        name, format = name.split(".")
+        name, format = name.rsplit(".", 1)
         format = "png"
         save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
         if os.path.isfile(save_file):
