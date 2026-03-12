@@ -27,20 +27,41 @@ class Builder:
         self.build_image_bar()
         self.build_file_bar()
         self.build_status_bar()
-
-        self.view.switch_mode_button.setText("Switch to ML")
+        self.build_menu_bar()
 
     def switch_left_mode(self):
         if self.view.current_mode == "labeling":
             self.labeling_bar_scroll.hide()
             self.ml_bar_scroll.show()
             self.view.current_mode = "ml"
-            self.view.switch_mode_button.setText("Switch to Labeling")
+            self.view.switch_mode_action.setText("Switch to Labeling")
         else:
             self.ml_bar_scroll.hide()
             self.labeling_bar_scroll.show()
             self.view.current_mode = "labeling"
-            self.view.switch_mode_button.setText("Switch to ML")
+            self.view.switch_mode_action.setText("Switch to ML")
+
+    def build_menu_bar(self):
+        menu_bar = self.view.menuBar()
+
+        # View menu — mode switching
+        view_menu = menu_bar.addMenu("View")
+        self.view.switch_mode_action = view_menu.addAction("Switch to ML")
+        self.view.switch_mode_action.triggered.connect(self.switch_left_mode)
+
+        # Image menu
+        image_menu = menu_bar.addMenu("Image")
+        image_option_action = image_menu.addAction("Image Option")
+        image_option_action.triggered.connect(self.view.controller.image_option)
+        image_menu.addSeparator()
+        for button in self.view.config["image_bar"]:
+            action = image_menu.addAction(button["name_view"])
+            action.triggered.connect(getattr(self.view.controller, button["name"]))
+
+        # Options menu
+        options_menu = menu_bar.addMenu("Options")
+        option_action = options_menu.addAction("Global Option")
+        option_action.triggered.connect(self.view.controller.global_option)
 
     def build_status_bar(self):
         self.view.statusBar().showMessage('Ready')
@@ -343,51 +364,6 @@ class Builder:
         self.view.zoomable_graphics_view.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.graphics_view_layout.addWidget(self.view.zoomable_graphics_view)
 
-        # Menu container
-        self.option_container = QWidget(self.view.zoomable_graphics_view)
-        self.option_container.setGeometry(10, 10, 1, 1)  # temporary size
-        self.option_container.raise_()
-
-        # Main menu button
-        self.view.menu_button = QPushButton("Menu")
-        self.view.menu_button.setObjectName("menu_button")
-        self.view.menu_button.setToolTip("Show/hide options")
-        self.view.menu_button.clicked.connect(self.toggle_menu)
-
-        # Menu content (hidden by default)
-        self.menu_content = QWidget()
-        self.menu_content.setVisible(False)
-        self.menu_content.setStyleSheet("background-color: white; border: 1px solid gray;")
-
-        # Vertical layout for menu items
-        menu_layout = QVBoxLayout(self.menu_content)
-        menu_layout.setContentsMargins(0, 0, 0, 0)
-        menu_layout.setSpacing(5)
-
-        # Add the three buttons to the menu
-        self.view.image_option_button = QPushButton("Image Option")
-        self.view.image_option_button.clicked.connect(self.view.controller.image_option)
-        menu_layout.addWidget(self.view.image_option_button)
-
-        self.view.option_button = QPushButton("Option")
-        self.view.option_button.clicked.connect(self.view.controller.global_option)
-        menu_layout.addWidget(self.view.option_button)
-
-        self.view.switch_mode_button = QPushButton("Switch mode")
-        self.view.switch_mode_button.setObjectName("mode_switch")
-        self.view.switch_mode_button.setToolTip("Switch between Labeling and ML modes")
-        self.view.switch_mode_button.clicked.connect(self.switch_left_mode)
-        menu_layout.addWidget(self.view.switch_mode_button)
-
-        # Layout for the menu button and its content
-        layout = QVBoxLayout(self.option_container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.view.menu_button)
-        layout.addWidget(self.menu_content)
-
-        # Make the container resize to fit its contents
-        self.option_container.adjustSize()
         self.view.main_layout.addWidget(self.graphics_view_container, 0, 1, 3, 1)
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])
 
