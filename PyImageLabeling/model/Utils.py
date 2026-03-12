@@ -48,8 +48,6 @@ import shutil
 
 class Utils:
 
-    __version__ = "1.0.6"
-
     @staticmethod
     def get_base_dir():
         """Return project root, compatible with PyInstaller."""
@@ -134,12 +132,22 @@ class Utils:
     
     @staticmethod
     def get_version():
-        return Utils.__version__
+        version_file = os.path.join(Utils.get_base_dir(), "version.json")
+        with open(version_file, "r") as fichier:
+            data = json.load(fichier)
+        return data["version"]
     
     @staticmethod
     def update_version():
-        major, minor, patch = map(int, Utils.__version__.split("."))
+        version_file = os.path.join(Utils.get_base_dir(), "version.json")
+        with open(version_file, "r") as fichier:
+            data = json.load(fichier)
+        
+        major, minor, patch = map(int, data["version"].split("."))
         patch += 1
-        Utils.__version__ = f"{major}.{minor}.{patch}"
-        return Utils.__version__
+        data["version"] = f"{major}.{minor}.{patch}"
+        with open(version_file, "w") as file:   
+            json.dump(data, file, indent=2)  # indent=2 pour un affichage lisible
+
+        return data["version"]
     

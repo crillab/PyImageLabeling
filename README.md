@@ -11,7 +11,7 @@ PyImageLabeling is a powerful tool with a **user-friendly interface** based on P
 
 Two types of labeling are available: 
 - **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
-- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling (not yet available, under development).
+- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling.
 
 <figure>
   <img src="https://i.postimg.cc/VsxcS6Jg/screenshot1.png" alt="PyImageLabeling Interface" width="800"/>
