@@ -135,8 +135,18 @@ class Builder:
         self.ml_bar_container = QWidget()
         ml_bar_layout = QVBoxLayout(self.ml_bar_container)
         ml_bar_layout.setContentsMargins(0, 0, 0, 0)
-        ml_bar_layout.setSpacing(0)
         ml_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        mode_header = QGroupBox()
+        mode_header.setTitle("ML Mode")
+        mode_header_layout = QVBoxLayout(mode_header)
+        
+        switch_to_labeling_btn = QPushButton("Switch to Labeling Mode")
+        switch_to_labeling_btn.setToolTip("Switch back to labeling mode")
+        switch_to_labeling_btn.clicked.connect(self.switch_left_mode)
+        mode_header_layout.addWidget(switch_to_labeling_btn)
+
+        ml_bar_layout.addWidget(mode_header)
 
         # ML Actions Section 
         actions_frame = QGroupBox()
@@ -262,6 +272,17 @@ class Builder:
         self.labeling_bar_scroll = QScrollArea()
         labeling_bar_layout = QVBoxLayout(self.labeling_bar_container)
         #left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
+
+        mode_header = QGroupBox()
+        mode_header.setTitle("Labeling Mode")
+        mode_header_layout = QVBoxLayout(mode_header)
+        
+        switch_to_ml_btn = QPushButton("Switch to ML Mode")
+        switch_to_ml_btn.setToolTip("Switch to ML prediction mode")
+        switch_to_ml_btn.clicked.connect(self.switch_left_mode)
+        mode_header_layout.addWidget(switch_to_ml_btn)
+        
+        labeling_bar_layout.addWidget(mode_header)
         
         setting_buttons = {}
         for category in self.view.config["labeling_bar_setting"]:
