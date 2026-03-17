@@ -199,7 +199,7 @@ class Files(Core):
             if has_label:
                 icons = self.icon_button_files.get(file_path)
                 if icons is not None:
-                    icons["label_tag"].setVisible(True)
+                    icons["label_tag"].setPixmap(self.view.label_tag)
 
         # Activate previous and next buttons
         for button_name in self.view.buttons_file_bar:

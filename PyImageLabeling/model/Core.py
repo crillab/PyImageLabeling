@@ -609,13 +609,11 @@ class ImageItem():
         if icons is None:
             return
 
-        # Asterisk
         icons["asterisk"].setPixmap(
             self.view.icon_asterisk_red if self.get_edited() else self.view.icon_asterisk_green
         )
 
-        # Loaded: image is in memory (ImageItem exists and is not None)
-        icons["loaded"].setVisible(True)
+        icons["loaded"].setPixmap(self.view.loaded)              # ← was setVisible(True)
 
         has_labels = (
             bool(self.image_rectangles) or
@@ -623,7 +621,9 @@ class ImageItem():
             bool(self.image_polygons) or
             any(self._overlay_has_content(ov) for ov in self.labeling_overlays.values())
         )
-        icons["label_tag"].setVisible(has_labels)
+        icons["label_tag"].setPixmap(
+            self.view.label_tag if has_labels else self.view.empty   # ← was setVisible(has_labels)
+        )
             
     # Update the current labeling overlay 
     def update_labeling_overlay(self):
@@ -881,10 +881,9 @@ class Core():
             if image_item is not None:
                 image_item.update_icon_file()
             else:
-                # Not loaded yet: hide loaded icon, keep asterisk green
-                icons["loaded"].setVisible(False)
+                # Not loaded yet: empty loaded icon, keep asterisk green
+                icons["loaded"].setPixmap(self.view.empty)        # ← was setVisible(False)
                 icons["asterisk"].setPixmap(self.view.icon_asterisk_green)
-                #icons["label_tag"].setVisible(False)
 
     def update_thickness(self, new_thickness):
         # Update thickness in stored data for all images
@@ -1051,7 +1050,7 @@ class Core():
             if fp_basename == image_basename:
                 icons = self.icon_button_files.get(file_path)
                 if icons is not None:
-                    icons["label_tag"].setVisible(True)
+                    icons["label_tag"].setPixmap(self.view.label_tag)
                 break
         
         for lid_str, info in labels_dict.items():
@@ -1097,7 +1096,7 @@ class Core():
                     if self.image_items.get(file_path) is None:
                         icons = self.icon_button_files.get(file_path)
                         if icons is not None:
-                            icons["label_tag"].setVisible(True)
+                            icons["label_tag"].setPixmap(self.view.label_tag)
                     break
 
     def reload_rectangle(self, path_image):
@@ -1134,7 +1133,7 @@ class Core():
                     if self.image_items.get(file_path) is None:
                         icons = self.icon_button_files.get(file_path)
                         if icons is not None:
-                            icons["label_tag"].setVisible(True)
+                            icons["label_tag"].setPixmap(self.view.label_tag)
                     break
 
     def reload_ellipse(self, path_image):
@@ -1171,7 +1170,7 @@ class Core():
                     if self.image_items.get(file_path) is None:
                         icons = self.icon_button_files.get(file_path)
                         if icons is not None:
-                            icons["label_tag"].setVisible(True)
+                            icons["label_tag"].setPixmap(self.view.label_tag)
                     break
 
     def reload_polygon(self, path_image):
@@ -1194,7 +1193,7 @@ class Core():
             if fp_basename == image_basename:
                 icons = self.icon_button_files.get(file_path)
                 if icons is not None:
-                    icons["label_tag"].setVisible(True)
+                    icons["label_tag"].setPixmap(self.view.label_tag)
                 break
 
     def new_label(self, name, labeling_mode, color):

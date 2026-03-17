@@ -49,6 +49,9 @@ class View(QMainWindow):
 
         self.loaded = QPixmap(Utils.get_icon_path("loaded"))
         self.loaded= self.loaded.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+
+        self.empty = QPixmap(Utils.get_icon_path("empty"))
+        self.empty= self.empty.scaled(QSize(*self.config["window_size"]["icon_save_marker"]), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
         
         self.controller.set_view(self) 
         
@@ -150,11 +153,10 @@ class View(QMainWindow):
 
             # label_tag icon — fixed size to always reserve space
             icon_button_1 = QLabel()
-            icon_button_1.setPixmap(self.label_tag)
+            icon_button_1.setPixmap(self.empty)               
             icon_button_1.setObjectName("save_marker")
             icon_button_1.setFixedSize(ICON_SIZE)
             icon_button_1.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            icon_button_1.setVisible(False)
 
             # asterisk icon — always visible
             icon_button_2 = QLabel()
@@ -165,11 +167,10 @@ class View(QMainWindow):
 
             # loaded icon — fixed size to always reserve space
             icon_button_3 = QLabel()
-            icon_button_3.setPixmap(self.loaded)
+            icon_button_3.setPixmap(self.empty)               
             icon_button_3.setObjectName("save_marker")
             icon_button_3.setFixedSize(ICON_SIZE)
             icon_button_3.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            icon_button_3.setVisible(False)
 
             # Complete checkbox
             complete_checkbox = QCheckBox("")
