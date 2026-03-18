@@ -136,11 +136,18 @@ class Builder:
         switch_action.triggered.connect(self.switch_left_mode)
         self.view.switch_mode_action = switch_action
         view_menu.addAction(switch_action)
-        
+
         # Options menu
         options_menu = menu_bar.addMenu("&Options")
-        option_action = options_menu.addAction("Global Option")
-        option_action.triggered.connect(self.view.controller.global_option)
+        
+        # Image option
+        image_option_action = options_menu.addAction("Image Option")
+        image_option_action.setShortcut(QKeySequence("Ctrl+I"))
+        image_option_action.triggered.connect(self.view.controller.image_option)
+        
+        # Global option
+        global_option_action = options_menu.addAction("Global Option")
+        global_option_action.triggered.connect(self.view.controller.global_option)
 
     def _create_action_handler(self, action_name, source):
         def handler():
