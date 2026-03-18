@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QMessageBox, QGraphicsView, QApplication, QGraphicsItem
 from PyQt6.QtCore import QObject, QEvent, Qt, QRectF, QRect
-from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor
+from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor, QShortcut, QKeySequence
 from PyQt6.QtWidgets import QLabel
 import os
 

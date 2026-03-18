@@ -29,14 +29,16 @@
             "name_view": "Apply",
             "icon": "apply",
             "checkable": false,
-            "tooltip": "Apply an operation."
+            "tooltip": "Apply an operation.",
+            "shortcut": "Enter"
         },
         {
             "name": "cancel",
             "name_view": "Cancel",
             "icon": "cancel",
             "checkable": false,
-            "tooltip": "Cancel an operation."
+            "tooltip": "Cancel an operation.",
+            "shortcut": "Escape"
         }
     ],
     "file_bar":[
@@ -45,14 +47,16 @@
             "name_view": "Load images and labels",
             "icon": "open_image",
             "checkable": false,
-            "tooltip": "Load images and labels."
+            "tooltip": "Load images and labels.",
+            "shortcut": "Ctrl+O"
         },
         {
             "name": "save",
             "name_view": "Save labels",
             "icon": "save",
             "checkable": false,
-            "tooltip": "Save all labels."
+            "tooltip": "Save all labels.",
+            "shortcut": "Ctrl+S"
         },
 
         {
@@ -60,7 +64,8 @@
             "name_view": "Save copy",
             "icon": "save_copy",
             "checkable": false,
-            "tooltip": "Export a copy."
+            "tooltip": "Export a copy.",
+            "shortcut": ""
         },
 
         {
@@ -68,14 +73,16 @@
             "name_view": "Next Image",
             "icon": "down",
             "checkable": false,
-            "tooltip": "Next image."
+            "tooltip": "Next image.",
+            "shortcut": "Ctrl+Right"
         },
         {
             "name": "previous_image",
             "name_view": "Previous Image",
             "icon": "up",
             "checkable": false,
-            "tooltip": "Previous image."
+            "tooltip": "Previous image.",
+            "shortcut": "Ctrl+Left"
         }
     ],
 
@@ -86,28 +93,32 @@
                     "name_view": "Zoom Plus",
                     "icon": "zoom_plus",
                     "checkable": true,
-                    "tooltip": "Zoom Plus."
+                    "tooltip": "Zoom Plus.",
+                    "shortcut": "Z"
                 },
                 {
                     "name": "zoom_minus",
                     "name_view": "Zoom Minus",
                     "icon": "zoom_minus",
                     "checkable": true,
-                    "tooltip": "zoom_minus."
+                    "tooltip": "zoom_minus.",
+                    "shortcut": "X"
                 },
                 {
                     "name": "move_image",
                     "icon": "move",
                     "checkable": true,
                     "name_view": "Move",
-                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                    "shortcut": "H"
                 },
                 {
                     "name": "reset_move_zoom_image",
                     "icon": "reset",
                     "checkable": false,
                     "name_view": "Move/Zoom Reset",
-                    "tooltip": "Click to reset the image's position and zoom level to the default view."
+                    "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                    "shortcut": "0"
                 }
             ],
     "label_bar":
@@ -117,14 +128,16 @@
                     "name_view": "New Label",
                     "icon": "plus",
                     "checkable": false,
-                    "tooltip": "Add a new label."
+                    "tooltip": "Add a new label.",
+                    "shortcut": "Ctrl+N"
                 },
                 {
                     "name": "opacity",
                     "name_view": "Opacity",
                     "checkable": false,
                     "icon": "opacity",
-                    "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers."
+                    "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers.",
+                    "shortcut": "Ctrl+Shift+O"
                 }
             ],
             "layer":[
@@ -133,28 +146,32 @@
                     "name_view": "Color",
                     "icon": "",
                     "checkable": false,
-                    "tooltip": "Color of the layer/label."
+                    "tooltip": "Color of the layer/label.",
+                    "shortcut": ""
                 },
                 {
                     "name": "visibility",
                     "name_view": "Visibility",
                     "icon": "visibility",
                     "checkable": true,
-                    "tooltip": "Visibility of the label."
+                    "tooltip": "Visibility of the label.",
+                    "shortcut": ""
                 },
                 {
                     "name": "label_setting",
                     "name_view": "Label Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of the layer/label."
+                    "tooltip": "Parameters of the layer/label.",
+                    "shortcut": ""
                 },
                 {
                     "name": "remove_label",
                     "name_view": "Remove Label",
                     "icon": "close",
                     "checkable": false,
-                    "tooltip": "Remove the label"
+                    "tooltip": "Remove the label",
+                    "shortcut": "Delete"
                 }
                 
             ]},
@@ -166,7 +183,8 @@
                 "icon": "brain",
                 "tooltip": "Train ML model on current annotations",
                 "checkable": false,
-                "slot": "ml_train_model"
+                "slot": "ml_train_model",
+                "shortcut": ""
             },
             {
                 "name": "ml_predict",
@@ -174,7 +192,8 @@
                 "icon": "magic_ball",
                 "tooltip": "Generate predictions for current image",
                 "checkable": false,
-                "slot": "ml_predict_current"
+                "slot": "ml_predict_current",
+                "shortcut": ""
             },
             {
                 "name": "ml_accept",
@@ -182,7 +201,8 @@
                 "icon": "check",
                 "tooltip": "Convert predictions to annotations",
                 "checkable": false,
-                "slot": "ml_accept_predictions"
+                "slot": "ml_accept_predictions",
+                "shortcut": ""
             },
             {
                 "name": "ml_clear",
@@ -190,7 +210,8 @@
                 "icon": "cleaner",
                 "tooltip": "Remove all predictions from current image",
                 "checkable": false,
-                "slot": "ml_clear_predictions"
+                "slot": "ml_clear_predictions",
+                "shortcut": ""
             }
         ],
     "labeling_bar": 
@@ -203,7 +224,8 @@
                         "icon_tool": "filling_tool",
                         "checkable": true,
                         "name_view": "Contour Filling",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "shortcut": "F"
                     },
                     {
                         "name": "paintbrush",
@@ -211,7 +233,8 @@
                         "checkable": true,
                         "icon": "paint",
                         "icon_tool": "paint_tool",
-                        "tooltip": "Click to reset the image's position and zoom level to the default view."
+                        "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                        "shortcut": "B"
                     },
                     {
                         "name": "magic_pen",
@@ -219,7 +242,8 @@
                         "checkable": true,
                         "icon": "magic",
                         "icon_tool": "magi_tool",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "shortcut": "M"
                     }
                 ]
             }
@@ -232,21 +256,24 @@
                         "name_view": "Ellipse",
                         "checkable": true,
                         "icon": "ellipse",
-                        "tooltip": "."
+                        "tooltip": ".",
+                        "shortcut": "L"
                     },
                     {
                         "name": "rectangle",
                         "name_view": "Rectangle",
                         "checkable": true,
                         "icon": "rectangle",
-                        "tooltip": "Click to reset the image's position and zoom level to the default view."
+                        "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                        "shortcut": "R"
                     },
                     {
                         "name": "polygon",
                         "name_view": "Polygon",
                         "checkable": true,
                         "icon": "polygon",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it."
+                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "shortcut": "P"
                     }
                 ]}
             ,
@@ -258,14 +285,16 @@
                     "name_view": "Change Labeled Area",
                     "checkable": true,
                     "icon": "changelabel",
-                    "tooltip": "Click to change the label of an laready labeled area."
+                    "tooltip": "Click to change the label of an laready labeled area.",
+                    "shortcut": "C"
                 },
                 {
                     "name": "undo",
                     "name_view": "Undo",
                     "checkable": false,
                     "icon": "back",
-                    "tooltip": "Click to undo the last drawing action or modification."
+                    "tooltip": "Click to undo the last drawing action or modification.",
+                    "shortcut": "Ctrl+Z"
                 },
                 {
                     "name": "eraser",
@@ -273,14 +302,16 @@
                     "checkable": true,
                     "icon": "eraser",
                     "icon_tool": "eraser_tool",
-                    "tooltip": "Click to activate the eraser tool, allowing you to erase parts of the image or layer."
+                    "tooltip": "Click to activate the eraser tool, allowing you to erase parts of the image or layer.",
+                    "shortcut": "E"
                 },
                 {
                     "name": "clear_all",
                     "name_view": "Clear All",
                     "checkable": false,
                     "icon": "cleaner",
-                    "tooltip": "Click to clear all layers and reset the image to its original state."
+                    "tooltip": "Click to clear all layers and reset the image to its original state.",
+                    "shortcut": "Ctrl+Shift+C"
                 }
             ]}
             }
@@ -293,21 +324,24 @@
                     "name_view": "Chaneg Labeled Area Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of change labeled area."
+                    "tooltip": "Parameters of change labeled area.",
+                    "shortcut": ""
                 },
                 {
                     "name": "eraser_setting",
                     "name_view": "Eraser Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of eraser."
+                    "tooltip": "Parameters of eraser.",
+                    "shortcut": ""
                 },
                 {
                     "name": "undo_setting",
                     "name_view": "Undo Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of undo."
+                    "tooltip": "Parameters of undo.",
+                    "shortcut": ""
                 }
             ]},
             {"Pixel Labeling Setting":[
@@ -316,21 +350,24 @@
                     "name_view": "Contour Filling Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of contour filling."
+                    "tooltip": "Parameters of contour filling.",
+                    "shortcut": ""
                 },
                 {
                     "name": "paintbrush_setting",
                     "name_view": "PaintBrush Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of paintbrush."
+                    "tooltip": "Parameters of paintbrush.",
+                    "shortcut": ""
                 },
                 {
                     "name": "magic_pen_setting",
                     "name_view": "Magic Pen Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of magic pen."
+                    "tooltip": "Parameters of magic pen.",
+                    "shortcut": ""
                 }
             ]},
             {"ML Setting":[
@@ -339,7 +376,8 @@
                     "name_view": "ML train Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of ML training."
+                    "tooltip": "Parameters of ML training.",
+                    "shortcut": ""
                 }
             ]}
     ]

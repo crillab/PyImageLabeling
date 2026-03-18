@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QVBoxLayout, QSizePolicy, QWidget, QListWidget, QHBoxLayout, QPushButton, QStatusBar, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar, QSlider, QCheckBox, QSpinBox
-from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QVBoxLayout, QSizePolicy, QWidget, QListWidget, QHBoxLayout, QPushButton, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar, QSlider, QCheckBox, QDialog, QTextEdit, QVBoxLayout, QMessageBox
+from PyQt6.QtGui import QIcon, QKeySequence, QAction
 from PyQt6.QtCore import Qt, QSize, QRect
 from PyImageLabeling.model.Utils import Utils
 
@@ -43,25 +43,136 @@ class Builder:
 
     def build_menu_bar(self):
         menu_bar = self.view.menuBar()
-
-        # View menu — mode switching
-        view_menu = menu_bar.addMenu("View")
-        self.view.switch_mode_action = view_menu.addAction("Switch to ML")
-        self.view.switch_mode_action.triggered.connect(self.switch_left_mode)
-
-        # Image menu
-        image_menu = menu_bar.addMenu("Image")
-        image_option_action = image_menu.addAction("Image Option")
-        image_option_action.triggered.connect(self.view.controller.image_option)
-        image_menu.addSeparator()
-        for button in self.view.config["image_bar"]:
-            action = image_menu.addAction(button["name_view"])
-            action.triggered.connect(getattr(self.view.controller, button["name"]))
-
+        
+        # Store actions for potential syncing
+        self.view.menu_actions = {}
+        
+        # File menu
+        file_menu = menu_bar.addMenu("&File")
+        if "file_bar" in self.view.config:
+            for button in self.view.config["file_bar"]:
+                action = QAction(button["name_view"], self.view)
+                if button.get("shortcut"):
+                    action.setShortcut(QKeySequence(button["shortcut"]))
+                action.setToolTip(button.get("tooltip", ""))
+                
+                # Create wrapper that checks button state
+                if hasattr(self.view.controller, button["name"]):
+                    action.triggered.connect(
+                        self._create_action_handler(button["name"], "file_bar")
+                    )
+                file_menu.addAction(action)
+                self.view.menu_actions[button["name"]] = action
+        
+        # Edit menu
+        edit_menu = menu_bar.addMenu("&Edit")
+        if "labeling_bar" in self.view.config and "edit" in self.view.config["labeling_bar"]:
+            for button in self.view.config["labeling_bar"]["edit"]["buttons"]:
+                action = QAction(button["name_view"], self.view)
+                if button.get("shortcut"):
+                    action.setShortcut(QKeySequence(button["shortcut"]))
+                action.setToolTip(button.get("tooltip", ""))
+                
+                if hasattr(self.view.controller, button["name"]):
+                    action.triggered.connect(
+                        self._create_action_handler(button["name"], "labeling_bar")
+                    )
+                edit_menu.addAction(action)
+                self.view.menu_actions[button["name"]] = action
+        
+        # Tools menu
+        tools_menu = menu_bar.addMenu("&Tools")
+        
+        # Pixel tools
+        if "labeling_bar" in self.view.config and "pixel" in self.view.config["labeling_bar"]:
+            for button in self.view.config["labeling_bar"]["pixel"]["buttons"]:
+                action = QAction(button["name_view"], self.view)
+                if button.get("shortcut"):
+                    action.setShortcut(QKeySequence(button["shortcut"]))
+                
+                if hasattr(self.view.controller, button["name"]):
+                    action.triggered.connect(
+                        self._create_action_handler(button["name"], "labeling_bar")
+                    )
+                tools_menu.addAction(action)
+                self.view.menu_actions[button["name"]] = action
+        
+        tools_menu.addSeparator()
+        
+        # Geometric tools
+        if "labeling_bar" in self.view.config and "geometric" in self.view.config["labeling_bar"]:
+            for button in self.view.config["labeling_bar"]["geometric"]["buttons"]:
+                action = QAction(button["name_view"], self.view)
+                if button.get("shortcut"):
+                    action.setShortcut(QKeySequence(button["shortcut"]))
+                
+                if hasattr(self.view.controller, button["name"]):
+                    action.triggered.connect(
+                        self._create_action_handler(button["name"], "labeling_bar")
+                    )
+                tools_menu.addAction(action)
+                self.view.menu_actions[button["name"]] = action
+        
+        tools_menu.addSeparator()
+        
+        # Image tools
+        if "image_bar" in self.view.config:
+            for button in self.view.config["image_bar"]:
+                action = QAction(button["name_view"], self.view)
+                if button.get("shortcut"):
+                    action.setShortcut(QKeySequence(button["shortcut"]))
+                
+                if hasattr(self.view.controller, button["name"]):
+                    action.triggered.connect(
+                        self._create_action_handler(button["name"], "image_bar")
+                    )
+                tools_menu.addAction(action)
+                self.view.menu_actions[button["name"]] = action
+        
+        # View menu
+        view_menu = menu_bar.addMenu("&View")
+        switch_action = QAction("Switch to &ML Mode", self.view)
+        switch_action.setShortcut(QKeySequence("Ctrl+M"))
+        switch_action.triggered.connect(self.switch_left_mode)
+        self.view.switch_mode_action = switch_action
+        view_menu.addAction(switch_action)
+        
         # Options menu
-        options_menu = menu_bar.addMenu("Options")
+        options_menu = menu_bar.addMenu("&Options")
         option_action = options_menu.addAction("Global Option")
         option_action.triggered.connect(self.view.controller.global_option)
+
+    def _create_action_handler(self, action_name, source):
+        def handler():
+            # Get the corresponding button
+            button = self._get_button_for_action(action_name, source)
+            
+            # Check if button is disabled
+            if button is not None and not button.isEnabled():
+                # Button is disabled - block the action
+                print(f"Action '{action_name}' blocked - button is disabled")
+                return
+            
+            # Button is enabled or doesn't exist - execute the action
+            getattr(self.view.controller, action_name)()
+        return handler
+
+    def _get_button_for_action(self, action_name, source):
+        """Get the button widget for an action to check its state."""
+        
+        if source == "file_bar" and hasattr(self.view, 'buttons_file_bar'):
+            return self.view.buttons_file_bar.get(action_name)
+        
+        if source == "image_bar" and hasattr(self.view, 'buttons_image_bar'):
+            return self.view.buttons_image_bar.get(action_name)
+        
+        if source == "labeling_bar" and hasattr(self.view, 'buttons_labeling_bar'):
+            return self.view.buttons_labeling_bar.get(action_name)
+        
+        if source == "label_bar_permanent" and hasattr(self.view, 'buttons_label_bar_permanent'):
+            return self.view.buttons_label_bar_permanent.get(action_name)
+        
+        return None
 
     def build_status_bar(self):
         self.view.statusBar().showMessage('Ready')
