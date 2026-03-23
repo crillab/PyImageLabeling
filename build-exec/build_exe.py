@@ -31,6 +31,7 @@ command = (
     f'--name "{exe_name}" '
     f'--add-data "PyImageLabeling/config.json{separator}." '
     f'--add-data "PyImageLabeling/default_parameters.json{separator}." '
+    f'--add-data "PyImageLabeling/version.json{separator}." '
     f'--add-data "PyImageLabeling/style.css{separator}." '
     f'--add-data "PyImageLabeling/icons/*.png{separator}icons" '
     f'--icon "PyImageLabeling/icons/maia3.ico" '
