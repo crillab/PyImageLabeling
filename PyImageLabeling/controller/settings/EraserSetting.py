@@ -9,7 +9,7 @@ class EraserSetting(QDialog):
         self.resize(500, 150)
         params = Utils.load_parameters()["eraser"]
         self.max_size = int(min(model.get_current_image_item().image_qrectf.width(), model.get_current_image_item().image_qrectf.height()))
-        self.min_size = 1
+        self.min_size = 2
         self.radius = params.get("size", 10)
         self.absolute_mode = params.get("absolute_mode", 0)
         self.eraser_mode = params.get("mode", "original")
