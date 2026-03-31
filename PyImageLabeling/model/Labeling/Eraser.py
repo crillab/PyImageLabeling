@@ -1,12 +1,13 @@
 from PyQt6.QtCore import Qt, QPointF, QRectF, QPoint, QRect
 from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPainterPath, QPen
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem
+from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsPathItem, QGraphicsItem, QDialog
 from PyImageLabeling.model.Core import Core
 import math
 from PyImageLabeling.model.Utils import Utils
 import numpy
 from collections import deque
 import numpy as np
+from PyImageLabeling.controller.settings.EraserSetting import DynamicEraserDialog
 class EraserBrushItem(QGraphicsItem):
 
     def __init__(self, core, x, y, color, size, absolute_mode):
@@ -110,6 +111,13 @@ class Eraser(Core):
         self.eraser_brush_items.append(eraser_brush_item)
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
+    def safe_end(painter):
+        if painter is not None and painter.isActive():
+            painter.end()
+
+    def safe_begin(painter, device):
+        if painter is not None and not painter.isActive():
+            painter.begin(device)
 
     def move_eraser(self, current_position):
         if self.eraser_mode == "intelligent":
@@ -147,8 +155,8 @@ class Eraser(Core):
             self.get_current_image_item().update_labeling_overlay()
             self.get_current_image_item().get_labeling_overlay().reset_pen()
 
-
     def intelligent_erase(self, x, y):
+
         overlay = self.get_current_image_item().get_labeling_overlay()
         pixmap = overlay.labeling_overlay_pixmap
         image_pixmap = self.get_current_image_item().get_image_pixmap()
@@ -157,38 +165,90 @@ class Eraser(Core):
         if not (0 <= x < w and 0 <= y < h):
             return
 
-        # Convert image to numpy array
+        # --- Convert image to numpy ---
         image = image_pixmap.toImage()
         ptr = image.bits()
         ptr.setsize(w * h * 4)
         img_arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 4))
 
-        # Convert overlay/mask to numpy array
+        # --- Convert overlay to numpy ---
         overlay_img = pixmap.toImage()
         ptr_overlay = overlay_img.bits()
         ptr_overlay.setsize(w * h * 4)
         mask_arr = np.frombuffer(ptr_overlay, dtype=np.uint8).reshape((h, w, 4))
 
-        # Load parameters
-        tolerance = Utils.load_parameters()["eraser"].get("tolerance", 10)
-        keep_color_hex = Utils.load_parameters()["eraser"].get("keep_color", "#0000FF")  # example blue
-        keep_color = QColor(keep_color_hex)
-        keep_rgba = np.array([keep_color.red(), keep_color.green(), keep_color.blue(), keep_color.alpha()])
+        # --- Params ---
+        params = Utils.load_parameters()["eraser"]
+        tolerance = params.get("tolerance", 10)
+        dynamic_adjust = params.get("dynamic_adjust", False)
 
-        # Step 1: create mask of the clicked shape using mask alpha
-        mask_alpha = mask_arr[..., 3] > 0  # where mask exists
+        keep_color = QColor(params.get("keep_color", "#0000FF"))
+        keep_rgba = np.array([
+            keep_color.red(),
+            keep_color.green(),
+            keep_color.blue(),
+            keep_color.alpha()
+        ])
+
+        # --- Shape mask ---
+        mask_alpha = mask_arr[..., 3] > 0
         shape_mask = np.zeros((h, w), dtype=bool)
         self.flood_fill_span(mask_alpha, shape_mask, x, y)
 
         if not np.any(shape_mask):
             return
 
-        # Step 2: find pixels in the shape that do NOT match the keep color in the image
-        diff = np.abs(img_arr.astype(np.int16) - keep_rgba.astype(np.int16))
-        match_mask = np.all(diff <= tolerance, axis=2)
-        erase_mask = shape_mask & (~match_mask)
+        # ==============================
+        # 🟢 NON-DYNAMIC (UNCHANGED)
+        # ==============================
+        if not dynamic_adjust:
 
-        # Step 3: draw erase path
+            diff = np.abs(img_arr.astype(np.int16) - keep_rgba.astype(np.int16))
+            match_mask = np.all(diff <= tolerance, axis=2)
+            erase_mask = shape_mask & (~match_mask)
+
+            overlay.recreate_painter()
+            painter = overlay.get_painter()
+
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.setPen(QPen(Qt.GlobalColor.black, 1))
+
+            path = QPainterPath()
+            ys, xs = np.where(erase_mask)
+            for y_pixel, x_pixel in zip(ys, xs):
+                path.addRect(x_pixel, y_pixel, 1, 1)
+
+            painter.drawPath(path)
+
+            overlay.update()
+            overlay.reset_pen()
+            return
+
+        # ==============================
+        # 🔵 DYNAMIC MODE (SAFE)
+        # ==============================
+
+        original_pixmap = QPixmap(pixmap)
+
+        dialog = DynamicEraserDialog(
+            self.view,
+            img_arr,
+            shape_mask,
+            keep_rgba,
+            tolerance,
+            original_pixmap
+        )
+
+        result = dialog.exec()
+
+        if result != QDialog.DialogCode.Accepted:
+            return
+
+        erase_mask = dialog.get_final_erase_mask()
+
+        # 🔥 CRITICAL FIX
+        overlay.recreate_painter()
+
         painter = overlay.get_painter()
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
         painter.setPen(QPen(Qt.GlobalColor.black, 1))
@@ -199,9 +259,9 @@ class Eraser(Core):
             path.addRect(x_pixel, y_pixel, 1, 1)
 
         painter.drawPath(path)
+
         overlay.update()
         overlay.reset_pen()
-
 
     def flood_fill_span(self, mask, shape_mask, start_x, start_y):
         """Span-based flood fill to extract contiguous shape from mask."""

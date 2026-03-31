@@ -210,6 +210,16 @@ class LabelingOverlay():
         
         self.image_item.update_icon_file()
         
+    def recreate_painter(self):
+        if hasattr(self, "labeling_overlay_painter"):
+            try:
+                if self.labeling_overlay_painter.isActive():
+                    self.labeling_overlay_painter.end()
+            except:
+                pass
+
+        self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)
+    
     def remove(self):
         if self.is_displayed_in_scene is True:
             self.scene.removeItem(self.labeling_overlay_item)
