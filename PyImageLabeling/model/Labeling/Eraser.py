@@ -149,118 +149,98 @@ class Eraser(Core):
 
 
     def intelligent_erase(self, x, y):
-        """Fast intelligent erase using span/scanline flood fill and batched painting."""
         overlay = self.get_current_image_item().get_labeling_overlay()
         pixmap = overlay.labeling_overlay_pixmap
-        image = pixmap.toImage()
+        image_pixmap = self.get_current_image_item().get_image_pixmap()
 
-        w, h = image.width(), image.height()
+        w, h = image_pixmap.width(), image_pixmap.height()
         if not (0 <= x < w and 0 <= y < h):
             return
 
-        # Convert QImage -> NumPy RGBA (zero-copy)
+        # Convert image to numpy array
+        image = image_pixmap.toImage()
         ptr = image.bits()
         ptr.setsize(w * h * 4)
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 4))
+        img_arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 4))
 
-        # If clicked pixel is transparent, nothing to do
-        if arr[y, x, 3] == 0:
+        # Convert overlay/mask to numpy array
+        overlay_img = pixmap.toImage()
+        ptr_overlay = overlay_img.bits()
+        ptr_overlay.setsize(w * h * 4)
+        mask_arr = np.frombuffer(ptr_overlay, dtype=np.uint8).reshape((h, w, 4))
+
+        # Load parameters
+        tolerance = Utils.load_parameters()["eraser"].get("tolerance", 10)
+        keep_color_hex = Utils.load_parameters()["eraser"].get("keep_color", "#0000FF")  # example blue
+        keep_color = QColor(keep_color_hex)
+        keep_rgba = np.array([keep_color.red(), keep_color.green(), keep_color.blue(), keep_color.alpha()])
+
+        # Step 1: create mask of the clicked shape using mask alpha
+        mask_alpha = mask_arr[..., 3] > 0  # where mask exists
+        shape_mask = np.zeros((h, w), dtype=bool)
+        self.flood_fill_span(mask_alpha, shape_mask, x, y)
+
+        if not np.any(shape_mask):
             return
 
-        # Build a boolean mask of matching pixels (vectorized)
-        tolerance = 10  # keep your original tolerance or parameterize it
-        # Use int16 to avoid overflow with subtraction
-        diff = np.abs(arr.astype(np.int16) - arr[y, x].astype(np.int16))
-        match_mask = np.all(diff <= tolerance, axis=2)  # shape (h, w), dtype bool
+        # Step 2: find pixels in the shape that do NOT match the keep color in the image
+        diff = np.abs(img_arr.astype(np.int16) - keep_rgba.astype(np.int16))
+        match_mask = np.all(diff <= tolerance, axis=2)
+        erase_mask = shape_mask & (~match_mask)
 
-        # If clicked pixel doesn't match (shouldn't happen) exit
-        if not match_mask[y, x]:
-            return
-
-        # Run span/scanline flood fill to produce horizontal spans to erase
-        spans = self.flood_fill_spans(match_mask, x, y)
-
-        if not spans:
-            return
-
-        # Paint all spans in a single batched QPainterPath
+        # Step 3: draw erase path
         painter = overlay.get_painter()
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
         painter.setPen(QPen(Qt.GlobalColor.black, 1))
 
         path = QPainterPath()
-        # spans is list of (y, x_left, x_right)
-        for (sy, x0, x1) in spans:
-            # add a single rect for the whole horizontal span
-            path.addRect(x0, sy, (x1 - x0 + 1), 1)
+        ys, xs = np.where(erase_mask)
+        for y_pixel, x_pixel in zip(ys, xs):
+            path.addRect(x_pixel, y_pixel, 1, 1)
 
         painter.drawPath(path)
-        # Do not forget to let overlay update / reset pen as before
         overlay.update()
         overlay.reset_pen()
 
-    def flood_fill_spans(self, match_mask, start_x, start_y):
-        """
-        Span flood fill (scanline) using match_mask boolean array.
-        Returns a list of spans: (y, x_left, x_right)
-        Very efficient for large contiguous regions.
-        """
-        h, w = match_mask.shape
-        visited = np.zeros_like(match_mask, dtype=bool)
-        stack = deque()
-        spans = []
 
-        # push initial seed
+    def flood_fill_span(self, mask, shape_mask, start_x, start_y):
+        """Span-based flood fill to extract contiguous shape from mask."""
+        h, w = mask.shape
+        visited = np.zeros_like(mask, dtype=bool)
+        stack = deque()
         stack.append((start_x, start_y))
 
         while stack:
             x, y = stack.pop()
             if x < 0 or x >= w or y < 0 or y >= h:
                 continue
-            if not match_mask[y, x] or visited[y, x]:
+            if not mask[y, x] or visited[y, x]:
                 continue
 
             # Expand left
             x_left = x
-            while x_left - 1 >= 0 and match_mask[y, x_left - 1] and not visited[y, x_left - 1]:
+            while x_left - 1 >= 0 and mask[y, x_left - 1] and not visited[y, x_left - 1]:
                 x_left -= 1
 
             # Expand right
             x_right = x
-            while x_right + 1 < w and match_mask[y, x_right + 1] and not visited[y, x_right + 1]:
+            while x_right + 1 < w and mask[y, x_right + 1] and not visited[y, x_right + 1]:
                 x_right += 1
 
-            # Mark visited for this span and record it
+            # Mark visited and shape_mask
             visited[y, x_left:x_right+1] = True
-            spans.append((y, x_left, x_right))
+            shape_mask[y, x_left:x_right+1] = True
 
-            # Check the line above and below for new seeds
-            ny = y - 1
-            if ny >= 0:
-                xi = x_left
-                while xi <= x_right:
-                    # skip non-matching/visited pixels
-                    if match_mask[ny, xi] and not visited[ny, xi]:
-                        # found a new seed; push it (center of contiguous block)
-                        sx = xi
-                        while sx + 1 <= x_right and match_mask[ny, sx + 1] and not visited[ny, sx + 1]:
-                            sx += 1
-                        stack.append((sx, ny))
-                        xi = sx + 1
-                    else:
-                        xi += 1
-
-            ny = y + 1
-            if ny < h:
-                xi = x_left
-                while xi <= x_right:
-                    if match_mask[ny, xi] and not visited[ny, xi]:
-                        sx = xi
-                        while sx + 1 <= x_right and match_mask[ny, sx + 1] and not visited[ny, sx + 1]:
-                            sx += 1
-                        stack.append((sx, ny))
-                        xi = sx + 1
-                    else:
-                        xi += 1
-
-        return spans
+            # Check line above and below
+            for ny in (y-1, y+1):
+                if 0 <= ny < h:
+                    xi = x_left
+                    while xi <= x_right:
+                        if mask[ny, xi] and not visited[ny, xi]:
+                            sx = xi
+                            while sx + 1 <= x_right and mask[ny, sx + 1] and not visited[ny, sx + 1]:
+                                sx += 1
+                            stack.append((sx, ny))
+                            xi = sx + 1
+                        else:
+                            xi += 1

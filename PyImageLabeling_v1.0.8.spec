@@ -5,7 +5,7 @@ a = Analysis(
     ['PyImageLabeling\\__main__.py'],
     pathex=[],
     binaries=[],
-    datas=[('PyImageLabeling/config.json', '.'), ('PyImageLabeling/default_parameters.json', '.'), ('PyImageLabeling/style.css', '.'), ('PyImageLabeling/icons/*.png', 'icons')],
+    datas=[('PyImageLabeling/config.json', '.'), ('PyImageLabeling/default_parameters.json', '.'), ('PyImageLabeling/version.json', '.'), ('PyImageLabeling/style.css', '.'), ('PyImageLabeling/icons/*.png', 'icons')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

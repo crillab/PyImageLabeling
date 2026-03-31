@@ -1,5 +1,6 @@
-from PyQt6.QtWidgets import QCheckBox, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QGroupBox
+from PyQt6.QtWidgets import QCheckBox, QColorDialog, QDialog, QSlider, QPushButton, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QGroupBox
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 from PyImageLabeling.model.Utils import Utils
 
 class EraserSetting(QDialog):
@@ -61,6 +62,50 @@ class EraserSetting(QDialog):
         self.radius_group.setLayout(radius_layout)
         layout.addWidget(self.radius_group)
 
+        # Threshold Group
+        self.threshold_group = QGroupBox("Color Tolerance")
+        threshold_layout = QVBoxLayout()
+        threshold_label = QLabel("Set color tolerance (0-255):")
+        threshold_layout.addWidget(threshold_label)
+
+        threshold_slider_layout = QHBoxLayout()
+        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.threshold_slider.setRange(0, 255)
+        self.threshold_slider.setValue(params.get("tolerance", 10))
+        self.threshold_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.threshold_slider.setTickInterval(32)
+
+        self.threshold_spinbox = QSpinBox()
+        self.threshold_spinbox.setRange(0, 255)
+        self.threshold_spinbox.setValue(params.get("tolerance", 10))
+
+        self.threshold_slider.valueChanged.connect(self.threshold_spinbox.setValue)
+        self.threshold_spinbox.valueChanged.connect(self.threshold_slider.setValue)
+
+        threshold_slider_layout.addWidget(self.threshold_slider)
+        threshold_slider_layout.addWidget(self.threshold_spinbox)
+        threshold_layout.addLayout(threshold_slider_layout)
+        self.threshold_group.setLayout(threshold_layout)
+        layout.addWidget(self.threshold_group)
+
+        # Color Picker Group
+        self.color_group = QGroupBox("Color to Keep")
+        color_layout = QVBoxLayout()
+        color_label = QLabel("Select the color to keep (click to pick):")
+        color_layout.addWidget(color_label)
+
+        self.color_button = QPushButton()
+        self.color_button.setStyleSheet("background-color: rgba(0, 0, 0, 0); border: 1px solid black;")
+        self.color_button.clicked.connect(self.pick_color)
+        color_layout.addWidget(self.color_button)
+
+        self.selected_color = QColor(0, 0, 0, 0)  # Default: transparent
+        self.update_color_button()
+
+        color_layout.addWidget(QLabel("Selected color will be kept; others will be erased."))
+        self.color_group.setLayout(color_layout)
+        layout.addWidget(self.color_group)
+
         # Buttons
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.accepted.connect(self.accept)
@@ -81,7 +126,11 @@ class EraserSetting(QDialog):
             self.absolute_mode = 0
 
         show_controls = index in [0, 1]
+        show_threshold = index == 2
+        show_color = index == 2
         self.radius_group.setVisible(show_controls)
+        self.threshold_group.setVisible(show_threshold)
+        self.color_group.setVisible(show_color)
 
         if show_controls:
             self.resize(500, 150)
@@ -98,6 +147,18 @@ class EraserSetting(QDialog):
         """Update internal radius value when slider changes"""
         self.radius = self.ensure_even_value(value)
 
+    def pick_color(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.selected_color = color
+            self.update_color_button()
+
+    def update_color_button(self):
+        self.color_button.setStyleSheet(
+            f"background-color: {self.selected_color.name()}; "
+            "border: 1px solid black; min-height: 30px;"
+        )
+
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         self.radius = self.radius_spinbox.value()
@@ -105,5 +166,7 @@ class EraserSetting(QDialog):
         data["eraser"]["size"] = self.radius
         data["eraser"]["absolute_mode"] = self.absolute_mode
         data["eraser"]["mode"] = self.eraser_mode
+        data["eraser"]["tolerance"] = self.threshold_spinbox.value() 
+        data["eraser"]["keep_color"] = self.selected_color.name(QColor.NameFormat.HexArgb)
         Utils.save_parameters(data)
         return super().accept()
