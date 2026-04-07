@@ -64,9 +64,10 @@ class Files(Core):
         super().save()
 
     def save_copy(self):
-        """Save a copy of the project to a different directory."""
+        if not self.save_directory or not os.path.exists(self.save_directory):
+            self.controller.error_message("Save Copy Error", "No save directory found. Please save your project first.")
+            return
         
-        # Get the default save path from parameters
         default_path_save_copy = Utils.load_parameters()["save"]["path"]
         
         # Open directory selection dialog
@@ -96,8 +97,10 @@ class Files(Core):
         if len(selected_directories) == 0 or len(selected_directories[0]) == 0:
             return
         
+        copy_directory = selected_directories[0]
+        
         # Call the parent class save_copy method with the target directory
-        super().save_copy()
+        super().save_copy(copy_directory)
 
     def load(self, default_path=None):
         if default_path is None:

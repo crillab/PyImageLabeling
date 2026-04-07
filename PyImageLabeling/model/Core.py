@@ -15,6 +15,7 @@ from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 import numpy as np
 import os
 import json
+import shutil
 
 KEYWORD_SAVE_LABEL = ".label."
 
@@ -1027,23 +1028,44 @@ class Core():
         self.save_labels_geometric_shape(self.save_directory)
         self.save_complete_state()
 
-    def save_copy(self):
-        # Le dossier de copie n'a pas encore été défini → demander une seule fois
-        if not self.copy_save_dir:
-            directory = QFileDialog.getExistingDirectory(
-                self.view,
-                "Choisir un dossier pour Save Copy"
-            )
-            if not directory:
-                return
-            self.copy_save_dir = directory
-
-        # Sauvegarde silencieuse dans le dossier défini
-        self.save_labels(self.copy_save_dir)
-        self.save_overlays(self.copy_save_dir)
-        self.save_labels_geometric_shape(self.copy_save_dir)
-
-        print("Save Copy effectuée dans :", self.copy_save_dir)
+    def save_copy(self, copy_directory):
+        if not self.save_directory or not os.path.exists(self.save_directory):
+            print("no file found")
+            return
+        
+        if os.path.normpath(copy_directory) == os.path.normpath(self.save_directory):
+            copy_directory = os.path.join(copy_directory, "copy")
+            print(f"file created: {copy_directory}")
+        
+        os.makedirs(copy_directory, exist_ok=True)
+        
+        files_to_copy = [
+            "labels.json",
+            "Rectangles.json",
+            "Ellipses.json",
+            "Polygons.json",
+            "complete_state.json"
+        ]
+        
+        for filename in files_to_copy:
+            src = os.path.join(self.save_directory, filename)
+            if os.path.exists(src):
+                dst = os.path.join(copy_directory, filename)
+                try:
+                    shutil.copy2(src, dst)
+                except PermissionError:
+                    print(f"copy impossible {filename} (file used)")
+        
+        for file in os.listdir(self.save_directory):
+            if KEYWORD_SAVE_LABEL in file and file.endswith('.png'):
+                src = os.path.join(self.save_directory, file)
+                dst = os.path.join(copy_directory, file)
+                try:
+                    shutil.copy2(src, dst)
+                except PermissionError:
+                    print(f"copy impossible {file} (file used)")
+        
+        print("Save Copy done :", copy_directory)
 
     def load_labels_json(self, file):
         with open(file, "r") as fp:
