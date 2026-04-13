@@ -680,19 +680,14 @@ class ImageItem():
     def get_height(self):
         return self.image_qrect.height()
     
-    def save_overlays(self, current_file_path):
+    def save_overlays(self, current_file_path, reset_edited=True):
         for labeling_overlay in self.labeling_overlays.values():
-            if labeling_overlay.get_is_edited() is True:
-                #img = labeling_overlay.labeling_overlay_pixmap.toImage()
-                #if not img.isNull() and not img.allGray():
-                #print("save:", current_file_path, self.path_image)
+            if labeling_overlay.get_is_edited():
                 labeling_overlay.save(current_file_path, self.path_image)
-                #else:
-                #    print("remove:", current_file_path, self.path_image)
-                #    labeling_overlay.remove_save(current_file_path, self.path_image)
-                labeling_overlay.set_is_edited(False)
-        
-        self.update_icon_file()        
+                if reset_edited:
+                    labeling_overlay.set_is_edited(False)
+            
+            self.update_icon_file()        
 
 class LabelItem():
 
@@ -789,19 +784,17 @@ class Core():
             self.autosave_timer.start(self.autosave_interval)
 
     def auto_save(self):
-        if self.get_edited() and self.save_directory:
-            # Create auto_save folder path
-            auto_save_path = os.path.join(self.save_directory, "auto_save")
-            
-            # Create the auto_save folder if it doesn't exist
-            if not os.path.exists(auto_save_path):
-                os.makedirs(auto_save_path)
-            
-            # Save to auto_save folder
-            self.save_labels(auto_save_path)
-            self.save_overlays(auto_save_path)
-            self.save_labels_geometric_shape(auto_save_path)
-            print(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
+        if not self.save_directory:
+            return
+
+        auto_save_path = os.path.join(self.save_directory, "auto_save")
+
+        if not os.path.exists(auto_save_path):
+            os.makedirs(auto_save_path)
+
+        self._save_all(auto_save_path, reset_edited=False)
+
+        print(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
 
     def set_autosave_enabled(self, enabled):
         """Enable or disable auto-save"""
@@ -976,13 +969,12 @@ class Core():
             with open(current_file_path+os.sep+"labels.json", 'w') as fp:
                 json.dump(labels_dict, fp)
 
-    def save_overlays(self, current_file_path):
+    def save_overlays(self, current_file_path, reset_edited=True):
         for file in self.file_paths:
             image_item = self.image_items[file] 
             if image_item is not None:
-                if image_item.get_edited() is True: 
-                    image_item.save_overlays(current_file_path)
-                    image_item.update_icon_file()
+                if image_item.get_edited():
+                    image_item.save_overlays(current_file_path, reset_edited)
 
     def save_labels_geometric_shape(self, current_file_path):
         rectangles_save = {}
@@ -1023,9 +1015,12 @@ class Core():
                 json.dump(polygons_save, fp)
 
     def save(self):
-        self.save_labels(self.save_directory)
-        self.save_overlays(self.save_directory)
-        self.save_labels_geometric_shape(self.save_directory)
+        self._save_all(self.save_directory, reset_edited=True)
+
+    def _save_all(self, path, reset_edited):
+        self.save_labels(path)
+        self.save_overlays(path, reset_edited=reset_edited)
+        self.save_labels_geometric_shape(path)
         self.save_complete_state()
 
     def save_copy(self, copy_directory):
