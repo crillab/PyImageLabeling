@@ -980,39 +980,54 @@ class Core():
         rectangles_save = {}
         ellipses_save = {}
         polygons_save = {}
-        rec = False
-        ell = False
-        poly = False
+
         for file in self.file_paths:
-            image_item = self.image_items.get(file)  # safer way to get item
-            if image_item and image_item.image_rectangles:
-                # Only save if image_rectangles is not empty
-                rectangles_save[os.path.basename(image_item.path_image)] = image_item.image_rectangles
-                rec = True
-            if image_item and image_item.image_ellipses:
-                # Only save if image_ellipses is not empty
-                ellipses_save[os.path.basename(image_item.path_image)] = image_item.image_ellipses
-                ell = True
-            if image_item and image_item.image_polygons:
-                # Only save if image_polygons is not empty
-                polygons_save[os.path.basename(image_item.path_image)] = image_item.image_polygons
-                poly = True
+            image_item = self.image_items.get(file)
 
-        # If there is nothing to save, just return
-        if not rectangles_save and not ellipses_save and not polygons_save:
-            return
+            if image_item is None:
+                continue
 
-        # Save to JSON
-        os.makedirs(current_file_path, exist_ok=True)  # ensure directory exists
-        if rec:
-            with open(os.path.join(current_file_path, "Rectangles.json"), 'w') as fp:
-                json.dump(rectangles_save, fp)
-        if ell:
-            with open(os.path.join(current_file_path, "Ellipses.json"), 'w') as fp:
-                json.dump(ellipses_save, fp)
-        if poly:
-            with open(os.path.join(current_file_path, "Polygons.json"), 'w') as fp:
-                json.dump(polygons_save, fp)
+            rects = image_item.image_rectangles or []
+            ellipses = image_item.image_ellipses or []
+            polys = image_item.image_polygons or []
+
+            if rects:
+                rectangles_save[os.path.basename(file)] = rects
+
+            if ellipses:
+                ellipses_save[os.path.basename(file)] = ellipses
+
+            if polys:
+                polygons_save[os.path.basename(file)] = polys
+
+        os.makedirs(current_file_path, exist_ok=True)
+
+        self._save_or_delete_json(
+            rectangles_save,
+            os.path.join(current_file_path, "Rectangles.json")
+        )
+
+        self._save_or_delete_json(
+            ellipses_save,
+            os.path.join(current_file_path, "Ellipses.json")
+        )
+
+        self._save_or_delete_json(
+            polygons_save,
+            os.path.join(current_file_path, "Polygons.json")
+        )
+    
+    def _save_or_delete_json(self, data, path):
+        if data:
+            with open(path, "w") as fp:
+                json.dump(data, fp)
+        else:
+            if os.path.isfile(path):
+                try:
+                    os.remove(path)
+                    print(f"Removed empty file: {os.path.basename(path)}")
+                except Exception as e:
+                    print(f"Error removing {path}: {e}")
 
     def save(self):
         self._save_all(self.save_directory, reset_edited=True)
@@ -1239,17 +1254,6 @@ class Core():
         if self.current_image_item is not None:
             self.current_image_item.update_scene()
             self.current_image_item.foreground_current_labeling_overlay()
-
-        if self.save_directory:
-            json_files = ["Rectangles.json", "Ellipses.json", "Polygons.json"]
-            for json_file in json_files:
-                json_path = os.path.join(self.save_directory, json_file)
-                if os.path.isfile(json_path):
-                    try:
-                        os.remove(json_path)
-                        print(f"Removed {json_file}")
-                    except Exception as e:
-                        print(f"Error removing {json_file}: {e}")
 
     def select_image(self, path_image):
         print("select_image")
