@@ -999,8 +999,34 @@ class Core():
                 poly = True
 
         # If there is nothing to save, just return
-        if not rectangles_save and not ellipses_save and not polygons_save:
-            return
+        os.makedirs(current_file_path, exist_ok=True)
+
+        # --- RECTANGLES ---
+        rect_path = os.path.join(current_file_path, "Rectangles.json")
+        if rectangles_save:
+            with open(rect_path, 'w') as fp:
+                json.dump(rectangles_save, fp)
+        else:
+            if os.path.exists(rect_path):
+                os.remove(rect_path)
+
+        # --- ELLIPSES ---
+        ell_path = os.path.join(current_file_path, "Ellipses.json")
+        if ellipses_save:
+            with open(ell_path, 'w') as fp:
+                json.dump(ellipses_save, fp)
+        else:
+            if os.path.exists(ell_path):
+                os.remove(ell_path)
+
+        # --- POLYGONS ---
+        poly_path = os.path.join(current_file_path, "Polygons.json")
+        if polygons_save:
+            with open(poly_path, 'w') as fp:
+                json.dump(polygons_save, fp)
+        else:
+            if os.path.exists(poly_path):
+                os.remove(poly_path)
 
         # Save to JSON
         os.makedirs(current_file_path, exist_ok=True)  # ensure directory exists
