@@ -33,6 +33,7 @@ class FileEvents(Events):
         self.model.save()
 
     def save_copy(self):
+        self.model.save()
         self.model.save_copy()
 
 
