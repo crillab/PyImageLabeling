@@ -199,7 +199,7 @@ class Eraser(Core):
             return
 
         # ==============================
-        # 🟢 NON-DYNAMIC (UNCHANGED)
+        # NON-DYNAMIC
         # ==============================
         if not dynamic_adjust:
 
@@ -225,10 +225,11 @@ class Eraser(Core):
             return
 
         # ==============================
-        # 🔵 DYNAMIC MODE (SAFE)
+        # DYNAMIC MODE
         # ==============================
 
-        original_pixmap = QPixmap(pixmap)
+        overlay_pixmap = QPixmap(pixmap)
+        base_pixmap = QPixmap(image_pixmap)
 
         dialog = DynamicEraserDialog(
             self.view,
@@ -236,7 +237,8 @@ class Eraser(Core):
             shape_mask,
             keep_rgba,
             tolerance,
-            original_pixmap
+            overlay_pixmap,
+            base_pixmap
         )
 
         result = dialog.exec()
@@ -246,7 +248,6 @@ class Eraser(Core):
 
         erase_mask = dialog.get_final_erase_mask()
 
-        # 🔥 CRITICAL FIX
         overlay.recreate_painter()
 
         painter = overlay.get_painter()

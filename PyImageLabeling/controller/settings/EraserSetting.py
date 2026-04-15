@@ -6,13 +6,14 @@ import numpy as np
 
 
 class DynamicEraserDialog(QDialog):
-    def __init__(self, parent, img_arr, shape_mask, keep_rgba, initial_tolerance, original_pixmap):
+    def __init__(self, parent, img_arr, shape_mask, keep_rgba, initial_tolerance, overlay_pixmap, base_pixmap):
         super().__init__(parent)
 
         self.img_arr = img_arr
         self.shape_mask = shape_mask
         self.keep_rgba = keep_rgba
-        self.original_pixmap = original_pixmap
+        self.base_pixmap = base_pixmap
+        self.overlay_pixmap = overlay_pixmap
         self.last_erase_mask = None
 
         self.setWindowTitle("Adjust Pixels to Keep")
@@ -44,15 +45,22 @@ class DynamicEraserDialog(QDialog):
         self.update_preview(initial_tolerance)
 
     def update_preview(self, tolerance):
-        preview_pixmap = self.original_pixmap.copy()
+        # --- Build preview: base image + overlay ---
+        preview_pixmap = self.base_pixmap.copy()
 
+        painter = QPainter(preview_pixmap)
+
+        # Draw overlay on top of base image
+        painter.drawPixmap(0, 0, self.overlay_pixmap)
+
+        # --- Compute erase mask ---
         diff = np.abs(self.img_arr.astype(np.int16) - self.keep_rgba.astype(np.int16))
         match_mask = np.all(diff <= tolerance, axis=2)
         erase_mask = self.shape_mask & (~match_mask)
 
         self.last_erase_mask = erase_mask
 
-        painter = QPainter(preview_pixmap)
+        # --- Apply erase preview ---
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
 
         ys, xs = np.where(erase_mask)
@@ -61,14 +69,14 @@ class DynamicEraserDialog(QDialog):
 
         painter.end()
 
-        # Scale pixmap to fit label
-        self.preview_label.setPixmap(
-            preview_pixmap.scaled(
-                self.preview_label.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
+        # --- Scale for lightweight preview ---
+        scaled = preview_pixmap.scaled(
+            400, 400,  # small preview size for performance
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.FastTransformation
         )
+
+        self.preview_label.setPixmap(scaled)
 
     def get_final_erase_mask(self):
         return self.last_erase_mask
