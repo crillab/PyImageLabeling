@@ -7,149 +7,72 @@ from PyQt6.QtCore import QPointF, Qt, QRectF, QRect
 from collections import deque
 from PyImageLabeling.model.Utils import Utils
 
-class CompactBrushStroke:
-    """
-    Stockage compact du trait inspiré de CompactUndoEntry.
-    Stocke uniquement les centres des stamps, pas tous les pixels.
-    """
-    def __init__(self, brush_stamp, color, size):
-        self.brush_stamp = brush_stamp  # Le stamp du brush (créé une seule fois)
-        self.color = color
-        self.size = size
-        self.half_size = size // 2
-        
-        # Stockage compact: seulement les positions des centres
-        self.centers_x = []
-        self.centers_y = []
-        
-        # Bounding box
-        self.min_x = None
-        self.max_x = None
-        self.min_y = None
-        self.max_y = None
-    
-    def add_point(self, x, y):
-        """Ajoute un point au trait (stockage léger)"""
-        self.centers_x.append(x)
-        self.centers_y.append(y)
-        
-        # Update bounds
-        if self.min_x is None:
-            self.min_x = x - self.half_size
-            self.max_x = x + self.half_size
-            self.min_y = y - self.half_size
-            self.max_y = y + self.half_size
-        else:
-            self.min_x = min(self.min_x, x - self.half_size)
-            self.max_x = max(self.max_x, x + self.half_size)
-            self.min_y = min(self.min_y, y - self.half_size)
-            self.max_y = max(self.max_y, y + self.half_size)
-    
-    def get_bounds(self):
-        """Retourne le bounding rect"""
-        if self.min_x is None:
-            return QRectF(0, 0, 1, 1)
-        return QRectF(
-            self.min_x, self.min_y,
-            self.max_x - self.min_x,
-            self.max_y - self.min_y
-        )
-    
-    def render_full(self, painter, opacity=1.0):
-        """Rend le trait complet (utilisé à la fin)"""
-        painter.setOpacity(opacity)
-        for x, y in zip(self.centers_x, self.centers_y):
-            stamp_x = x - self.half_size
-            stamp_y = y - self.half_size
-            painter.drawPixmap(stamp_x, stamp_y, self.brush_stamp)
-    
-    def render_incremental(self, painter, from_index, opacity=1.0):
-        """Rend seulement les nouveaux points depuis from_index"""
-        painter.setOpacity(opacity)
-        for i in range(from_index, len(self.centers_x)):
-            x = self.centers_x[i]
-            y = self.centers_y[i]
-            stamp_x = x - self.half_size
-            stamp_y = y - self.half_size
-            painter.drawPixmap(stamp_x, stamp_y, self.brush_stamp)
-    
-    def get_point_count(self):
-        return len(self.centers_x)
-
-
 class PaintBrushItem(QGraphicsItem):
-    """
-    Version optimisée avec:
-    1. Rendu incrémental (ne redessine que les nouveaux points)
-    2. Cache du rendu précédent
-    3. Stockage compact des données
-    """
 
     def __init__(self, core, x, y, color, size, brush_type="circle"):
         super().__init__()
         
+        # Initialize the variable of the first point
         self.core = core
+        self.x = x
+        self.y = y
         self.color = color
         self.size = size
         self.brush_type = brush_type
+        self.labeling_overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
         
-        # Créer le brush stamp une seule fois
-        self.brush_stamp = self._create_brush_stamp()
+        self.position_x = int(self.x-(self.size/2))
+        self.position_y = int(self.y-(self.size/2))
+        self.bounding_rect = QRectF(self.position_x, self.position_y, self.size, self.size)
+        self.bounding_rect = self.bounding_rect.intersected(core.get_current_image_item().image_qrectf)
+
+        # Create the image of the first point
+        self.texture = QPixmap(self.size, self.size) 
+        self.texture.fill(Qt.GlobalColor.transparent)
         
-        # Stockage compact du trait
-        self.stroke = CompactBrushStroke(self.brush_stamp, color, size)
-        self.stroke.add_point(int(x), int(y))
+        painter = QPainter(self.texture)
         
-        # Cache du rendu pour éviter de redessiner tout
-        self.cached_render = None
-        self.last_rendered_count = 0
+        # Draw based on brush type
+        self._draw_brush_shape(painter, int(self.size/2), int(self.size/2))
+
+        # Remove the existing pixel label already colored 
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
+        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.bounding_rect.toRect())
         
-        # Overlay painter pour le dessin final
-        self.overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
-        
-        # Flags pour optimiser les updates
-        self.needs_full_redraw = True
-    
-    def _create_brush_stamp(self):
-        """Crée le stamp du brush (appelé une seule fois)"""
-        stamp = QPixmap(self.size, self.size)
-        stamp.fill(Qt.GlobalColor.transparent)
-        
-        painter = QPainter(stamp)
-        center = int(self.size / 2)
-        self._draw_brush_shape(painter, center, center)
         painter.end()
-        
-        return stamp
     
     def _draw_brush_shape(self, painter, center_x, center_y):
-        """Dessine la forme du brush selon le type"""
+        """Draw different brush shapes based on brush_type"""
         
         if self.brush_type == "circle":
-            pen = QPen(self.color, self.size)
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            painter.setPen(pen)
+            # Original circular brush
+            self.pen = QPen(self.color, self.size)
+            self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(self.pen)
             painter.drawPoint(center_x, center_y)
         
         elif self.brush_type == "square":
+            # Square brush
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             half_size = self.size // 2
             painter.drawRect(center_x - half_size, center_y - half_size, self.size, self.size)
         
         elif self.brush_type == "diamond":
+            # Diamond/rhombus brush
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             path = QPainterPath()
             half_size = self.size // 2
-            path.moveTo(center_x, center_y - half_size)
-            path.lineTo(center_x + half_size, center_y)
-            path.lineTo(center_x, center_y + half_size)
-            path.lineTo(center_x - half_size, center_y)
+            path.moveTo(center_x, center_y - half_size)  # Top
+            path.lineTo(center_x + half_size, center_y)  # Right
+            path.lineTo(center_x, center_y + half_size)  # Bottom
+            path.lineTo(center_x - half_size, center_y)  # Left
             path.closeSubpath()
             painter.drawPath(path)
         
         elif self.brush_type == "star":
+            # Star brush (5-pointed)
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             path = QPainterPath()
@@ -169,31 +92,37 @@ class PaintBrushItem(QGraphicsItem):
             painter.drawPath(path)
         
         elif self.brush_type == "triangle":
+            # Triangle brush
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             path = QPainterPath()
             half_size = self.size // 2
-            path.moveTo(center_x, center_y - half_size)
-            path.lineTo(center_x + half_size, center_y + half_size)
-            path.lineTo(center_x - half_size, center_y + half_size)
+            path.moveTo(center_x, center_y - half_size)  # Top
+            path.lineTo(center_x + half_size, center_y + half_size)  # Bottom right
+            path.lineTo(center_x - half_size, center_y + half_size)  # Bottom left
             path.closeSubpath()
             painter.drawPath(path)
         
         elif self.brush_type == "cross":
+            # Cross/plus brush
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             thickness = self.size // 3
             half_size = self.size // 2
+            # Vertical bar
             painter.drawRect(center_x - thickness//2, center_y - half_size, thickness, self.size)
+            # Horizontal bar
             painter.drawRect(center_x - half_size, center_y - thickness//2, self.size, thickness)
         
         elif self.brush_type == "x":
+            # X/diagonal cross brush
             painter.setPen(QPen(self.color, max(2, self.size // 5), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             half_size = self.size // 2
             painter.drawLine(center_x - half_size, center_y - half_size, center_x + half_size, center_y + half_size)
             painter.drawLine(center_x + half_size, center_y - half_size, center_x - half_size, center_y + half_size)
         
         elif self.brush_type == "hexagon":
+            # Hexagon brush
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
             path = QPainterPath()
@@ -210,9 +139,10 @@ class PaintBrushItem(QGraphicsItem):
             painter.drawPath(path)
         
         elif self.brush_type == "spray":
+            # Spray/scatter brush (random dots)
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
-            np.random.seed(int(center_x + center_y))
+            np.random.seed(int(center_x + center_y))  # Consistent randomness
             num_dots = max(10, self.size // 2)
             radius = self.size // 2
             for _ in range(num_dots):
@@ -224,6 +154,7 @@ class PaintBrushItem(QGraphicsItem):
                 painter.drawEllipse(QPointF(dot_x, dot_y), dot_size, dot_size)
         
         elif self.brush_type == "soft":
+            # Soft/blurred circular brush with gradient
             gradient = QRadialGradient(center_x, center_y, self.size // 2)
             gradient.setColorAt(0, self.color)
             transparent = QColor(self.color)
@@ -234,95 +165,58 @@ class PaintBrushItem(QGraphicsItem):
             painter.drawEllipse(QPointF(center_x, center_y), self.size // 2, self.size // 2)
         
         else:
-            pen = QPen(self.color, self.size)
-            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            painter.setPen(pen)
+            # Default to circle if unknown type
+            self.pen = QPen(self.color, self.size)
+            self.pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(self.pen)
             painter.drawPoint(center_x, center_y)
-    
-    def add_point(self, x, y):
-        """
-        Ajoute un point de manière ultra-légère.
-        Stocke juste les coordonnées, pas de pixmap.
-        """
-        self.stroke.add_point(int(x), int(y))
-        self.needs_full_redraw = False  # On fera juste un rendu incrémental
-    
+        
+    def add_point(self, new_x, new_y):
+        # Compute the bounding rect of the new point 
+        new_position_x = int(new_x-(self.size/2))
+        new_position_y = int(new_y-(self.size/2))
+        new_bounding_rect = QRectF(new_position_x, new_position_y, self.size, self.size)
+        new_bounding_rect = new_bounding_rect.intersected(self.core.get_current_image_item().image_qrectf)
+
+        # Do the union of the two bounding rects 
+        self.united_bounding_rect = self.bounding_rect.united(new_bounding_rect)
+
+        # Create a new texture 
+        new_texture = QPixmap(int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height()))
+        new_texture.fill(Qt.GlobalColor.transparent)
+        
+        # Add the new point in the texture  
+        painter = QPainter(new_texture)
+        
+        # Draw the new brush shape
+        local_x = int(new_position_x - self.united_bounding_rect.x() + (self.size/2))
+        local_y = int(new_position_y - self.united_bounding_rect.y() + (self.size/2))
+        self._draw_brush_shape(painter, local_x, local_y)
+        
+        # Copy the old texture in the new texture 
+        painter.drawPixmap(int(self.bounding_rect.x()-self.united_bounding_rect.x()), int(self.bounding_rect.y()-self.united_bounding_rect.y()), self.texture)
+        
+        # Remove the existing pixel label already colored 
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
+        painter.drawPixmap(QRect(0, 0, int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height())), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.united_bounding_rect.toRect())
+        
+        painter.end()
+
+        # Update the good variable for the painter 
+        self.texture = new_texture
+        self.bounding_rect = self.united_bounding_rect
+        self.position_x = int(self.bounding_rect.x())
+        self.position_y = int(self.bounding_rect.y())
+        
     def boundingRect(self):
-        """Retourne le bounding rect du trait"""
-        return self.stroke.get_bounds()
-    
+        return self.bounding_rect
+
     def paint(self, painter, option, widget):
-        """
-        OPTIMISATION CLEF: Rendu incrémental.
-        Ne redessine que les nouveaux points depuis le dernier paint.
-        """
-        bounds = self.stroke.get_bounds()
-        current_count = self.stroke.get_point_count()
+        painter.setOpacity(self.core.get_current_image_item().get_labeling_overlay().get_opacity())
+        painter.drawPixmap(self.position_x, self.position_y, self.texture) 
         
-        if self.needs_full_redraw or self.cached_render is None:
-            # Premier rendu ou besoin de redessiner tout
-            self.cached_render = QPixmap(int(bounds.width()), int(bounds.height()))
-            self.cached_render.fill(Qt.GlobalColor.transparent)
-            
-            cache_painter = QPainter(self.cached_render)
-            # Translate pour dessiner dans le cache relatif à bounds
-            cache_painter.translate(-bounds.x(), -bounds.y())
-            self.stroke.render_full(cache_painter, self.core.get_current_image_item().get_labeling_overlay().get_opacity())
-            cache_painter.end()
-            
-            self.last_rendered_count = current_count
-            self.needs_full_redraw = False
-            
-        elif current_count > self.last_rendered_count:
-            # Rendu incrémental: ajouter seulement les nouveaux points
-            # On garde l'ancien cache et on ajoute les nouveaux points dessus
-            new_bounds = self.stroke.get_bounds()
-            
-            if new_bounds != bounds:
-                # Le bounding box a grandi, il faut agrandir le cache
-                new_cache = QPixmap(int(new_bounds.width()), int(new_bounds.height()))
-                new_cache.fill(Qt.GlobalColor.transparent)
-                
-                cache_painter = QPainter(new_cache)
-                # Copier l'ancien cache
-                cache_painter.drawPixmap(
-                    int(bounds.x() - new_bounds.x()), 
-                    int(bounds.y() - new_bounds.y()), 
-                    self.cached_render
-                )
-                # Ajouter les nouveaux points
-                cache_painter.translate(-new_bounds.x(), -new_bounds.y())
-                self.stroke.render_incremental(
-                    cache_painter, 
-                    self.last_rendered_count,
-                    self.core.get_current_image_item().get_labeling_overlay().get_opacity()
-                )
-                cache_painter.end()
-                
-                self.cached_render = new_cache
-                bounds = new_bounds
-            else:
-                # Le bounding box n'a pas changé, on peut dessiner directement
-                cache_painter = QPainter(self.cached_render)
-                cache_painter.translate(-bounds.x(), -bounds.y())
-                self.stroke.render_incremental(
-                    cache_painter, 
-                    self.last_rendered_count,
-                    self.core.get_current_image_item().get_labeling_overlay().get_opacity()
-                )
-                cache_painter.end()
-            
-            self.last_rendered_count = current_count
-        
-        # Dessiner le cache complet (opération très rapide)
-        painter.drawPixmap(int(bounds.x()), int(bounds.y()), self.cached_render)
-    
-    def commit_to_overlay(self):
-        """
-        Dessine le trait final sur l'overlay.
-        Appelé à la fin du mouvement.
-        """
-        self.stroke.render_full(self.overlay_painter, opacity=1.0)
+    def labeling_overlay_paint(self):
+        self.labeling_overlay_painter.drawPixmap(self.position_x, self.position_y, self.texture) 
 
 
 class PaintBrush(Core):
@@ -330,11 +224,8 @@ class PaintBrush(Core):
         super().__init__()
         self.last_position_x, self.last_position_y = None, None
         self.point_spacing = 2
-        self.paint_brush_item = None
-        
-        # Optimisation: batch les updates de la scène
-        self.update_batch_size = 5  # Update tous les 5 points
-        self.points_since_update = 0
+        self.paint_brush_items = []
+        self.previous_pixmap = None
 
     def paint_brush(self):
         self.checked_button = self.paint_brush.__name__      
@@ -347,51 +238,34 @@ class PaintBrush(Core):
 
         params = Utils.load_parameters()
         self.size_paint_brush = params["paint_brush"]["size"]
+        # Load brush type from parameters, default to "circle" if not specified
         self.brush_type = params["paint_brush"].get("brush_type", "circle")
         self.color = self.get_current_label_item().get_color()
         
-        # Créer l'item de brush optimisé
-        self.paint_brush_item = PaintBrushItem(
-            self, 
-            self.current_position_x, 
-            self.current_position_y, 
-            self.color, 
-            self.size_paint_brush, 
-            self.brush_type
-        )
+        self.paint_brush_item = PaintBrushItem(self, self.current_position_x, self.current_position_y, 
+                                                self.color, self.size_paint_brush, self.brush_type)
         self.paint_brush_item.setZValue(2)
         self.zoomable_graphics_view.scene.addItem(self.paint_brush_item)
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
         self.drawn_points = [(self.current_position_x, self.current_position_y)]
-        self.points_since_update = 0
 
     def move_paint_brush(self, current_position):
-        if self.paint_brush_item is None:
-            return
-            
         self.current_position_x = int(current_position.x())
         self.current_position_y = int(current_position.y())
 
-        # Vérifier l'espacement minimal
         if Utils.compute_diagonal(self.current_position_x, self.current_position_y, 
                                    self.last_position_x, self.last_position_y) < self.point_spacing:
             return 
         
-        # Ajouter le point (opération ultra-légère, juste stockage coordonnées)
         self.drawn_points.append((self.current_position_x, self.current_position_y))
         self.paint_brush_item.add_point(self.current_position_x, self.current_position_y)
-        
-        # Batch les updates pour réduire l'overhead
-        self.points_since_update += 1
-        if self.points_since_update >= self.update_batch_size:
-            self.paint_brush_item.update()
-            self.points_since_update = 0
+        self.paint_brush_item.update()
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
 
     def _is_shape_closed(self, points, tolerance=10):
-        """Vérifie si le trait forme une boucle fermée"""
+        """Return True if the drawn path forms a closed loop."""
         if len(points) < 10:
             return False
         first, last = points[0], points[-1]
@@ -400,7 +274,7 @@ class PaintBrush(Core):
         return dist < adjusted_tolerance
 
     def _fill_closed_shape(self, points):
-        """Remplit une forme fermée"""
+        """Fill a closed pen shape by creating a polygon path and filling it."""
         path = QPainterPath()
         if not points:
             return
@@ -419,24 +293,16 @@ class PaintBrush(Core):
         
         self.get_current_image_item().update_labeling_overlay()
 
-    def end_paint_brush(self):
-        if self.paint_brush_item is None:
-            return
-        
-        # Update final pour afficher les derniers points
-        self.paint_brush_item.update()
-        
-        # Commit le trait sur l'overlay (dessin final une seule fois)
-        self.paint_brush_item.commit_to_overlay()
+    def end_paint_brush(self):  
+        # Paint the good pixmap 
+        self.paint_brush_item.labeling_overlay_paint()
 
-        # Mettre à jour l'overlay
+        # Display it
         self.get_current_image_item().update_labeling_overlay()
 
-        # Retirer l'item de preview de la scène
+        # Remove the fake item 
         self.zoomable_graphics_view.scene.removeItem(self.paint_brush_item)
-        self.paint_brush_item = None
 
-        # Vérifier si la forme est fermée
         if hasattr(self, "drawn_points") and self._is_shape_closed(self.drawn_points):
             reply = QMessageBox.question(
                 self.view,
@@ -447,4 +313,5 @@ class PaintBrush(Core):
             if reply == QMessageBox.StandardButton.Yes:
                 self._fill_closed_shape(self.drawn_points)
         
-        self.controller.ml_update_stats()
+        
+        self.controller.ml_update_stats() 
