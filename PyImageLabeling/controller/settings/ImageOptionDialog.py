@@ -1,13 +1,14 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QListWidget,
-    QGroupBox, QColorDialog, QCheckBox, QFormLayout, QDialogButtonBox, QSpinBox, QComboBox,
+    QGroupBox, QColorDialog, QCheckBox, QFormLayout, QDialogButtonBox, QFileDialog, QInputDialog, QSpinBox, QComboBox,
     QScrollArea, QWidget
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QImage, QColor
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QPixmap, QImage, QColor, QDesktopServices
 import cv2
 import numpy as np
-
+import json
+import os
 
 class ImageOptionDialog(QDialog):
     def __init__(self, parent, image_item):
@@ -93,11 +94,78 @@ class ImageOptionDialog(QDialog):
             result[:, :, :3] = fn(image[:, :, :3].copy())
             return result
         return fn(image)
+    
+    # JSON PRESET 
 
-    # ------------------------------------------------------------------
-    # UI  —  original aesthetic: QGroupBox + QVBoxLayout, explicit labels,
-    #        QHBoxLayout(slider, spinbox), tick marks on sliders
-    # ------------------------------------------------------------------
+    def get_current_settings(self):
+        return {
+            "invert_colors": self.invert_colors,
+            "grayscale": self.grayscale,
+            "brightness": self.brightness,
+            "contrast": self.contrast,
+            "gamma": self.gamma,
+            "r_level": self.r_level,
+            "g_level": self.g_level,
+            "b_level": self.b_level,
+            "hue_shift": self.hue_shift,
+            "saturation": self.saturation,
+            "value_shift": self.value_shift,
+            "sharpness": self.sharpness,
+            "color_replacements": self.color_replacements,
+            "color_tolerance": self.color_tolerance
+        }
+
+    def save_preset(self, name):
+        os.makedirs("presets", exist_ok=True)
+        path = os.path.join("presets", f"{name}.json")
+
+        with open(path, "w") as f:
+            json.dump(self.get_current_settings(), f, indent=4)
+
+        self.parent.statusBar().showMessage(f"Preset '{name}' saved")
+
+    def load_preset(self, filepath):
+        with open(filepath, "r") as f:
+            settings = json.load(f)
+        self.apply_settings(settings)
+
+    def apply_settings(self, s):
+        for w in self._all_widgets():
+            w.blockSignals(True)
+
+        self.invert_checkbox.setChecked(s["invert_colors"])
+        self.grayscale_checkbox.setChecked(s["grayscale"])
+        self.brightness_slider.setValue(s["brightness"])
+        self.contrast_slider.setValue(int(s["contrast"] * 100))
+        self.gamma_slider.setValue(s["gamma"])
+        self.r_slider.setValue(s["r_level"])
+        self.g_slider.setValue(s["g_level"])
+        self.b_slider.setValue(s["b_level"])
+        self.hue_slider.setValue(s["hue_shift"])
+        self.sat_slider.setValue(s["saturation"])
+        self.val_slider.setValue(s["value_shift"])
+        self.sharpness_slider.setValue(s["sharpness"])
+        self.tolerance_slider.setValue(s.get("color_tolerance", 30))
+
+        self.color_replacements = s.get("color_replacements", [])
+        self.color_replacements_list.clear()
+
+        for rep in self.color_replacements:
+            sc = QColor(rep['source'][2], rep['source'][1], rep['source'][0])
+            tc = QColor(rep['target'][2], rep['target'][1], rep['target'][0])
+            self.color_replacements_list.addItem(
+                f"{sc.name()} → {tc.name()} (tol: {rep['tolerance']})"
+            )
+
+        for w in self._all_widgets():
+            w.blockSignals(False)
+
+        # sync internal values
+        self.__dict__.update(s)
+
+        self.update_preview()
+
+    # UI  
 
     def _slider_row(self, minimum, maximum, default, tick_interval=25):
         """Return (QHBoxLayout, QSlider, QSpinBox) matching original style."""
@@ -129,7 +197,7 @@ class ImageOptionDialog(QDialog):
         scroll.setWidget(container)
         outer_layout.addWidget(scroll)
 
-        # ── Invert Colors ────────────────────────────────────────────────
+        # Invert Colors 
         invert_group = QGroupBox("Invert Colors")
         invert_layout = QVBoxLayout()
         self.invert_checkbox = QCheckBox("Invert image colors")
@@ -138,7 +206,7 @@ class ImageOptionDialog(QDialog):
         invert_group.setLayout(invert_layout)
         layout.addWidget(invert_group)
 
-        # ── Grayscale ────────────────────────────────────────────────────
+        # Grayscale 
         gray_group = QGroupBox("Grayscale")
         gray_layout = QVBoxLayout()
         self.grayscale_checkbox = QCheckBox("Convert to grayscale")
@@ -147,7 +215,7 @@ class ImageOptionDialog(QDialog):
         gray_group.setLayout(gray_layout)
         layout.addWidget(gray_group)
 
-        # ── Brightness ───────────────────────────────────────────────────
+        # Brightness 
         brightness_group = QGroupBox("Brightness")
         brightness_layout = QVBoxLayout()
         brightness_layout.addWidget(QLabel("Adjust image brightness:"))
@@ -158,7 +226,7 @@ class ImageOptionDialog(QDialog):
         brightness_group.setLayout(brightness_layout)
         layout.addWidget(brightness_group)
 
-        # ── Contrast ─────────────────────────────────────────────────────
+        # Contrast 
         contrast_group = QGroupBox("Contrast")
         contrast_layout = QVBoxLayout()
         contrast_layout.addWidget(QLabel("Adjust image contrast:"))
@@ -169,7 +237,7 @@ class ImageOptionDialog(QDialog):
         contrast_group.setLayout(contrast_layout)
         layout.addWidget(contrast_group)
 
-        # ── Gamma ────────────────────────────────────────────────────────
+        # Gamma
         gamma_group = QGroupBox("Gamma")
         gamma_layout = QVBoxLayout()
         gamma_layout.addWidget(QLabel("Adjust gamma curve (100 = neutral):"))
@@ -180,7 +248,7 @@ class ImageOptionDialog(QDialog):
         gamma_group.setLayout(gamma_layout)
         layout.addWidget(gamma_group)
 
-        # ── RGB Channel Levels ───────────────────────────────────────────
+        # RGB Channel Levels
         rgb_group = QGroupBox("RGB Channel Levels")
         rgb_layout = QVBoxLayout()
         rgb_layout.addWidget(QLabel("Boost or cut individual colour channels:"))
@@ -203,7 +271,7 @@ class ImageOptionDialog(QDialog):
         rgb_group.setLayout(rgb_layout)
         layout.addWidget(rgb_group)
 
-        # ── Hue / Saturation / Value ─────────────────────────────────────
+        # Hue / Saturation / Value 
         hsv_group = QGroupBox("Hue / Saturation / Value")
         hsv_layout = QVBoxLayout()
 
@@ -225,7 +293,7 @@ class ImageOptionDialog(QDialog):
         hsv_group.setLayout(hsv_layout)
         layout.addWidget(hsv_group)
 
-        # ── Sharpen / Blur ───────────────────────────────────────────────
+        # Sharpen / Blur 
         sharp_group = QGroupBox("Sharpen / Blur")
         sharp_layout = QVBoxLayout()
         sharp_layout.addWidget(QLabel("Negative = blur, zero = original, positive = sharpen:"))
@@ -236,7 +304,7 @@ class ImageOptionDialog(QDialog):
         sharp_group.setLayout(sharp_layout)
         layout.addWidget(sharp_group)
 
-        # ── Color Replacement ────────────────────────────────────────────
+        # Color Replacement
         color_group = QGroupBox("Color Replacement")
         color_layout = QVBoxLayout()
         self.color_replace_checkbox = QCheckBox("Enable color replacement")
@@ -289,7 +357,32 @@ class ImageOptionDialog(QDialog):
         color_group.setLayout(color_layout)
         layout.addWidget(color_group)
 
-        # ── Dialog buttons (outside scroll, always visible) ──────────────
+        # preset
+        preset_layout = QHBoxLayout()
+
+        save_btn = QPushButton("Save Preset")
+        load_btn = QPushButton("Load Preset")
+        manage_btn = QPushButton("Manage Presets")
+
+        save_btn.clicked.connect(self.save_preset_dialog)
+        load_btn.clicked.connect(self.load_preset_dialog)
+        manage_btn.clicked.connect(self.open_preset_manager)
+
+        preset_layout.addWidget(save_btn)
+        preset_layout.addWidget(load_btn)
+        preset_layout.addWidget(manage_btn)
+
+        layout.addLayout(preset_layout)
+
+        # buttons
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        # Dialog buttons (outside scroll, always visible) 
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
             QDialogButtonBox.StandardButton.Cancel |
@@ -401,6 +494,24 @@ class ImageOptionDialog(QDialog):
             self.update_preview()
             self.parent.statusBar().showMessage(
                 f"Color replacement added ({len(self.color_replacements)} total)")
+    
+    def save_preset_dialog(self):
+        name, ok = QInputDialog.getText(self, "Save Preset", "Preset name:")
+        if ok and name:
+            self.save_preset(name)
+
+    def load_preset_dialog(self):
+        file, _ = QFileDialog.getOpenFileName(
+            self, "Load Preset", "presets", "JSON (*.json)"
+        )
+        if file:
+            self.load_preset(file)
+
+    def open_preset_manager(self):
+        folder = os.path.abspath("presets")
+        os.makedirs(folder, exist_ok=True)
+
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
 
     # ------------------------------------------------------------------
     # Image processing

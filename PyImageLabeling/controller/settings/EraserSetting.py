@@ -61,11 +61,14 @@ class DynamicEraserDialog(QDialog):
         self.last_erase_mask = erase_mask
 
         # --- Apply erase preview ---
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        preview_color = QColor(255, 0, 0, 50)  # 🔴 transparent red
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(preview_color)
 
         ys, xs = np.where(erase_mask)
         for y_pixel, x_pixel in zip(ys, xs):
-            painter.eraseRect(x_pixel, y_pixel, 1, 1)
+            painter.drawRect(x_pixel, y_pixel, 1, 1)
 
         painter.end()
 
