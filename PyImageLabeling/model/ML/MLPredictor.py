@@ -10,7 +10,106 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.models import (
+    resnet18,           ResNet18_Weights,
+    resnet34,           ResNet34_Weights,
+    resnet50,           ResNet50_Weights,
+    resnet101,           ResNet101_Weights,
+    resnet152,           ResNet152_Weights,
+    mobilenet_v3_small, MobileNet_V3_Small_Weights,
+    efficientnet_b0,    EfficientNet_B0_Weights,
+)
+
+# ---------------------------------------------------------------------------
+# Backbone registry  {name: (constructor, pretrained_weights)}
+# Output channels are probed at build time — never hardcoded.
+# ---------------------------------------------------------------------------
+BACKBONE_REGISTRY = {
+    "ResNet18":        (resnet18,           ResNet18_Weights.DEFAULT),
+    "ResNet34":        (resnet34,           ResNet34_Weights.DEFAULT),
+    "ResNet50":        (resnet50,           ResNet50_Weights.DEFAULT),
+    "ResNet101": (resnet101, ResNet101_Weights.DEFAULT),
+    "ResNet152": (resnet152, ResNet152_Weights.DEFAULT),
+    "MobileNetV3-S":   (mobilenet_v3_small, MobileNet_V3_Small_Weights.DEFAULT),
+    "EfficientNet-B0": (efficientnet_b0,    EfficientNet_B0_Weights.DEFAULT),
+}
+BACKBONE_NAMES   = list(BACKBONE_REGISTRY.keys())
+DEFAULT_BACKBONE = "ResNet18"
+
+
+def _build_backbone(backbone_name: str, pretrained: bool):
+    """
+    Instantiate the requested backbone and return (extractor_module, feat_channels).
+    feat_channels is measured with a dummy forward pass — no hardcoding.
+    """
+    if backbone_name not in BACKBONE_REGISTRY:
+        print(f"[backbone] Unknown '{backbone_name}', falling back to {DEFAULT_BACKBONE}")
+        backbone_name = DEFAULT_BACKBONE
+
+    constructor, weights_cls = BACKBONE_REGISTRY[backbone_name]
+    weights = weights_cls if pretrained else None
+    bb      = constructor(weights=weights)
+
+    # ── ResNet family ────────────────────────────────────────────────────────
+    if backbone_name in ("ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"):
+        children = list(bb.children())
+        # stem(conv1+bn+relu+maxpool) = children[:4], then layer1..4
+        layer1 = nn.Sequential(*children[:5])   # stem + layer1
+        layer2 = children[5]
+        layer3 = children[6]
+        layer4 = children[7]
+
+        class _ResNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer1 = layer1
+                self.layer2 = layer2
+                self.layer3 = layer3
+                self.layer4 = layer4
+            def forward(self, x):
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                return self.layer4(x)
+
+        ext = _ResNetExtractor()
+
+    # ── MobileNetV3-Small ────────────────────────────────────────────────────
+    elif backbone_name == "MobileNetV3-S":
+        features = bb.features   # Sequential of inverted-residual blocks
+
+        class _MobileNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+
+        ext = _MobileNetExtractor()
+
+    # ── EfficientNet-B0 ──────────────────────────────────────────────────────
+    elif backbone_name == "EfficientNet-B0":
+        features = bb.features   # Sequential of MBConv blocks
+
+        class _EfficientNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+
+        ext = _EfficientNetExtractor()
+
+    else:
+        raise ValueError(f"Unhandled backbone: {backbone_name}")
+
+    # Probe actual output channels with a dummy forward pass
+    ext.eval()
+    with torch.no_grad():
+        dummy    = torch.zeros(1, 3, 224, 224)
+        feat_ch  = ext(dummy).shape[1]
+    print(f"[backbone] {backbone_name}: feat_channels={feat_ch}")
+    return ext, feat_ch
 
 try:
     import albumentations as A
@@ -213,44 +312,40 @@ class SegmentationHead(nn.Module):
 
 
 class FastObjectDetectorWithSegmentation(nn.Module):
-    def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True):
+    def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True,
+                 backbone_name=DEFAULT_BACKBONE):
         super().__init__()
-        weights = ResNet18_Weights.DEFAULT if pretrained else None
-        bb = resnet18(weights=weights)
+        self.backbone_name = backbone_name
 
-        self.layer1 = nn.Sequential(*list(bb.children())[:5])
-        self.layer2 = list(bb.children())[5]
-        self.layer3 = list(bb.children())[6]
-        self.layer4 = list(bb.children())[7]
+        # Build backbone and measure its output channels automatically
+        self.backbone, feat_ch = _build_backbone(backbone_name, pretrained)
 
-        self.conv1 = nn.Conv2d(512, 256, 3, padding=1)
+        # Detection neck: always projects feat_ch → 256 → 128
+        self.conv1 = nn.Conv2d(feat_ch, 256, 3, padding=1)
         self.bn1   = nn.BatchNorm2d(256)
         self.conv2 = nn.Conv2d(256, 128, 3, padding=1)
         self.bn2   = nn.BatchNorm2d(128)
 
-        self.objectness     = nn.Conv2d(128, 1,           1)
-        self.bbox_regressor = nn.Conv2d(128, 4,           1)
+        self.objectness      = nn.Conv2d(128, 1,           1)
+        self.bbox_regressor  = nn.Conv2d(128, 4,           1)
         self.class_predictor = nn.Conv2d(128, num_classes, 1)
 
         self.enable_segmentation = enable_segmentation
         if enable_segmentation:
-            self.segmentation_head = SegmentationHead(512, num_classes)
+            self.segmentation_head = SegmentationHead(feat_ch, num_classes)
 
-        self.grid_size  = 13
+        self.grid_size   = 13
         self.num_classes = num_classes
 
     def forward(self, x):
-        x1 = self.layer1(x)
-        x2 = self.layer2(x1)
-        x3 = self.layer3(x2)
-        x4 = self.layer4(x3)
+        x4 = self.backbone(x)
 
         det = F.relu(self.bn1(self.conv1(x4)))
         det = F.relu(self.bn2(self.conv2(det)))
 
-        obj   = torch.sigmoid(self.objectness(det))
-        bbox  = self.bbox_regressor(det)
-        cls   = self.class_predictor(det)
+        obj  = torch.sigmoid(self.objectness(det))
+        bbox = self.bbox_regressor(det)
+        cls  = self.class_predictor(det)
 
         self.grid_size = obj.size(2)
 
@@ -325,11 +420,13 @@ class MLPredictor(Core):
         self.segmentation_threshold = 0.5
 
         # FIX: training_mode must survive save/load
-        self.training_mode      = None
+        self.training_mode       = None
         self.enable_segmentation = False
-        self.batch_size  = 8
-        self.num_epochs  = 50
-        self.learning_rate = 0.001
+        self.batch_size          = 8
+        self.num_epochs          = 50
+        self.learning_rate       = 0.001
+        self.backbone_name       = DEFAULT_BACKBONE
+        self.use_pretrained      = True
 
         self.ml_predictions_current    = []
         self.ml_prediction_items       = []
@@ -542,9 +639,14 @@ class MLPredictor(Core):
             log(f"Segmentation dataloader: {len(segmentation_loader)} batches")
 
         # ---- model ------------------------------------------------------
+        backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
+        pretrained = getattr(self, 'use_pretrained', True)
+        log(f"Backbone: {backbone} | Pretrained: {pretrained}")
         self.model = FastObjectDetectorWithSegmentation(
-            num_classes=num_classes, pretrained=True,
-            enable_segmentation=has_segmentation)
+            num_classes=num_classes,
+            pretrained=pretrained,
+            enable_segmentation=has_segmentation,
+            backbone_name=backbone)
         self.model = self.model.to(self.device)
 
         optimizer = torch.optim.AdamW(
@@ -667,7 +769,35 @@ class MLPredictor(Core):
     # Training — public entry point (shows modal progress dialog)
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Apply persisted ML settings → instance attributes
+    # ------------------------------------------------------------------
+
+    def _apply_ml_params(self):
+        """Sync instance attributes from Utils.load_parameters() before training."""
+        from PyImageLabeling.model.Utils import Utils
+        params    = Utils.load_parameters()
+        ml        = params.get("ml", {})
+
+        self.num_epochs          = ml.get("num_epochs",           self.num_epochs)
+        self.batch_size          = ml.get("batch_size",           self.batch_size)
+        self.learning_rate       = ml.get("learning_rate",        self.learning_rate)
+        self.image_size          = ml.get("image_size",           self.image_size)
+        self.enable_segmentation = ml.get("enable_segmentation",  self.enable_segmentation)
+        self.confidence_threshold = ml.get("confidence_threshold", self.confidence_threshold)
+        self.nms_threshold        = ml.get("nms_threshold",        self.nms_threshold)
+        self.use_pretrained       = ml.get("pretrained",           True)
+        backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
+        if backbone not in BACKBONE_NAMES:
+            print(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
+            backbone = DEFAULT_BACKBONE
+        self.backbone_name = backbone
+        print(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
+              f"epochs={self.num_epochs}, lr={self.learning_rate}, "
+              f"img_size={self.image_size}, pretrained={self.use_pretrained}")
+
     def train_model(self, selected_paths=None):
+        self._apply_ml_params()
         n_images = len(selected_paths) if selected_paths else len(self.file_paths)
         self._progress_dialog = QProgressDialog(
             f"Initializing training…\n{n_images} image(s) selected",
@@ -1031,12 +1161,13 @@ class MLPredictor(Core):
             'label_id_to_class':    self.label_id_to_class,
             'class_to_label_id':    self.class_to_label_id,
             'num_classes':          self.model.num_classes,
-            'training_mode':        self.training_mode,          # FIX: saved
+            'training_mode':        self.training_mode,
             'image_size':           self.image_size,
             'confidence_threshold': self.confidence_threshold,
             'nms_threshold':        self.nms_threshold,
             'enable_segmentation':  self.model.enable_segmentation,
             'segmentation_threshold': self.segmentation_threshold,
+            'backbone_name':        self.model.backbone_name,
         }, path)
         print(f"ML model saved to {path}")
 
@@ -1049,16 +1180,19 @@ class MLPredictor(Core):
 
             self.label_id_to_class = ck.get('label_id_to_class', {})
             self.class_to_label_id = ck.get('class_to_label_id', {})
-            num_classes  = ck.get('num_classes', 2)
-            enable_seg   = ck.get('enable_segmentation', True)
+            num_classes   = ck.get('num_classes',        2)
+            enable_seg    = ck.get('enable_segmentation', True)
+            backbone_name = ck.get('backbone_name',       DEFAULT_BACKBONE)
 
             self.model = FastObjectDetectorWithSegmentation(
                 num_classes=num_classes, pretrained=False,
-                enable_segmentation=enable_seg)
+                enable_segmentation=enable_seg,
+                backbone_name=backbone_name)
             self.model.load_state_dict(ck['model_state_dict'])
             self.model = self.model.to(self.device)
             self.model.eval()
 
+            self.backbone_name          = backbone_name
             self.image_size             = ck.get('image_size',             416)
             self.confidence_threshold   = ck.get('confidence_threshold',   0.3)
             self.nms_threshold          = ck.get('nms_threshold',          0.4)
@@ -1069,7 +1203,7 @@ class MLPredictor(Core):
 
             self.trained = True
             print(f"Model loaded: {num_classes} classes, "
-                  f"mode={self.training_mode}")
+                  f"backbone={backbone_name}, mode={self.training_mode}")
             return True
         except Exception as e:
             print(f"Error loading model: {e}")

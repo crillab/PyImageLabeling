@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QColor
 
 from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model.ML.MLPredictor import BACKBONE_NAMES, DEFAULT_BACKBONE
 import os
 
 
@@ -138,12 +139,37 @@ class MLSetting(QDialog):
         )
         model_layout.addWidget(self.enable_det_checkbox)
 
-        self.pretrained_checkbox = QCheckBox("Use Pretrained Backbone (ResNet18 ImageNet)")
+        self.pretrained_checkbox = QCheckBox("Use Pretrained Backbone (ImageNet weights)")
         self.pretrained_checkbox.setChecked(ml_params.get("pretrained", True))
         self.pretrained_checkbox.setToolTip(
             "Start from ImageNet pretrained weights. Strongly recommended unless your images are very unusual."
         )
         model_layout.addWidget(self.pretrained_checkbox)
+
+        # Backbone selector
+        backbone_row = QHBoxLayout()
+        backbone_lbl = QLabel("Backbone Architecture:")
+        backbone_lbl.setToolTip(
+            "Feature extractor used for detection and segmentation.\n"
+            "\u2022 ResNet18 / ResNet34 \u2014 fast, good default (512 ch).\n"
+            "\u2022 ResNet50 \u2014 more powerful.\n"
+            "\u2022 ResNet101 \u2014 more powerful.\n"
+            "\u2022 ResNet152 \u2014 more powerful.\n"
+            "\u2022 MobileNetV3-S \u2014 lightest, best for CPU / edge.\n"
+            "\u2022 EfficientNet-B0 \u2014 good accuracy/speed trade-off.\n\n"
+            "Changing backbone invalidates any previously saved model."
+        )
+        self.backbone_combo = QComboBox()
+        for name in BACKBONE_NAMES:
+            self.backbone_combo.addItem(name)
+        current_backbone = ml_params.get("backbone_name", DEFAULT_BACKBONE)
+        idx = self.backbone_combo.findText(current_backbone)
+        if idx >= 0:
+            self.backbone_combo.setCurrentIndex(idx)
+        backbone_row.addWidget(backbone_lbl)
+        backbone_row.addWidget(self.backbone_combo)
+        backbone_row.addStretch()
+        model_layout.addLayout(backbone_row)
 
         model_group.setLayout(model_layout)
         main_layout.addWidget(model_group)
@@ -306,6 +332,7 @@ class MLSetting(QDialog):
         data["ml"]["enable_segmentation"] = self.enable_seg_checkbox.isChecked()
         data["ml"]["enable_detection"] = self.enable_det_checkbox.isChecked()
         data["ml"]["pretrained"] = self.pretrained_checkbox.isChecked()
+        data["ml"]["backbone_name"] = self.backbone_combo.currentText()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
 
