@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QVBoxLayout, QHBoxLayout,
+    QDialog, QDialogButtonBox,QMessageBox, QFileDialog, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox,
     QListWidget, QListWidgetItem, QPushButton, QSlider,
     QComboBox, QScrollArea, QWidget, QSplitter, QAbstractItemView
@@ -7,10 +7,11 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QColor
 
-from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.model.ML.MLPredictor import BACKBONE_NAMES, DEFAULT_BACKBONE
-import os
 
+from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model.ML.MLPredictor import BACKBONE_NAMES, DEFAULT_BACKBONE,FastObjectDetectorWithSegmentation
+import os
+import torch
 
 class MLSetting(QDialog):
     def __init__(self, zoomable_graphic_view, model):
@@ -199,6 +200,19 @@ class MLSetting(QDialog):
         nms_row.addStretch()
         infer_layout.addLayout(nms_row)
 
+        btn_model_row = QHBoxLayout()
+        self.save_model_btn = QPushButton("Save Trained Model")
+        self.load_model_btn = QPushButton("Load Existing Model")
+
+        self.save_model_btn.clicked.connect(self._save_model)
+        self.load_model_btn.clicked.connect(self._load_model)
+
+        btn_model_row.addWidget(self.save_model_btn)
+        btn_model_row.addWidget(self.load_model_btn)
+        btn_model_row.addStretch()
+
+        main_layout.addLayout(btn_model_row)
+
         infer_group.setLayout(infer_layout)
         main_layout.addWidget(infer_group)
 
@@ -294,7 +308,35 @@ class MLSetting(QDialog):
                 return True
 
         return False
+    
+    def _save_model(self):
+        if not self.model.trained:
+            QMessageBox.warning(self, "No Model", "Train a model first.")
+            return
 
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select Folder to Save Model"
+        )
+        if directory:
+            self.model.save_model_file(directory)
+            QMessageBox.information(self, "Saved", "Model saved successfully.")
+
+
+    def _load_model(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Model",
+            "",
+            "PyTorch Model (*.pth);;All Files (*)"
+        )
+
+        if file_path:
+            success = self.model.load_model_file(os.path.dirname(file_path))
+            if success:
+                QMessageBox.information(self, "Loaded", "Model loaded successfully.")
+            else:
+                QMessageBox.critical(self, "Error", "Failed to load model.")
+    
     def _select_all_with_labels(self):
         for row in range(self.image_list.count()):
             item = self.image_list.item(row)

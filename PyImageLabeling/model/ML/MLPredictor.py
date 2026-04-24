@@ -1155,56 +1155,71 @@ class MLPredictor(Core):
     def save_model_file(self, directory):
         if not self.trained or self.model is None:
             return
+
         path = os.path.join(directory, "ml_model.pth")
+
         torch.save({
-            'model_state_dict':     self.model.state_dict(),
-            'label_id_to_class':    self.label_id_to_class,
-            'class_to_label_id':    self.class_to_label_id,
-            'num_classes':          self.model.num_classes,
-            'training_mode':        self.training_mode,
-            'image_size':           self.image_size,
+            'model_state_dict': self.model.state_dict(),
+
+            'num_classes': self.model.num_classes,
+            'backbone_name': getattr(self.model, "backbone_name", "resnet18"),
+            'enable_segmentation': self.model.enable_segmentation,
+            'enable_detection': getattr(self.model, "enable_detection", True),
+
+            'label_id_to_class': self.label_id_to_class,
+            'class_to_label_id': self.class_to_label_id,
+
+            'training_mode': self.training_mode,
+            'image_size': self.image_size,
             'confidence_threshold': self.confidence_threshold,
-            'nms_threshold':        self.nms_threshold,
-            'enable_segmentation':  self.model.enable_segmentation,
+            'nms_threshold': self.nms_threshold,
             'segmentation_threshold': self.segmentation_threshold,
-            'backbone_name':        self.model.backbone_name,
+
         }, path)
+
         print(f"ML model saved to {path}")
 
     def load_model_file(self, directory):
         path = os.path.join(directory, "ml_model.pth")
+
         if not os.path.exists(path):
             return False
+
         try:
             ck = torch.load(path, map_location=self.device)
 
-            self.label_id_to_class = ck.get('label_id_to_class', {})
-            self.class_to_label_id = ck.get('class_to_label_id', {})
-            num_classes   = ck.get('num_classes',        2)
-            enable_seg    = ck.get('enable_segmentation', True)
-            backbone_name = ck.get('backbone_name',       DEFAULT_BACKBONE)
+            num_classes = ck.get('num_classes', 2)
+            backbone = ck.get('backbone_name', 'resnet18')
+            enable_seg = ck.get('enable_segmentation', True)
+            enable_det = ck.get('enable_detection', True)
 
             self.model = FastObjectDetectorWithSegmentation(
-                num_classes=num_classes, pretrained=False,
-                enable_segmentation=enable_seg,
-                backbone_name=backbone_name)
+                num_classes=num_classes,
+                pretrained=False,  # ⚠️ NEVER True when loading
+                enable_segmentation=enable_seg
+            )
+
+            # optional if you added backbone support
+            if hasattr(self.model, "backbone_name"):
+                self.model.backbone_name = backbone
+
             self.model.load_state_dict(ck['model_state_dict'])
             self.model = self.model.to(self.device)
             self.model.eval()
+            self.label_id_to_class = ck.get('label_id_to_class', {})
+            self.class_to_label_id = ck.get('class_to_label_id', {})
 
-            self.backbone_name          = backbone_name
-            self.image_size             = ck.get('image_size',             416)
-            self.confidence_threshold   = ck.get('confidence_threshold',   0.3)
-            self.nms_threshold          = ck.get('nms_threshold',          0.4)
-            self.enable_segmentation    = enable_seg
+            self.image_size = ck.get('image_size', 416)
+            self.confidence_threshold = ck.get('confidence_threshold', 0.3)
+            self.nms_threshold = ck.get('nms_threshold', 0.4)
             self.segmentation_threshold = ck.get('segmentation_threshold', 0.5)
-            # FIX: restore training_mode so predict routing works after load
-            self.training_mode          = ck.get('training_mode',          None)
+            self.training_mode = ck.get('training_mode', None)
 
             self.trained = True
-            print(f"Model loaded: {num_classes} classes, "
-                  f"backbone={backbone_name}, mode={self.training_mode}")
+
+            print(f"Model loaded successfully (backbone={backbone}, mode={self.training_mode})")
             return True
+
         except Exception as e:
             print(f"Error loading model: {e}")
             import traceback; traceback.print_exc()
