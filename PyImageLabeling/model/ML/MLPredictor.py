@@ -11,55 +11,140 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torchvision.models import (
-    resnet18,           ResNet18_Weights,
-    resnet34,           ResNet34_Weights,
-    resnet50,           ResNet50_Weights,
-    resnet101,           ResNet101_Weights,
-    resnet152,           ResNet152_Weights,
-    mobilenet_v3_small, MobileNet_V3_Small_Weights,
-    efficientnet_b0,    EfficientNet_B0_Weights,
-)
 
-# ---------------------------------------------------------------------------
-# Backbone registry  {name: (constructor, pretrained_weights)}
-# Output channels are probed at build time — never hardcoded.
-# ---------------------------------------------------------------------------
 BACKBONE_REGISTRY = {
-    "ResNet18":        (resnet18,           ResNet18_Weights.DEFAULT),
-    "ResNet34":        (resnet34,           ResNet34_Weights.DEFAULT),
-    "ResNet50":        (resnet50,           ResNet50_Weights.DEFAULT),
-    "ResNet101": (resnet101, ResNet101_Weights.DEFAULT),
-    "ResNet152": (resnet152, ResNet152_Weights.DEFAULT),
-    "MobileNetV3-S":   (mobilenet_v3_small, MobileNet_V3_Small_Weights.DEFAULT),
-    "EfficientNet-B0": (efficientnet_b0,    EfficientNet_B0_Weights.DEFAULT),
+    # ========== ResNet Family (Classic CNNs) ==========
+    "ResNet18":        ("resnet18",           "ResNet18_Weights"),
+    "ResNet34":        ("resnet34",           "ResNet34_Weights"),
+    "ResNet50":        ("resnet50",           "ResNet50_Weights"),
+    "ResNet101":       ("resnet101",          "ResNet101_Weights"),
+    "ResNet152":       ("resnet152",          "ResNet152_Weights"),
+    
+    # ========== MobileNet Family (Lightweight - Mobile/Edge) ==========
+    "MobileNetV3-Small": ("mobilenet_v3_small", "MobileNet_V3_Small_Weights"),
+    "MobileNetV3-Large": ("mobilenet_v3_large", "MobileNet_V3_Large_Weights"),
+    "MobileNetV2":       ("mobilenet_v2",       "MobileNet_V2_Weights"),
+    
+    # ========== EfficientNet Family (Best Accuracy/Speed Trade-off) ==========
+    "EfficientNet-B0": ("efficientnet_b0",    "EfficientNet_B0_Weights"),
+    "EfficientNet-B1": ("efficientnet_b1",    "EfficientNet_B1_Weights"),
+    "EfficientNet-B2": ("efficientnet_b2",    "EfficientNet_B2_Weights"),
+    "EfficientNet-B3": ("efficientnet_b3",    "EfficientNet_B3_Weights"),
+    "EfficientNet-B4": ("efficientnet_b4",    "EfficientNet_B4_Weights"),
+    # B5-B7 existent mais très lourds (>500M params)
+    
+    # ========== Vision Transformer Family (Modern - Best Accuracy) ==========
+    "ViT-B/16":        ("vit_b_16",           "ViT_B_16_Weights"),
+    "ViT-B/32":        ("vit_b_32",           "ViT_B_32_Weights"),
+    "ViT-L/16":        ("vit_l_16",           "ViT_L_16_Weights"),  # Large, très précis
+    
+    # ========== Swin Transformer (Excellent for Detection/Segmentation) ==========
+    "Swin-Tiny":       ("swin_t",             "Swin_T_Weights"),
+    "Swin-Small":      ("swin_s",             "Swin_S_Weights"),
+    "Swin-Base":       ("swin_b",             "Swin_B_Weights"),
+    
+    # ========== ConvNeXt (Modern CNN - Competitive with Transformers) ==========
+    "ConvNeXt-Tiny":   ("convnext_tiny",      "ConvNeXt_Tiny_Weights"),
+    "ConvNeXt-Small":  ("convnext_small",     "ConvNeXt_Small_Weights"),
+    "ConvNeXt-Base":   ("convnext_base",      "ConvNeXt_Base_Weights"),
+    
+    # ========== RegNet Family (Efficient at Scale) ==========
+    "RegNet-Y-400MF":  ("regnet_y_400mf",     "RegNet_Y_400MF_Weights"),
+    "RegNet-Y-800MF":  ("regnet_y_800mf",     "RegNet_Y_800MF_Weights"),
+    "RegNet-Y-1.6GF":  ("regnet_y_1_6gf",     "RegNet_Y_1_6GF_Weights"),
+    "RegNet-Y-3.2GF":  ("regnet_y_3_2gf",     "RegNet_Y_3_2GF_Weights"),
+    
+    # ========== DenseNet Family (Dense Connections) ==========
+    "DenseNet121":     ("densenet121",        "DenseNet121_Weights"),
+    "DenseNet161":     ("densenet161",        "DenseNet161_Weights"),
+    "DenseNet169":     ("densenet169",        "DenseNet169_Weights"),
+    
+    # ========== Wide ResNet (Better Feature Representation) ==========
+    "Wide-ResNet50":   ("wide_resnet50_2",    "Wide_ResNet50_2_Weights"),
+    "Wide-ResNet101":  ("wide_resnet101_2",   "Wide_ResNet101_2_Weights"),
+    
+    # ========== ResNeXt (Grouped Convolutions) ==========
+    "ResNeXt50":       ("resnext50_32x4d",    "ResNeXt50_32X4D_Weights"),
+    "ResNeXt101":      ("resnext101_32x8d",   "ResNeXt101_32X8D_Weights"),
+    
+    # ========== MaxViT (Hybrid CNN + Transformer) ==========
+    "MaxViT-Tiny":     ("maxvit_t",           "MaxVit_T_Weights"),
 }
-BACKBONE_NAMES   = list(BACKBONE_REGISTRY.keys())
+
+BACKBONE_NAMES = list(BACKBONE_REGISTRY.keys())
 DEFAULT_BACKBONE = "ResNet18"
-
-
-def _build_backbone(backbone_name: str, pretrained: bool):
+ 
+ 
+def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
     """
-    Instantiate the requested backbone and return (extractor_module, feat_channels).
-    feat_channels is measured with a dummy forward pass — no hardcoding.
+    Dynamically import and instantiate the requested backbone model.
+    This avoids importing all models at startup - only loads when needed.
+    Models are downloaded from internet if not cached locally.
     """
     if backbone_name not in BACKBONE_REGISTRY:
         print(f"[backbone] Unknown '{backbone_name}', falling back to {DEFAULT_BACKBONE}")
         backbone_name = DEFAULT_BACKBONE
-
-    constructor, weights_cls = BACKBONE_REGISTRY[backbone_name]
-    weights = weights_cls if pretrained else None
-    bb      = constructor(weights=weights)
-
-    # ── ResNet family ────────────────────────────────────────────────────────
+    
+    model_fn_name, weights_class_name = BACKBONE_REGISTRY[backbone_name]
+    
+    try:
+        # Import dynamically from torchvision.models
+        from torchvision import models
+        
+        print(f"[backbone] Loading {backbone_name}...")
+        
+        # Get the model constructor function
+        model_constructor = getattr(models, model_fn_name)
+        
+        # Get the weights class if pretrained
+        weights = None
+        if pretrained:
+            weights_class = getattr(models, weights_class_name)
+            weights = weights_class.DEFAULT
+            print(f"[backbone] Downloading pretrained weights if not cached...")
+        
+        # Instantiate the model (will download weights if needed)
+        backbone_model = model_constructor(weights=weights)
+        
+        print(f"[backbone] ✓ Successfully loaded {backbone_name} (pretrained={pretrained})")
+        return backbone_model
+        
+    except Exception as e:
+        print(f"[backbone] ✗ Error loading {backbone_name}: {e}")
+        print(f"[backbone] Falling back to {DEFAULT_BACKBONE}")
+        # Fallback to ResNet18
+        from torchvision import models
+        model_constructor = getattr(models, "resnet18")
+        weights = models.ResNet18_Weights.DEFAULT if pretrained else None
+        return model_constructor(weights=weights)
+ 
+def _build_backbone(backbone_name: str, pretrained: bool):
+    """
+    Instantiate the requested backbone and return (extractor_module, feat_channels).
+    feat_channels is measured with a dummy forward pass — no hardcoding.
+    Models are loaded dynamically on first use.
+    
+    Supports:
+    - ResNet family (18, 34, 50, 101, 152, Wide, ResNeXt)
+    - MobileNet family (V2, V3-Small, V3-Large)
+    - EfficientNet family (B0-B4)
+    - Vision Transformers (ViT-B, ViT-L)
+    - Swin Transformers (Tiny, Small, Base)
+    - ConvNeXt (Tiny, Small, Base)
+    - RegNet (Y-400MF to Y-3.2GF)
+    - DenseNet (121, 161, 169)
+    - MaxViT (Tiny)
+    """
+    # Load the backbone model dynamically
+    bb = _load_backbone_dynamically(backbone_name, pretrained)
+ 
     if backbone_name in ("ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"):
         children = list(bb.children())
-        # stem(conv1+bn+relu+maxpool) = children[:4], then layer1..4
         layer1 = nn.Sequential(*children[:5])   # stem + layer1
         layer2 = children[5]
         layer3 = children[6]
         layer4 = children[7]
-
+ 
         class _ResNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -72,57 +157,212 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.layer2(x)
                 x = self.layer3(x)
                 return self.layer4(x)
-
+ 
         ext = _ResNetExtractor()
-
-    # ── MobileNetV3-Small ────────────────────────────────────────────────────
-    elif backbone_name == "MobileNetV3-S":
-        features = bb.features   # Sequential of inverted-residual blocks
-
-        class _MobileNetExtractor(nn.Module):
+ 
+    elif backbone_name in ("Wide-ResNet50", "Wide-ResNet101"):
+        children = list(bb.children())
+        layer1 = nn.Sequential(*children[:5])
+        layer2 = children[5]
+        layer3 = children[6]
+        layer4 = children[7]
+ 
+        class _WideResNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer1 = layer1
+                self.layer2 = layer2
+                self.layer3 = layer3
+                self.layer4 = layer4
+            def forward(self, x):
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                return self.layer4(x)
+ 
+        ext = _WideResNetExtractor()
+ 
+    elif backbone_name in ("ResNeXt50", "ResNeXt101"):
+        children = list(bb.children())
+        layer1 = nn.Sequential(*children[:5])
+        layer2 = children[5]
+        layer3 = children[6]
+        layer4 = children[7]
+ 
+        class _ResNeXtExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer1 = layer1
+                self.layer2 = layer2
+                self.layer3 = layer3
+                self.layer4 = layer4
+            def forward(self, x):
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                return self.layer4(x)
+ 
+        ext = _ResNeXtExtractor()
+ 
+    elif backbone_name == "MobileNetV2":
+        features = bb.features
+ 
+        class _MobileNetV2Extractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
                 return self.features(x)
-
-        ext = _MobileNetExtractor()
-
-    # ── EfficientNet-B0 ──────────────────────────────────────────────────────
-    elif backbone_name == "EfficientNet-B0":
-        features = bb.features   # Sequential of MBConv blocks
-
+ 
+        ext = _MobileNetV2Extractor()
+ 
+    elif backbone_name in ("MobileNetV3-Small", "MobileNetV3-Large"):
+        features = bb.features
+ 
+        class _MobileNetV3Extractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+ 
+        ext = _MobileNetV3Extractor()
+ 
+    elif backbone_name in ("EfficientNet-B0", "EfficientNet-B1", "EfficientNet-B2",
+                           "EfficientNet-B3", "EfficientNet-B4"):
+        features = bb.features
+ 
         class _EfficientNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
                 return self.features(x)
-
+ 
         ext = _EfficientNetExtractor()
+ 
+    elif backbone_name in ("ViT-B/16", "ViT-B/32", "ViT-L/16"):
+        # ViT needs special handling - extract patch embeddings + transformer blocks
+        
+        class _ViTExtractor(nn.Module):
+            def __init__(self, vit_model):
+                super().__init__()
+                self.conv_proj = vit_model.conv_proj
+                self.encoder = vit_model.encoder
+                self.hidden_dim = vit_model.hidden_dim
+                
+            def forward(self, x):
+                # Patch embedding
+                x = self.conv_proj(x)  # [B, hidden_dim, H/16, W/16]
+                
+                # Flatten spatial dims for transformer
+                batch_size, channels, h, w = x.shape
+                x = x.flatten(2).transpose(1, 2)  # [B, H*W, hidden_dim]
+                
+                # Add class token
+                cls_token = self.encoder.pos_embedding[:, :1, :]
+                x = torch.cat([cls_token.expand(batch_size, -1, -1), x], dim=1)
+                
+                # Transformer blocks
+                x = self.encoder.dropout(x + self.encoder.pos_embedding)
+                x = self.encoder.layers(x)
+                x = self.encoder.ln(x)
+                
+                # Reshape back to spatial format (remove cls token)
+                x = x[:, 1:, :]  # Remove class token
+                x = x.transpose(1, 2).reshape(batch_size, self.hidden_dim, h, w)
+                
+                return x
+ 
+        ext = _ViTExtractor(bb)
+ 
+    elif backbone_name in ("Swin-Tiny", "Swin-Small", "Swin-Base"):
+        features = bb.features
+ 
+        class _SwinExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+ 
+        ext = _SwinExtractor()
+ 
+    elif backbone_name in ("ConvNeXt-Tiny", "ConvNeXt-Small", "ConvNeXt-Base"):
+        features = bb.features
+ 
+        class _ConvNeXtExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+ 
+        ext = _ConvNeXtExtractor()
+ 
+    elif backbone_name in ("RegNet-Y-400MF", "RegNet-Y-800MF", 
+                           "RegNet-Y-1.6GF", "RegNet-Y-3.2GF"):
+        # RegNet has same structure as ResNet
+        children = list(bb.children())
+        layer1 = nn.Sequential(*children[:5])
+        layer2 = children[5]
+        layer3 = children[6]
+        layer4 = children[7]
+ 
+        class _RegNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.layer1 = layer1
+                self.layer2 = layer2
+                self.layer3 = layer3
+                self.layer4 = layer4
+            def forward(self, x):
+                x = self.layer1(x)
+                x = self.layer2(x)
+                x = self.layer3(x)
+                return self.layer4(x)
+ 
+        ext = _RegNetExtractor()
+ 
+    elif backbone_name in ("DenseNet121", "DenseNet161", "DenseNet169"):
+        features = bb.features
+ 
+        class _DenseNetExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.features = features
+            def forward(self, x):
+                return self.features(x)
+ 
+        ext = _DenseNetExtractor()
 
+    elif backbone_name == "MaxViT-Tiny":
+        # MaxViT has stem + blocks structure
+        stem = bb.stem
+        blocks = bb.blocks
+ 
+        class _MaxViTExtractor(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.stem = stem
+                self.blocks = blocks
+            def forward(self, x):
+                x = self.stem(x)
+                return self.blocks(x)
+ 
+        ext = _MaxViTExtractor()
+ 
     else:
         raise ValueError(f"Unhandled backbone: {backbone_name}")
-
-    # Probe actual output channels with a dummy forward pass
+ 
     ext.eval()
     with torch.no_grad():
-        dummy    = torch.zeros(1, 3, 224, 224)
-        feat_ch  = ext(dummy).shape[1]
-    print(f"[backbone] {backbone_name}: feat_channels={feat_ch}")
+        dummy = torch.zeros(1, 3, 224, 224)
+        output = ext(dummy)
+        feat_ch = output.shape[1]
+    
+    print(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
     return ext, feat_ch
-
-try:
-    import albumentations as A
-    from albumentations.pytorch import ToTensorV2
-    ALBUMENTATIONS_AVAILABLE = True
-    print(f"Albumentations version: {A.__version__}")
-except ImportError:
-    ALBUMENTATIONS_AVAILABLE = False
-    print("Warning: Albumentations not installed. Using basic augmentation.")
-    A = None
-    ToTensorV2 = None
-
 
 # ---------------------------------------------------------------------------
 # Background training thread

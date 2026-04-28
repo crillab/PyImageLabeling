@@ -162,15 +162,47 @@ class MLSetting(QDialog):
         backbone_row = QHBoxLayout()
         backbone_lbl = QLabel("Backbone Architecture:")
         backbone_lbl.setToolTip(
-            "Feature extractor used for detection and segmentation.\n"
-            "• ResNet18 / ResNet34 — fast, good default (512 ch).\n"
-            "• ResNet50 — more powerful.\n"
-            "• ResNet101 — more powerful.\n"
-            "• ResNet152 — more powerful.\n"
-            "• MobileNetV3-S — lightest, best for CPU / edge.\n"
-            "• EfficientNet-B0 — good accuracy/speed trade-off.\n\n"
-            "Changing backbone invalidates any previously saved model."
-        )
+        "Feature extractor used for detection and segmentation.\n\n"
+
+        "=== Classic CNNs (Stable & Proven) ===\n"
+        "• ResNet18 / 34 — fast, reliable defaults.\n"
+        "• ResNet50 — strong baseline.\n"
+        "• ResNet101 / 152 — higher accuracy, slower.\n\n"
+
+        "=== Mobile / Edge (Very Fast) ===\n"
+        "• MobileNetV3-Small — fastest, lowest accuracy.\n"
+        "• MobileNetV3-Large — better accuracy, still lightweight.\n"
+        "• MobileNetV2 — balanced lightweight model.\n\n"
+
+        "=== EfficientNet (Best trade-off) ===\n"
+        "• B0 → B4 — increasing accuracy & compute cost.\n"
+        "• B0 = best default balance.\n\n"
+
+        "=== Vision Transformers (High Accuracy) ===\n"
+        "• ViT-B/16, B/32 — strong but need more data.\n"
+        "• ViT-L/16 — very large, GPU recommended.\n\n"
+
+        "=== Swin Transformers (Detection/Segmentation) ===\n"
+        "• Tiny / Small / Base — excellent for dense tasks.\n\n"
+
+        "=== ConvNeXt (Modern CNNs) ===\n"
+        "• Tiny / Small / Base — competitive with transformers.\n\n"
+
+        "=== RegNet (Efficient scaling) ===\n"
+        "• 400MF → 3.2GF — scalable performance.\n\n"
+
+        "=== DenseNet (Feature reuse) ===\n"
+        "• Dense connections, good efficiency.\n\n"
+
+        "=== Wide / ResNeXt ===\n"
+        "• Better feature representation than standard ResNet.\n\n"
+
+        "=== Hybrid ===\n"
+        "• MaxViT — CNN + Transformer, very powerful.\n\n"
+
+        "⚠ Changing backbone invalidates any previously saved model.\n"
+        "⚠ Large models require GPU and more memory."
+    )
         self.backbone_combo = QComboBox()
         for name in BACKBONE_NAMES:
             self.backbone_combo.addItem(name)
