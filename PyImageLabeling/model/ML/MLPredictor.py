@@ -1396,7 +1396,7 @@ class MLPredictor(Core):
             # 🔥 Reconstruire le modèle EXACTEMENT comme à l'entraînement
             self.model = FastObjectDetectorWithSegmentation(
                 num_classes=num_classes,
-                pretrained=False,  # IMPORTANT
+                pretrained=False,  
                 enable_segmentation=enable_seg,
                 enable_detection=enable_det,
                 backbone_name=backbone

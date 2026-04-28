@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['PyImageLabeling/__main__.py'],
+    ['PyImageLabeling\\__main__.py'],
     pathex=[],
     binaries=[],
     datas=[('PyImageLabeling/config.json', '.'), ('PyImageLabeling/default_parameters.json', '.'), ('PyImageLabeling/version.json', '.'), ('PyImageLabeling/style.css', '.'), ('PyImageLabeling/icons/*.png', 'icons')],
@@ -12,7 +12,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 
@@ -21,13 +21,13 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    [],
-    name='PyImageLabeling_v1.0.13',
+    [('O', None, 'OPTION'), ('O', None, 'OPTION')],
+    name='PyImageLabeling_v1.0.12',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=['vcruntime140.dll'],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['PyImageLabeling/icons/maia3.ico'],
+    icon=['PyImageLabeling\\icons\\maia3.ico'],
 )
