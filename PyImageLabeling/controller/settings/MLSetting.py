@@ -2,10 +2,10 @@ from PyQt6.QtWidgets import (
     QDialog, QDialogButtonBox,QMessageBox, QFileDialog, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox,
     QListWidget, QListWidgetItem, QPushButton, QSlider,
-    QComboBox, QScrollArea, QWidget, QSplitter, QAbstractItemView
+    QComboBox, QScrollArea, QWidget, QSplitter, QAbstractItemView, QInputDialog, QLineEdit
 )
 from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QColor
+from PyQt6.QtGui import QIcon, QColor, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
@@ -18,17 +18,28 @@ class MLSetting(QDialog):
         super().__init__(zoomable_graphic_view)
         self.model = model
         self.setWindowTitle("ML Training Settings")
-        self.resize(650, 600)
+        
+        # Adapter la taille à l'écran
+        self._setup_window_size()
 
         # Load current params
         params = Utils.load_parameters()
         ml_params = params.get("ml", {})
 
-        self.selected_image_paths = []  # Will hold final selection
+        self.selected_image_paths = []
 
-        main_layout = QVBoxLayout()
+        # Créer un QScrollArea pour rendre le contenu scrollable
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        # Widget conteneur pour le contenu
+        content_widget = QWidget()
+        main_layout = QVBoxLayout(content_widget)
         main_layout.setSpacing(8)
 
+        # [Tout le contenu existant reste identique]
         img_group = QGroupBox("Training Images")
         img_group_layout = QVBoxLayout()
 
@@ -59,7 +70,7 @@ class MLSetting(QDialog):
         # List
         self.image_list = QListWidget()
         self.image_list.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.image_list.setMinimumHeight(200)
+        self.image_list.setMinimumHeight(150)  # Réduire la hauteur minimale
         self._populate_image_list()
         img_group_layout.addWidget(self.image_list)
 
@@ -152,12 +163,12 @@ class MLSetting(QDialog):
         backbone_lbl = QLabel("Backbone Architecture:")
         backbone_lbl.setToolTip(
             "Feature extractor used for detection and segmentation.\n"
-            "\u2022 ResNet18 / ResNet34 \u2014 fast, good default (512 ch).\n"
-            "\u2022 ResNet50 \u2014 more powerful.\n"
-            "\u2022 ResNet101 \u2014 more powerful.\n"
-            "\u2022 ResNet152 \u2014 more powerful.\n"
-            "\u2022 MobileNetV3-S \u2014 lightest, best for CPU / edge.\n"
-            "\u2022 EfficientNet-B0 \u2014 good accuracy/speed trade-off.\n\n"
+            "• ResNet18 / ResNet34 — fast, good default (512 ch).\n"
+            "• ResNet50 — more powerful.\n"
+            "• ResNet101 — more powerful.\n"
+            "• ResNet152 — more powerful.\n"
+            "• MobileNetV3-S — lightest, best for CPU / edge.\n"
+            "• EfficientNet-B0 — good accuracy/speed trade-off.\n\n"
             "Changing backbone invalidates any previously saved model."
         )
         self.backbone_combo = QComboBox()
@@ -200,6 +211,9 @@ class MLSetting(QDialog):
         nms_row.addStretch()
         infer_layout.addLayout(nms_row)
 
+        infer_group.setLayout(infer_layout)
+        main_layout.addWidget(infer_group)
+
         btn_model_row = QHBoxLayout()
         self.save_model_btn = QPushButton("Save Trained Model")
         self.load_model_btn = QPushButton("Load Existing Model")
@@ -210,12 +224,9 @@ class MLSetting(QDialog):
         btn_model_row.addWidget(self.save_model_btn)
         btn_model_row.addWidget(self.load_model_btn)
         btn_model_row.addStretch()
-
         main_layout.addLayout(btn_model_row)
 
-        infer_group.setLayout(infer_layout)
-        main_layout.addWidget(infer_group)
-
+        # Buttons OK/Cancel
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -223,7 +234,49 @@ class MLSetting(QDialog):
         self.buttons.rejected.connect(self.reject)
         main_layout.addWidget(self.buttons)
 
-        self.setLayout(main_layout)
+        # Appliquer le layout au widget de contenu
+        content_widget.setLayout(main_layout)
+        
+        # Mettre le widget dans le scroll area
+        scroll_area.setWidget(content_widget)
+        
+        # Layout principal de la fenêtre
+        dialog_layout = QVBoxLayout()
+        dialog_layout.setContentsMargins(0, 0, 0, 0)
+        dialog_layout.addWidget(scroll_area)
+        self.setLayout(dialog_layout)
+
+    def _setup_window_size(self):
+        """Configure la taille de la fenêtre en fonction de l'écran"""
+        # Obtenir la géométrie de l'écran
+        screen = self.screen()
+        if screen is None:
+            screen = QScreen.primaryScreen()
+        
+        screen_geometry = screen.availableGeometry()
+        screen_width = screen_geometry.width()
+        screen_height = screen_geometry.height()
+        
+        # Définir la taille à 80% de l'écran (max)
+        max_width = int(screen_width * 0.8)
+        max_height = int(screen_height * 0.8)
+        
+        # Taille minimale
+        min_width = 600
+        min_height = 400
+        
+        # Taille préférée
+        preferred_width = min(650, max_width)
+        preferred_height = min(700, max_height)
+        
+        self.setMinimumSize(min_width, min_height)
+        self.resize(preferred_width, preferred_height)
+        
+        # Centrer la fenêtre
+        self.move(
+            screen_geometry.center().x() - self.width() // 2,
+            screen_geometry.center().y() - self.height() // 2
+        )
 
     def _populate_image_list(self):
         """
@@ -314,12 +367,28 @@ class MLSetting(QDialog):
             QMessageBox.warning(self, "No Model", "Train a model first.")
             return
 
+        model_name, ok = QInputDialog.getText(
+            self,
+            "Model Name",
+            "Enter a name for your model:",
+            QLineEdit.EchoMode.Normal,
+            "my_model"
+        )
+        
+        if not ok or not model_name.strip():
+            return
+        
+        # Clean the model name (remove invalid characters)
+        model_name = model_name.strip()
+        
         directory = QFileDialog.getExistingDirectory(
             self, "Select Folder to Save Model"
         )
         if directory:
-            self.model.save_model_file(directory)
-            QMessageBox.information(self, "Saved", "Model saved successfully.")
+            # Pass the model name to the save function
+            # You may need to modify save_model_file to accept the name parameter
+            self.model.save_model_file(directory, model_name)
+            QMessageBox.information(self, "Saved", f"Model '{model_name}' saved successfully.")
 
 
     def _load_model(self):
@@ -331,7 +400,7 @@ class MLSetting(QDialog):
         )
 
         if file_path:
-            success = self.model.load_model_file(os.path.dirname(file_path))
+            success = self.model.load_model_file(file_path)
             if success:
                 QMessageBox.information(self, "Loaded", "Model loaded successfully.")
             else:

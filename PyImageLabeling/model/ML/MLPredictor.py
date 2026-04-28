@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 import os
 import cv2
+import re
 import numpy as np
 import torch
 import torch.nn as nn
@@ -313,7 +314,7 @@ class SegmentationHead(nn.Module):
 
 class FastObjectDetectorWithSegmentation(nn.Module):
     def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True,
-                 backbone_name=DEFAULT_BACKBONE):
+                 enable_detection=True, backbone_name=DEFAULT_BACKBONE):
         super().__init__()
         self.backbone_name = backbone_name
 
@@ -336,7 +337,8 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 
         self.grid_size   = 13
         self.num_classes = num_classes
-
+        self.enable_detection = enable_detection 
+        
     def forward(self, x):
         x4 = self.backbone(x)
 
@@ -1152,11 +1154,12 @@ class MLPredictor(Core):
     # Save / load
     # ------------------------------------------------------------------
 
-    def save_model_file(self, directory):
-        if not self.trained or self.model is None:
-            return
+    def save_model_file(self, directory, model_name="ml_model"):
+    
+        model_name = re.sub(r'[<>:"/\\|?*]', '_', model_name)
 
-        path = os.path.join(directory, "ml_model.pth")
+        filename = f"{model_name}.pth"
+        path = os.path.join(directory, filename)
 
         torch.save({
             'model_state_dict': self.model.state_dict(),
@@ -1179,33 +1182,44 @@ class MLPredictor(Core):
 
         print(f"ML model saved to {path}")
 
-    def load_model_file(self, directory):
-        path = os.path.join(directory, "ml_model.pth")
-
-        if not os.path.exists(path):
+    def load_model_file(self, file_path):
+        if not os.path.exists(file_path):
+            print(f"Model file not found: {file_path}")
             return False
 
         try:
-            ck = torch.load(path, map_location=self.device)
+            ck = torch.load(file_path, map_location=self.device)
 
+            # 🔑 Récupérer les paramètres EXACTS du modèle sauvegardé
             num_classes = ck.get('num_classes', 2)
             backbone = ck.get('backbone_name', 'resnet18')
             enable_seg = ck.get('enable_segmentation', True)
             enable_det = ck.get('enable_detection', True)
 
+            print("=== LOADING MODEL ===")
+            print("Path:", file_path)
+            print("Backbone:", backbone)
+            print("Num classes:", num_classes)
+            print("Segmentation:", enable_seg)
+            print("Detection:", enable_det)
+
+            # 🔥 Reconstruire le modèle EXACTEMENT comme à l'entraînement
             self.model = FastObjectDetectorWithSegmentation(
                 num_classes=num_classes,
-                pretrained=False,  # ⚠️ NEVER True when loading
-                enable_segmentation=enable_seg
+                pretrained=False,  # IMPORTANT
+                enable_segmentation=enable_seg,
+                enable_detection=enable_det,
+                backbone_name=backbone
             )
 
-            # optional if you added backbone support
-            if hasattr(self.model, "backbone_name"):
-                self.model.backbone_name = backbone
-
+            # Charger les poids
             self.model.load_state_dict(ck['model_state_dict'])
+
+            # Device + eval
             self.model = self.model.to(self.device)
             self.model.eval()
+
+            # Restaurer les métadonnées
             self.label_id_to_class = ck.get('label_id_to_class', {})
             self.class_to_label_id = ck.get('class_to_label_id', {})
 
@@ -1217,12 +1231,13 @@ class MLPredictor(Core):
 
             self.trained = True
 
-            print(f"Model loaded successfully (backbone={backbone}, mode={self.training_mode})")
+            print(f"✅ Model loaded successfully from {file_path}")
             return True
 
         except Exception as e:
-            print(f"Error loading model: {e}")
-            import traceback; traceback.print_exc()
+            print(f"❌ Error loading model: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def load_image_for_training(self, path_image):
