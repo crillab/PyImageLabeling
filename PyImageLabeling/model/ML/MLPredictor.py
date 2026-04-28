@@ -119,32 +119,21 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
         return model_constructor(weights=weights)
  
 def _build_backbone(backbone_name: str, pretrained: bool):
-    """
-    Instantiate the requested backbone and return (extractor_module, feat_channels).
-    feat_channels is measured with a dummy forward pass — no hardcoding.
-    Models are loaded dynamically on first use.
-    
-    Supports:
-    - ResNet family (18, 34, 50, 101, 152, Wide, ResNeXt)
-    - MobileNet family (V2, V3-Small, V3-Large)
-    - EfficientNet family (B0-B4)
-    - Vision Transformers (ViT-B, ViT-L)
-    - Swin Transformers (Tiny, Small, Base)
-    - ConvNeXt (Tiny, Small, Base)
-    - RegNet (Y-400MF to Y-3.2GF)
-    - DenseNet (121, 161, 169)
-    - MaxViT (Tiny)
-    """
-    # Load the backbone model dynamically
     bb = _load_backbone_dynamically(backbone_name, pretrained)
- 
-    if backbone_name in ("ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"):
+
+    # ── ResNet / Wide-ResNet / ResNeXt ──────────────────────────────────
+    if backbone_name in (
+        "ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152",
+        "Wide-ResNet50", "Wide-ResNet101",
+        "ResNeXt50", "ResNeXt101",
+    ):
         children = list(bb.children())
+        # children: [conv1, bn1, relu, maxpool, layer1, layer2, layer3, layer4, avgpool, fc]
         layer1 = nn.Sequential(*children[:5])   # stem + layer1
         layer2 = children[5]
         layer3 = children[6]
         layer4 = children[7]
- 
+
         class _ResNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -157,210 +146,171 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.layer2(x)
                 x = self.layer3(x)
                 return self.layer4(x)
- 
+
         ext = _ResNetExtractor()
- 
-    elif backbone_name in ("Wide-ResNet50", "Wide-ResNet101"):
-        children = list(bb.children())
-        layer1 = nn.Sequential(*children[:5])
-        layer2 = children[5]
-        layer3 = children[6]
-        layer4 = children[7]
- 
-        class _WideResNetExtractor(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.layer1 = layer1
-                self.layer2 = layer2
-                self.layer3 = layer3
-                self.layer4 = layer4
-            def forward(self, x):
-                x = self.layer1(x)
-                x = self.layer2(x)
-                x = self.layer3(x)
-                return self.layer4(x)
- 
-        ext = _WideResNetExtractor()
- 
-    elif backbone_name in ("ResNeXt50", "ResNeXt101"):
-        children = list(bb.children())
-        layer1 = nn.Sequential(*children[:5])
-        layer2 = children[5]
-        layer3 = children[6]
-        layer4 = children[7]
- 
-        class _ResNeXtExtractor(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.layer1 = layer1
-                self.layer2 = layer2
-                self.layer3 = layer3
-                self.layer4 = layer4
-            def forward(self, x):
-                x = self.layer1(x)
-                x = self.layer2(x)
-                x = self.layer3(x)
-                return self.layer4(x)
- 
-        ext = _ResNeXtExtractor()
- 
-    elif backbone_name == "MobileNetV2":
+
+    # ── MobileNetV2 / MobileNetV3 ────────────────────────────────────────
+    elif backbone_name in ("MobileNetV2", "MobileNetV3-Small", "MobileNetV3-Large"):
         features = bb.features
- 
-        class _MobileNetV2Extractor(nn.Module):
+
+        class _MobileNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
                 return self.features(x)
- 
-        ext = _MobileNetV2Extractor()
- 
-    elif backbone_name in ("MobileNetV3-Small", "MobileNetV3-Large"):
+
+        ext = _MobileNetExtractor()
+
+    # ── EfficientNet B0-B4 ───────────────────────────────────────────────
+    elif backbone_name in (
+        "EfficientNet-B0", "EfficientNet-B1", "EfficientNet-B2",
+        "EfficientNet-B3", "EfficientNet-B4",
+    ):
         features = bb.features
- 
-        class _MobileNetV3Extractor(nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.features = features
-            def forward(self, x):
-                return self.features(x)
- 
-        ext = _MobileNetV3Extractor()
- 
-    elif backbone_name in ("EfficientNet-B0", "EfficientNet-B1", "EfficientNet-B2",
-                           "EfficientNet-B3", "EfficientNet-B4"):
-        features = bb.features
- 
+
         class _EfficientNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
                 return self.features(x)
- 
+
         ext = _EfficientNetExtractor()
- 
+
+    # ── Vision Transformer (ViT) ─────────────────────────────────────────
+    # FIX 1: class_token is bb.class_token, NOT encoder.pos_embedding[:, :1]
+    # FIX 2: encoder.forward() already adds pos_embedding — do NOT add it manually
     elif backbone_name in ("ViT-B/16", "ViT-B/32", "ViT-L/16"):
-        # ViT needs special handling - extract patch embeddings + transformer blocks
-        
+
         class _ViTExtractor(nn.Module):
             def __init__(self, vit_model):
                 super().__init__()
-                self.conv_proj = vit_model.conv_proj
-                self.encoder = vit_model.encoder
+                self.conv_proj  = vit_model.conv_proj
+                self.class_token = vit_model.class_token   # nn.Parameter [1,1,D]
+                self.encoder    = vit_model.encoder        # adds pos_embedding internally
                 self.hidden_dim = vit_model.hidden_dim
-                
+
             def forward(self, x):
-                # Patch embedding
-                x = self.conv_proj(x)  # [B, hidden_dim, H/16, W/16]
-                
-                # Flatten spatial dims for transformer
-                batch_size, channels, h, w = x.shape
-                x = x.flatten(2).transpose(1, 2)  # [B, H*W, hidden_dim]
-                
-                # Add class token
-                cls_token = self.encoder.pos_embedding[:, :1, :]
-                x = torch.cat([cls_token.expand(batch_size, -1, -1), x], dim=1)
-                
-                # Transformer blocks
-                x = self.encoder.dropout(x + self.encoder.pos_embedding)
-                x = self.encoder.layers(x)
-                x = self.encoder.ln(x)
-                
-                # Reshape back to spatial format (remove cls token)
-                x = x[:, 1:, :]  # Remove class token
-                x = x.transpose(1, 2).reshape(batch_size, self.hidden_dim, h, w)
-                
+                # 1. Patch projection → [B, D, H/p, W/p]
+                x = self.conv_proj(x)
+                B, D, h, w = x.shape
+
+                # 2. Flatten patches → [B, N, D]
+                x = x.flatten(2).transpose(1, 2)
+
+                # 3. Prepend class token → [B, 1+N, D]
+                cls = self.class_token.expand(B, -1, -1)
+                x = torch.cat([cls, x], dim=1)
+
+                # 4. Transformer (encoder adds pos_embedding + dropout + layers + ln)
+                x = self.encoder(x)   # → [B, 1+N, D]
+
+                # 5. Drop class token, reshape to spatial [B, D, h, w]
+                x = x[:, 1:]          # [B, N, D]
+                x = x.transpose(1, 2).reshape(B, D, h, w)
                 return x
- 
+
         ext = _ViTExtractor(bb)
- 
+
+    # ── Swin Transformer ─────────────────────────────────────────────────
+    # FIX: bb.features outputs [B, H, W, C] (channels-last).
+    #      Must apply bb.norm then bb.permute to get [B, C, H, W].
     elif backbone_name in ("Swin-Tiny", "Swin-Small", "Swin-Base"):
-        features = bb.features
- 
+
         class _SwinExtractor(nn.Module):
-            def __init__(self):
+            def __init__(self, swin_model):
                 super().__init__()
-                self.features = features
+                self.features = swin_model.features
+                self.norm     = swin_model.norm      # LayerNorm on channels-last
+                self.permute  = swin_model.permute   # Permute([0,3,1,2]) → BCHW
+
             def forward(self, x):
-                return self.features(x)
- 
-        ext = _SwinExtractor()
- 
+                x = self.features(x)   # [B, H, W, C]
+                x = self.norm(x)       # [B, H, W, C]
+                x = self.permute(x)    # [B, C, H, W]
+                return x
+
+        ext = _SwinExtractor(bb)
+
+    # ── ConvNeXt ─────────────────────────────────────────────────────────
+    # bb.features uses LayerNorm2d (BCHW-native) → output is already [B, C, H, W]
     elif backbone_name in ("ConvNeXt-Tiny", "ConvNeXt-Small", "ConvNeXt-Base"):
         features = bb.features
- 
+
         class _ConvNeXtExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
                 return self.features(x)
- 
+
         ext = _ConvNeXtExtractor()
- 
-    elif backbone_name in ("RegNet-Y-400MF", "RegNet-Y-800MF", 
-                           "RegNet-Y-1.6GF", "RegNet-Y-3.2GF"):
-        # RegNet has same structure as ResNet
-        children = list(bb.children())
-        layer1 = nn.Sequential(*children[:5])
-        layer2 = children[5]
-        layer3 = children[6]
-        layer4 = children[7]
- 
+
+    # ── RegNet ───────────────────────────────────────────────────────────
+    # FIX: RegNet layout is [stem, trunk_output, avgpool, fc] — only 4 children.
+    #      children[5/6/7] don't exist. Must use named attributes directly.
+    elif backbone_name in (
+        "RegNet-Y-400MF", "RegNet-Y-800MF",
+        "RegNet-Y-1.6GF",  "RegNet-Y-3.2GF",
+    ):
+        stem         = bb.stem
+        trunk_output = bb.trunk_output   # Sequential of block1…block4
+
         class _RegNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.layer1 = layer1
-                self.layer2 = layer2
-                self.layer3 = layer3
-                self.layer4 = layer4
+                self.stem         = stem
+                self.trunk_output = trunk_output
             def forward(self, x):
-                x = self.layer1(x)
-                x = self.layer2(x)
-                x = self.layer3(x)
-                return self.layer4(x)
- 
+                x = self.stem(x)
+                return self.trunk_output(x)
+
         ext = _RegNetExtractor()
- 
+
+    # ── DenseNet ─────────────────────────────────────────────────────────
+    # FIX: bb.features ends at norm5 (BN without activation).
+    #      Original DenseNet forward applies F.relu before avgpool — must do the same.
     elif backbone_name in ("DenseNet121", "DenseNet161", "DenseNet169"):
         features = bb.features
- 
+
         class _DenseNetExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.features = features
             def forward(self, x):
-                return self.features(x)
- 
+                return F.relu(self.features(x), inplace=True)
+
         ext = _DenseNetExtractor()
 
+    # ── MaxViT ───────────────────────────────────────────────────────────
     elif backbone_name == "MaxViT-Tiny":
-        # MaxViT has stem + blocks structure
-        stem = bb.stem
+        stem   = bb.stem
         blocks = bb.blocks
- 
+
         class _MaxViTExtractor(nn.Module):
             def __init__(self):
                 super().__init__()
-                self.stem = stem
+                self.stem   = stem
                 self.blocks = blocks
             def forward(self, x):
                 x = self.stem(x)
-                return self.blocks(x)
- 
+                for block in self.blocks:  # iterate instead of calling directly
+                    x = block(x)
+                return x
+
         ext = _MaxViTExtractor()
- 
+
     else:
         raise ValueError(f"Unhandled backbone: {backbone_name}")
- 
+
+    # ── Measure output channels with a dummy forward ─────────────────────
     ext.eval()
     with torch.no_grad():
-        dummy = torch.zeros(1, 3, 224, 224)
+        dummy  = torch.zeros(1, 3, 224, 224)
         output = ext(dummy)
         feat_ch = output.shape[1]
-    
+
     print(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
     return ext, feat_ch
 
