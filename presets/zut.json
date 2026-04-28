@@ -1,0 +1,16 @@
+{
+    "invert_colors": false,
+    "grayscale": false,
+    "brightness": 100,
+    "contrast": 1.96,
+    "gamma": 100,
+    "r_level": 0,
+    "g_level": 68,
+    "b_level": 0,
+    "hue_shift": 0,
+    "saturation": 100,
+    "value_shift": 0,
+    "sharpness": 0,
+    "color_replacements": [],
+    "color_tolerance": 30
+}

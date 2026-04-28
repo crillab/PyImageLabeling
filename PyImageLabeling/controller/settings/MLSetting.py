@@ -26,6 +26,8 @@ class MLSetting(QDialog):
         params = Utils.load_parameters()
         ml_params = params.get("ml", {})
 
+        self.loaded_model_name = ml_params.get("loaded_model_name", None)
+
         self.selected_image_paths = []
 
         # Créer un QScrollArea pour rendre le contenu scrollable
@@ -250,6 +252,9 @@ class MLSetting(QDialog):
         self.save_model_btn = QPushButton("Save Trained Model")
         self.load_model_btn = QPushButton("Load Existing Model")
 
+        if self.loaded_model_name:
+            self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+
         self.save_model_btn.clicked.connect(self._save_model)
         self.load_model_btn.clicked.connect(self._load_model)
 
@@ -434,6 +439,15 @@ class MLSetting(QDialog):
         if file_path:
             success = self.model.load_model_file(file_path)
             if success:
+                self.loaded_model_name = os.path.splitext(os.path.basename(file_path))[0]
+                self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+                
+                # Save to parameters
+                data = Utils.load_parameters()
+                if "ml" not in data:
+                    data["ml"] = {}
+                data["ml"]["loaded_model_name"] = self.loaded_model_name
+                Utils.save_parameters(data)
                 QMessageBox.information(self, "Loaded", "Model loaded successfully.")
             else:
                 QMessageBox.critical(self, "Error", "Failed to load model.")
