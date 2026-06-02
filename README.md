@@ -4,6 +4,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/crillab/PyImageLabeling/tree/master?tab=MIT-1-ov-file#)
 
+- **Documentation**: [Read the documentation](https://www.cril.univ-artois.fr/pyimagelabeling/).
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
 - **PyPI**: [Install via pip](https://pypi.org/project/PyImageLabeling/).
 
