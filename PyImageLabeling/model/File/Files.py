@@ -151,7 +151,7 @@ class Files(Core):
 
         # Update the model with the good images
         # The model variables is update in this method: file_paths and image_items
-        current_files = [current_file_path+os.sep+f for f in os.listdir(current_file_path)]
+        current_files = [current_file_path+os.sep+f for f in sorted(os.listdir(current_file_path))]
         current_files_to_add = []
         
         labels_json = None
@@ -179,7 +179,33 @@ class Files(Core):
                 ellipse_json = file # Load it later 
             elif file.endswith("Polygons.json"):
                 polygon_json = file # Load it later 
-        self.view.file_bar_add(current_files_to_add)
+        # ── Progress bar ─────────────────────────────────────────────────────
+        # Compute an approximate step count so the bar fills evenly:
+        #   • 1 step per image added to the file bar
+        #   • 1 step per label PNG indexed
+        #   • a few fixed steps for reset / JSON loading / finalising
+        n_images = len(current_files_to_add)
+        n_labels = len(labels_images)
+        n_json   = sum(1 for j in [labels_json, rectangle_json,
+                                    ellipse_json, polygon_json] if j is not None)
+        _FIXED   = 3  # reset + select_label + complete_state
+        total_steps = n_images + n_labels + n_json + _FIXED
+
+        progress = QProgressDialog("", None, 0, max(total_steps, 1), self.view)
+        progress.setWindowTitle("Loading Images and Labels")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(400)   # only appears if loading takes > 400 ms
+        progress.setValue(0)
+
+        # ── Add images to the file bar (heaviest step for large datasets) ──
+        canceled = self.view.file_bar_add(current_files_to_add,
+                                          progress=progress,
+                                          progress_offset=0)
+        if canceled:
+            for f in current_files_to_add:
+                self.file_paths.remove(f)
+                del self.image_items[f]
+            return
 
         for file_path in current_files_to_add:
             fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])
@@ -213,11 +239,13 @@ class Files(Core):
             self.view.file_bar_list.setCurrentRow(0) 
 
         if len(labels_images) != 0 and labels_json is None:
+            progress.setValue(total_steps)   # dismiss the progress bar
             self.controller.error_message("Load Error", "The labeling image or the `labels.json` file is missing !")
             return
 
         if len(labels_images) == 0 and labels_json is None and \
             rectangle_json is None and ellipse_json is None and polygon_json is None:
+            progress.setValue(total_steps)   # dismiss the progress bar
             return
 
         if labels_json is not None and self.get_edited():
@@ -231,9 +259,15 @@ class Files(Core):
             result = msgBox.exec()
 
             if result == QMessageBox.StandardButton.No:
+                progress.setValue(total_steps)   # dismiss the progress bar
                 return
-        
-        # Reset all labeling overview in the model
+
+        # ── Step counter resumes after the file-bar phase ────────────────
+        step = n_images
+
+        # ── Reset all labeling overlays in the model ─────────────────────
+        progress.setLabelText("Resetting previous annotations…")
+        progress.setValue(step)
         self.reset()
         self.labeling_overview_was_loaded.clear()
         self.labeling_overview_file_paths.clear()
@@ -242,49 +276,71 @@ class Files(Core):
         to_delete = []
         for label_id in self.view.container_label_bar_temporary:
             widget, separator = self.view.container_label_bar_temporary[label_id]
-            
+
             widget.hide()
             self.view.label_bar_layout.removeWidget(widget)
             separator.hide()
             self.view.label_bar_layout.removeWidget(separator)
-            
+
             # Clean up the view dictionaries
             to_delete.append(label_id)
             if label_id in self.view.buttons_label_bar_temporary:
                 del self.view.buttons_label_bar_temporary[label_id]
-        
+
         for label_id in to_delete:
             del self.view.container_label_bar_temporary[label_id]
 
         # Clear the labels in the model
         self.label_items.clear()
 
-        # Reset the icon file 
+        # Reset the icon file
         self.update_icon_file()
+        step += 1
+        progress.setValue(step)
 
-        # We load the overview labelings
+        # ── Index label PNG files ─────────────────────────────────────────
         if labels_images is not None:
-            for file in labels_images:
+            _upd = max(1, n_labels // 100)   # same throttle: ~100 updates max
+            for i, file in enumerate(labels_images):
                 self.load_labels_images(file)
+                if i % _upd == 0 or i == n_labels - 1:
+                    progress.setLabelText(f"Indexing label files… ({i + 1} / {n_labels})")
+                    step_now = n_images + 1 + i + 1
+                    progress.setValue(step_now)
+            step = n_images + 1 + n_labels
 
-        # Load the labels and initalize the first one
+        # ── Load JSON metadata ────────────────────────────────────────────
         if labels_json is not None:
+            progress.setLabelText("Loading label definitions…")
             self.load_labels_json(labels_json)
             first_id = list(self.get_label_items().keys())[0]
             self.controller.select_label(first_id)
+            step += 1
+            progress.setValue(step)
 
         if rectangle_json is not None:
+            progress.setLabelText("Loading rectangle annotations…")
             self.load_rectangles_json(rectangle_json)
+            step += 1
+            progress.setValue(step)
         
         if ellipse_json is not None:
+            progress.setLabelText("Loading ellipse annotations…")
             self.load_ellipses_json(ellipse_json)
+            step += 1
+            progress.setValue(step)
 
         if polygon_json is not None:
+            progress.setLabelText("Loading polygon annotations…")
             self.load_polygons_json(polygon_json)
+            step += 1
+            progress.setValue(step)
 
-        # Now, we have to save in this directory :)
+        # ── Finalise ──────────────────────────────────────────────────────
+        progress.setLabelText("Finalising…")
         self.save_directory = current_file_path
         self.load_complete_state()
+        progress.setValue(total_steps)   # reaches maximum → auto-hides
 
         
             

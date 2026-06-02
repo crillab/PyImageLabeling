@@ -1,4 +1,9 @@
-from PyQt6.QtWidgets import QComboBox, QPushButton, QHBoxLayout, QColorDialog, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QFileDialog
+from PyQt6.QtWidgets import (
+    QComboBox, QPushButton, QHBoxLayout, QColorDialog, QDialog, QSlider,
+    QFormLayout, QDialogButtonBox, QSpinBox, QFileDialog,
+    QRadioButton, QLabel, QVBoxLayout, QButtonGroup, QLineEdit, QFrame,
+    QProgressDialog,
+)
 
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt, QFileInfo
@@ -8,6 +13,199 @@ from PyImageLabeling.model.Utils import Utils
 
 import os
 import shutil
+import fnmatch
+
+from PIL import Image
+import numpy as np
+
+
+# ---------------------------------------------------------------------------
+# Dialog: choose the source annotation format before importing
+# ---------------------------------------------------------------------------
+
+class ImportFormatDialog(QDialog):
+    """
+    Small dialog shown when the user clicks "Import existing Label".
+    Lets them pick one of three annotation formats:
+      - Binary mask  (default PyImageLabeling format): 0 / 255 per file
+      - Indexed / grayscale PNG  (e.g. Trimaps): integer values 0 … N
+      - RGB colour mask: each class = a distinct colour
+    """
+
+    FORMAT_BINARY  = "binary"
+    FORMAT_INDEXED = "indexed"
+    FORMAT_RGB     = "rgb"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Annotation import format")
+        self.selected_format = self.FORMAT_BINARY
+        self.index_values    = [1]               # list[int] for indexed masks
+        self.rgb_color       = QColor(255, 255, 255)
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("<b>Select the format of the annotations to import:</b>"))
+        layout.addSpacing(8)
+
+        self._btn_group = QButtonGroup(self)
+
+        # ── Option 1: Binary mask (default) ───────────────────────────────
+        self.radio_binary = QRadioButton(
+            "Binary mask  (PyImageLabeling default)\n"
+            "One file per object / class — exactly 2 values: 0 and 255"
+        )
+        self.radio_binary.setChecked(True)
+        self._btn_group.addButton(self.radio_binary)
+        layout.addWidget(self.radio_binary)
+        layout.addSpacing(8)
+        layout.addWidget(self._make_separator())
+
+        # ── Option 2: Indexed / grayscale ─────────────────────────────────
+        self.radio_indexed = QRadioButton(
+            "Indexed PNG / grayscale\n"
+            "Single channel, integer values (0 … N) — e.g. Trimaps"
+        )
+        self._btn_group.addButton(self.radio_indexed)
+        layout.addWidget(self.radio_indexed)
+
+        #   sub-row: foreground value(s) — transparent background, no box
+        self._lbl_index = QLabel("    Foreground values (e.g. 1, 2, 3):")
+        self._lbl_index.setEnabled(False)
+        self.index_edit = QLineEdit("1")
+        self.index_edit.setPlaceholderText("e.g. 1, 2, 3")
+        self.index_edit.setFixedWidth(130)
+        self.index_edit.setEnabled(False)
+        sub_idx = QHBoxLayout()
+        sub_idx.setContentsMargins(0, 2, 0, 4)
+        sub_idx.addWidget(self._lbl_index)
+        sub_idx.addWidget(self.index_edit)
+        sub_idx.addStretch()
+        layout.addLayout(sub_idx)
+        layout.addSpacing(4)
+        layout.addWidget(self._make_separator())
+
+        # ── Option 3: RGB colour mask ──────────────────────────────────────
+        self.radio_rgb = QRadioButton(
+            "RGB colour mask\n"
+            "Each class = a distinct colour in the mask"
+        )
+        self._btn_group.addButton(self.radio_rgb)
+        layout.addWidget(self.radio_rgb)
+
+        #   sub-row: colour picker — transparent, no box
+        self._lbl_rgb = QLabel("    Colour of this class in the mask:")
+        self._lbl_rgb.setEnabled(False)
+        self._rgb_btn = QPushButton()
+        self._rgb_btn.setFixedWidth(80)
+        self._rgb_btn.setEnabled(False)
+        self._rgb_btn.clicked.connect(self._pick_rgb_color)
+        self._rgb_edit = QLineEdit()
+        self._rgb_edit.setFixedWidth(100)
+        self._rgb_edit.setPlaceholderText("#rrggbb or r,g,b")
+        self._rgb_edit.setEnabled(False)
+        self._rgb_edit.editingFinished.connect(self._on_rgb_text_edited)
+        self._refresh_rgb_button()
+        sub_rgb = QHBoxLayout()
+        sub_rgb.setContentsMargins(0, 2, 0, 4)
+        sub_rgb.addWidget(self._lbl_rgb)
+        sub_rgb.addWidget(self._rgb_btn)
+        sub_rgb.addWidget(self._rgb_edit)
+        sub_rgb.addStretch()
+        layout.addLayout(sub_rgb)
+
+        # wire toggle signals
+        self.radio_binary.toggled.connect(self._on_format_changed)
+        self.radio_indexed.toggled.connect(self._on_format_changed)
+        self.radio_rgb.toggled.connect(self._on_format_changed)
+
+        # ── Filename filter ───────────────────────────────────────────────
+        layout.addSpacing(8)
+        layout.addWidget(self._make_separator())
+        layout.addSpacing(4)
+        layout.addWidget(QLabel("<b>Filename filter:</b>"))
+        filter_hint = QLabel("Wildcards: * (any chars), ? (one char) — e.g. Bombay*, [A-Z]*, pom_?")
+        filter_hint.setStyleSheet("font-size: 9pt; font-weight: normal;")
+        layout.addWidget(filter_hint)
+        self.filter_edit = QLineEdit("*")
+        self.filter_edit.setPlaceholderText("* = all files")
+        layout.addWidget(self.filter_edit)
+
+        layout.addSpacing(10)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                QDialogButtonBox.StandardButton.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+
+        self.setLayout(layout)
+
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _make_separator():
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setStyleSheet("background-color: #808080; max-height: 1px;")
+        return line
+
+    def _on_format_changed(self):
+        indexed = self.radio_indexed.isChecked()
+        self._lbl_index.setEnabled(indexed)
+        self.index_edit.setEnabled(indexed)
+
+        rgb = self.radio_rgb.isChecked()
+        self._lbl_rgb.setEnabled(rgb)
+        self._rgb_btn.setEnabled(rgb)
+        self._rgb_edit.setEnabled(rgb)
+
+    def _pick_rgb_color(self):
+        color = QColorDialog.getColor(self.rgb_color, self)
+        if color.isValid():
+            self.rgb_color = color
+            self._refresh_rgb_button()
+
+    def _refresh_rgb_button(self):
+        c = self.rgb_color
+        txt = "white" if c.lightness() < 128 else "black"
+        self._rgb_btn.setStyleSheet(
+            f"background-color: rgb({c.red()},{c.green()},{c.blue()}); color: {txt};"
+        )
+        self._rgb_btn.setText(c.name())
+        self._rgb_edit.setText(f"{c.red()}, {c.green()}, {c.blue()}")
+
+    def _on_rgb_text_edited(self):
+        text = self._rgb_edit.text().strip()
+        color = QColor(text)  # handles #rrggbb
+        if not color.isValid():
+            # try "r, g, b" format
+            try:
+                parts = [int(v.strip()) for v in text.split(",")]
+                if len(parts) == 3:
+                    color = QColor(*parts)
+            except ValueError:
+                pass
+        if color.isValid():
+            self.rgb_color = color
+            self._refresh_rgb_button()
+
+    def accept(self):
+        if self.radio_indexed.isChecked():
+            self.selected_format = self.FORMAT_INDEXED
+            raw = self.index_edit.text()
+            try:
+                parsed = [int(v.strip()) for v in raw.split(",") if v.strip()]
+                self.index_values = parsed if parsed else [1]
+            except ValueError:
+                self.index_values = [1]
+        elif self.radio_rgb.isChecked():
+            self.selected_format = self.FORMAT_RGB
+        else:
+            self.selected_format = self.FORMAT_BINARY
+        super().accept()
+
+
+# ---------------------------------------------------------------------------
 
 class LabelSetting(QDialog):
 
@@ -150,8 +348,20 @@ class LabelSetting(QDialog):
         self.source_directory = source_dialog.selectedFiles()[0]
         if not self.source_directory:
             return
-        
-        # Step 2: Select save/destination folder
+
+        # Step 2: Ask the user for the annotation format
+        fmt_dialog = ImportFormatDialog(self)
+        if fmt_dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.import_format        = fmt_dialog.selected_format
+        self.import_index_values  = fmt_dialog.index_values
+        self.import_rgb_color     = fmt_dialog.rgb_color
+        self.import_filter        = fmt_dialog.filter_edit.text().strip() or "*"
+
+        if self.import_format == ImportFormatDialog.FORMAT_RGB:
+            self.color_update(self.import_rgb_color)
+
+        # Step 3: Select save/destination folder
         if self.parent().view.controller.model.save_directory == "":
             save_dialog = QFileDialog()
             save_dialog.setFileMode(QFileDialog.FileMode.Directory)
@@ -172,30 +382,114 @@ class LabelSetting(QDialog):
         self.import_button.setText("Import Ready")
 
 
+    # ------------------------------------------------------------------
+    # Conversion helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _indexed_to_binary(file_path, index_values: list):
+        """
+        Indexed / grayscale mask → binary mask.
+        Pixels whose value is in *index_values* become white (255); all others black (0).
+        Handles trimaps (e.g. [1]) and multi-value selections (e.g. [1, 2]).
+        """
+        arr = np.array(Image.open(file_path).convert("L"))
+        mask = np.isin(arr, index_values).astype(np.uint8) * 255
+        return Image.fromarray(mask, mode="L")
+
+    @staticmethod
+    def _rgb_to_binary(file_path, color):
+        """
+        RGB colour mask → binary mask.
+        Pixels whose colour matches *color* (a QColor) become white (255); rest black (0).
+        """
+        arr  = np.array(Image.open(file_path).convert("RGB"))
+        target = np.array([color.red(), color.green(), color.blue()], dtype=np.uint8)
+        mask = (np.all(arr == target, axis=2).astype(np.uint8)) * 255
+        return Image.fromarray(mask, mode="L")
+
+    # ------------------------------------------------------------------
+
     def process_import_data(self):
         try:
             # Get label ID for renaming
             label_id = self.parent().view.controller.model.get_static_label_id()
-            
+
             # Ensure destination directory exists
             os.makedirs(self.destination_directory, exist_ok=True)
-            
-            # Copy and rename all files directly to destination
-            for filename in os.listdir(self.source_directory):
+
+            # Retrieve the format chosen in the dialog (default: binary)
+            fmt         = getattr(self, "import_format",       ImportFormatDialog.FORMAT_BINARY)
+            idx_values  = getattr(self, "import_index_values", [1])
+            rgb_color   = getattr(self, "import_rgb_color",    None)
+
+            IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif")
+            pattern = getattr(self, "import_filter", "*")
+            files_to_import = [
+                f for f in os.listdir(self.source_directory)
+                if not f.startswith(".")
+                and not os.path.isdir(os.path.join(self.source_directory, f))
+                and f.lower().endswith(IMAGE_EXTS)
+                and fnmatch.fnmatch(f, pattern)
+            ]
+
+            n = len(files_to_import)
+            progress = QProgressDialog("Importing annotations…", "Cancel", 0, n, self)
+            progress.setWindowTitle("Importing Annotations")
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.setMinimumDuration(0)
+            progress.setValue(0)
+            _upd = max(1, n // 100)
+
+            for i, filename in enumerate(files_to_import):
+                if progress.wasCanceled():
+                    break
+
                 source_file_path = os.path.join(self.source_directory, filename)
-                
-                # Skip directories
-                if os.path.isdir(source_file_path):
-                    continue
-                
-                # Create new filename with label extension
-                name, ext = os.path.splitext(filename)
-                new_filename = f"{name}.label.{label_id}.png"
+                name, _ = os.path.splitext(filename)
+
+                # Match the label file to a loaded image by finding the image whose
+                # basename is a prefix of the label filename (e.g. "img" in "img_L").
+                loaded_paths = self.parent().view.controller.model.file_paths
+                matched_base = None
+                for fp in loaded_paths:
+                    img_base = os.path.splitext(os.path.basename(fp))[0]
+                    remainder = name[len(img_base):]
+                    if name == img_base or (name.startswith(img_base) and len(remainder) > 0 and remainder[0] in ("_", "-", " ", ".")):
+                        matched_base = img_base
+                        break
+                output_name = matched_base if matched_base else name
+
+                new_filename   = f"{output_name}.label.{label_id}.png"
                 dest_file_path = os.path.join(self.destination_directory, new_filename)
-                
-                # Copy file with new name directly to destination
-                shutil.copy2(source_file_path, dest_file_path)
+
+                if fmt == ImportFormatDialog.FORMAT_INDEXED:
+                    mask = self._indexed_to_binary(source_file_path, idx_values)
+                    if not np.any(np.array(mask)):
+                        continue
+                    print(f"[import] Indexed mask '{filename}': values={idx_values} → white binary")
+                    mask.save(dest_file_path)
+
+                elif fmt == ImportFormatDialog.FORMAT_RGB and rgb_color is not None:
+                    mask = self._rgb_to_binary(source_file_path, rgb_color)
+                    if not np.any(np.array(mask)):
+                        continue
+                    print(f"[import] RGB mask '{filename}': colour={rgb_color.name()} → white binary")
+                    mask.save(dest_file_path)
+
+                else:
+                    print(f"[import] Binary mask '{filename}': copied as-is")
+                    shutil.copy2(source_file_path, dest_file_path)
+
                 self.importdata = True
+
+                if i % _upd == 0 or i == n - 1:
+                    progress.setLabelText(f"Importing '{filename}'…  ({i + 1} / {n})")
+                    progress.setValue(i + 1)
+                    if progress.wasCanceled():
+                        break
+
+            progress.setValue(n)
 
         except Exception as e:
             print(f"Error importing labels: {str(e)}")

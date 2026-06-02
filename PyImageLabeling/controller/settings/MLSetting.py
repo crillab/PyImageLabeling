@@ -304,7 +304,7 @@ class MLSetting(QDialog):
         
         # Taille préférée
         preferred_width = min(650, max_width)
-        preferred_height = min(700, max_height)
+        preferred_height = min(900, max_height)
         
         self.setMinimumSize(min_width, min_height)
         self.resize(preferred_width, preferred_height)

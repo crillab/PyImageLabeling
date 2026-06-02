@@ -119,10 +119,20 @@ class View(QMainWindow):
 
     
 
-    def file_bar_add(self, current_file_paths):
-        
+    def file_bar_add(self, current_file_paths, progress=None, progress_offset=0):
+        """Add image files to the file-bar list.
+
+        Args:
+            current_file_paths: list of absolute image paths to add.
+            progress:           optional QProgressDialog to update while building widgets.
+            progress_offset:    value already consumed in the progress range before this call.
+
+        Returns:
+            True if the user canceled via the progress dialog, False otherwise.
+        """
         ICON_SIZE = QSize(*self.config["window_size"]["icon_save_marker"])
-        
+        start_row = self.file_bar_list.count()
+
         item_widgets = []
         for file in current_file_paths:
             
@@ -175,7 +185,7 @@ class View(QMainWindow):
             # Complete checkbox
             complete_checkbox = QCheckBox("")
             complete_checkbox.setObjectName("complete_checkbox")
-            complete_checkbox.setFixedSize(20, 20)
+            complete_checkbox.setFixedSize(16, 16)
 
             self.controller.model.icon_button_files[file] = {
                 "label_tag": icon_button_1,
@@ -196,10 +206,31 @@ class View(QMainWindow):
             item_layout.addWidget(complete_checkbox)
             item_widgets.append((item, item_widget))
             
-        for item, item_widget in item_widgets:
+        n = len(item_widgets)
+        # Throttle: update at most ~100 times regardless of dataset size.
+        # Each setValue() calls processEvents() internally, which forces a Qt
+        # layout pass — calling it on every item would be 50–100× slower.
+        _upd = max(1, n // 100)
+        for i, (item, item_widget) in enumerate(item_widgets):
             self.file_bar_list.setItemWidget(item, item_widget)
-            
+            if progress is not None and (i % _upd == 0 or i == n - 1):
+                if progress.wasCanceled():
+                    self._file_bar_rollback(current_file_paths, start_row)
+                    return True
+                progress.setLabelText(f"Adding images to list… ({i + 1} / {n})")
+                progress.setValue(progress_offset + i + 1)
+                if progress.wasCanceled():
+                    self._file_bar_rollback(current_file_paths, start_row)
+                    return True
+        return False
+
         
+    def _file_bar_rollback(self, file_paths, start_row):
+        for row in range(self.file_bar_list.count() - 1, start_row - 1, -1):
+            self.file_bar_list.takeItem(row)
+        for f in file_paths:
+            self.controller.model.icon_button_files.pop(f, None)
+
     def file_bar_remove(self, item, loaded_image_paths, image_items):
         # Get the row of the item
         path_to_remove = None

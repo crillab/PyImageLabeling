@@ -24,3 +24,4 @@ wheelhouse
 PyImageLabeling.egg-info/
 PyImageLabeling/*.spec
 PyImageLabeling/parameters.json
+CLAUDE.md

@@ -599,13 +599,57 @@ QSlider {
     background-color: transparent;
 }
 
+QRadioButton {
+    background-color: transparent;
+    color: white;
+}
+
+QRadioButton::indicator {
+    width: 13px;
+    height: 13px;
+    border: 2px solid #cccccc;
+    border-radius: 8px;
+    background-color: #2e2e2e;
+}
+
+QRadioButton::indicator:checked {
+    background-color: #8ba1ff;
+    border: 2px solid #cccccc;
+}
+
+QCheckBox {
+    background-color: transparent;
+    color: #cccccc;
+}
+
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #aaaaaa;
+    border-radius: 3px;
+    background-color: #cccccc;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #8ba1ff;
+    border: 1px solid #aaaaaa;
+}
+
+QCheckBox::indicator:hover {
+    border: 1px solid #8ba1ff;
+}
+
 QCheckBox#complete_checkbox {
     background-color: transparent;
+    min-width: 16px;
+    max-width: 16px;
+    min-height: 16px;
+    max-height: 16px;
 }
 
 QCheckBox#complete_checkbox::indicator {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     border: 1px solid #000000;
     border-radius: 3px;
     background-color: #cccccc;

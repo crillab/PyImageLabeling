@@ -374,14 +374,11 @@ class Builder:
         self.ml_bar_scroll = QScrollArea()
         self.ml_bar_scroll.setWidget(self.ml_bar_container)
         self.ml_bar_scroll.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self.ml_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.ml_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.ml_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.ml_bar_scroll.setWidgetResizable(True)
-        self.ml_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
-        self.ml_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
-        
-        self.ml_bar_scroll.setMinimumHeight(self.view.config["window_size"]["labeling_bar"]["height"]) 
-        self.ml_bar_scroll.setMaximumHeight(583)     
+        self.ml_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        self.ml_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])     
 
         self.ml_bar_scroll.hide()
 
@@ -469,14 +466,11 @@ class Builder:
         #labeling_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
         #labeling_bar_layout.setSpacing(self.view.config["window_size"]["margin"])
         
-        self.labeling_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.labeling_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.labeling_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.labeling_bar_scroll.setWidgetResizable(True)
-        self.labeling_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
-        self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
-        
-        self.labeling_bar_scroll.setMinimumHeight(self.view.config["window_size"]["labeling_bar"]["height"]) 
-        self.labeling_bar_scroll.setMaximumHeight(583)     
+        self.labeling_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
+        self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])     
         #self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
         labeling_bar_layout.setContentsMargins(0,0,0,0)
         #self.labeling_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
