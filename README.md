@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/crillab/PyImageLabeling/master/assets/logo.svg" alt="PyImageLabeling logo" width="300"/>
+</p>
+
 # PyImageLabeling
 
 [![PyPI version](https://img.shields.io/pypi/v/PyImageLabeling.svg?color=green)](https://pypi.org/project/PyImageLabeling/)

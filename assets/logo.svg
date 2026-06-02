@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 355 115" role="img" aria-label="PyImageLabeling logo">
+  <title>PyImageLabeling</title>
+
+  <!--
+    ═══ Pixel grid icon ══════════════════════════════════════════════════════
+    4×4 grid · cell = 22px · gap = 3px · step = 25px
+    Columns x : 5 | 30 | 55 | 80
+    Rows    y : 9 | 34 | 59 | 84
+    Extent  : x → 102, y → 106  (height = 97px)
+  -->
+
+  <!-- Empty cells -->
+  <rect x="5"  y="9"  width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="30" y="9"  width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="55" y="9"  width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="80" y="9"  width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+
+  <rect x="5"  y="34" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="30" y="34" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="55" y="34" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="80" y="34" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+
+  <rect x="5"  y="59" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="30" y="59" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="55" y="59" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="80" y="59" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+
+  <rect x="5"  y="84" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="30" y="84" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="55" y="84" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+  <rect x="80" y="84" width="22" height="22" rx="2" fill="#FBF5F0" stroke="#E0CFC4" stroke-width="0.8"/>
+
+  <!--
+    Filled pixels — diagonal brush-stroke top-right → bottom-left
+      _ ● ● _
+      ● ● ● _
+      ● ● _ _
+      ● _ _ _
+    Shades: light=#F5A870  mid=#E8782A  dark=#C45E18
+  -->
+  <rect x="30" y="9"  width="22" height="22" rx="2" fill="#F5A870"/>
+  <rect x="55" y="9"  width="22" height="22" rx="2" fill="#E8782A"/>
+
+  <rect x="5"  y="34" width="22" height="22" rx="2" fill="#E8782A"/>
+  <rect x="30" y="34" width="22" height="22" rx="2" fill="#F5A870"/>
+  <rect x="55" y="34" width="22" height="22" rx="2" fill="#C45E18"/>
+
+  <rect x="5"  y="59" width="22" height="22" rx="2" fill="#C45E18"/>
+  <rect x="30" y="59" width="22" height="22" rx="2" fill="#E8782A"/>
+
+  <rect x="5"  y="84" width="22" height="22" rx="2" fill="#F5A870"/>
+
+  <!--
+    ═══ Text — two lines, vertically centered on the grid (y=9 to y=106) ════
+    Font: Liberation Serif · weight 700 · no shadow
+  -->
+
+  <text x="115" y="45"
+        font-family="Liberation Serif, serif"
+        font-weight="700"
+        font-size="44"
+        fill="#3D2010">PyImage</text>
+
+  <text x="115" y="96"
+        font-family="Liberation Serif, serif"
+        font-weight="700"
+        font-size="44"
+        fill="#3D2010">Labeling</text>
+
+</svg>
