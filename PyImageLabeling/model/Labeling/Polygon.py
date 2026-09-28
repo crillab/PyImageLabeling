@@ -156,7 +156,6 @@ class Polygon(Core):
             self.zoomable_graphics_view.scene.removeItem(polygon)
             if polygon.model_ref in self.current_image_item.image_polygons:
                 self.current_image_item.image_polygons.remove(polygon.model_ref)
-                break
 
         self.selected_polygon = None
         self.current_image_item.update_labeling_overlay()
