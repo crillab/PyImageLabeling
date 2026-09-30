@@ -1,7 +1,19 @@
 from PyQt6.QtWidgets import (
-    QComboBox, QPushButton, QHBoxLayout, QColorDialog, QDialog, QSlider,
-    QFormLayout, QDialogButtonBox, QSpinBox, QFileDialog,
-    QRadioButton, QLabel, QVBoxLayout, QButtonGroup, QLineEdit, QFrame,
+    QComboBox,
+    QPushButton,
+    QHBoxLayout,
+    QColorDialog,
+    QDialog,
+    QFormLayout,
+    QDialogButtonBox,
+    QSpinBox,
+    QFileDialog,
+    QRadioButton,
+    QLabel,
+    QVBoxLayout,
+    QButtonGroup,
+    QLineEdit,
+    QFrame,
     QProgressDialog,
 )
 
@@ -12,10 +24,8 @@ import random
 from PyImageLabeling.model.Utils import Utils
 
 import os
-import shutil
 import fnmatch
 
-from PIL import Image
 import numpy as np
 
 
@@ -231,16 +241,8 @@ class LabelSetting(QDialog):
         
         # Populate combo box with saved labels
         self.label_combo.addItem("")  # Empty option for new labels
-        #for label in self.label_manager.get_all_labels():
-        #    self.label_combo.addItem(label)
             
         # Set current label if provided
-        #if self.label:
-        #    index = self.label_combo.findText(self.label)
-        #    if index >= 0:
-        #        self.label_combo.setCurrentIndex(index)
-        #    else:
-        #        self.label_combo.setCurrentText(self.label)
         self.label_combo.setCurrentText(self.name)
 
         self.label_combo.currentTextChanged.connect(self.name_update)
@@ -254,7 +256,6 @@ class LabelSetting(QDialog):
         self.mode_combo.currentTextChanged.connect(self.mode_update)
         layout.addRow("Labeling Mode:", self.mode_combo)
 
-        #import label image button
         self.import_button = QPushButton("Import existing Label")
         self.import_button.clicked.connect(self.import_data)
         self.import_button.setVisible(True)  # Initially hidden

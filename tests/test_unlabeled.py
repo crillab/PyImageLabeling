@@ -6,7 +6,6 @@ released image as "not loaded" and offered it again in active learning.
 """
 import os
 
-import numpy as np
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QColor, QImage
 

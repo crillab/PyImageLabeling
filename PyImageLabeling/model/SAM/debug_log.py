@@ -4,7 +4,6 @@ Everything here is best-effort and never raises: logging must not break
 the app. Logs go to ~/.pyimagelabeling/ (writable even for packaged exes).
 """
 
-import os
 import sys
 import time
 from pathlib import Path

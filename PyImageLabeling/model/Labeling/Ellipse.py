@@ -1,8 +1,7 @@
 from PyImageLabeling.model.Core import Core
 from PyQt6.QtWidgets import QGraphicsEllipseItem
-from PyQt6.QtGui import QPen, QCursor, QBrush, QColor
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
-import math
+from PyQt6.QtGui import QPen
+from PyQt6.QtCore import Qt, QPointF
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Utils import Utils
 

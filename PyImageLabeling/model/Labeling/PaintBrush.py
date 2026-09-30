@@ -1,10 +1,16 @@
 from PyImageLabeling.model.Core import Core
 import numpy as np
-from PyQt6.QtWidgets import QGraphicsEllipseItem, QGraphicsRectItem, QGraphicsPathItem, QGraphicsItemGroup, QGraphicsScene, QGraphicsItem, QMessageBox
-import cv2
-from PyQt6.QtGui import QPainterPath, QPen, QBrush, QImage, QPainter, QPixmap, QColor, QRadialGradient
+from PyQt6.QtWidgets import QGraphicsItem, QMessageBox
+from PyQt6.QtGui import (
+    QPainterPath,
+    QPen,
+    QBrush,
+    QPainter,
+    QPixmap,
+    QColor,
+    QRadialGradient,
+)
 from PyQt6.QtCore import QPointF, Qt, QRectF, QRect
-from collections import deque
 from PyImageLabeling.model.Utils import Utils
 
 class PaintBrushItem(QGraphicsItem):
@@ -300,8 +306,6 @@ class PaintBrush(Core):
         super().__init__()
         self.last_position_x, self.last_position_y = None, None
         self.point_spacing = 2
-        self.paint_brush_items = []
-        self.previous_pixmap = None
 
     def paint_brush(self):
         self.checked_button = self.paint_brush.__name__      

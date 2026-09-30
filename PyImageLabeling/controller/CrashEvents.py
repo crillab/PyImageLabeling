@@ -1,6 +1,5 @@
 """In-app diagnostic: crash report from the native fault logs."""
 
-from PyQt6.QtWidgets import QMessageBox
 
 
 class CrashEvents:

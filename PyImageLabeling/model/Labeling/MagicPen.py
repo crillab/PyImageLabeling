@@ -1,14 +1,10 @@
-from PyQt6.QtCore import Qt, QRectF
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtGui import QColor, QPixmap, QBrush, QPainter, QBitmap, QColorConstants, QImage
-from PyQt6.QtWidgets import QProgressDialog, QApplication, QMessageBox
 from collections import deque
 
 import numpy
 import matplotlib
 
 from PyImageLabeling.model.Utils import Utils
-#DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
 
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -18,7 +14,6 @@ class MagicPen(Core):
 
     def magic_pen(self):
         self.checked_button = self.magic_pen.__name__
-        print("magic")
 
     def start_magic_pen(self, scene_pos):
         """Fill area with points using magic pen"""
@@ -63,10 +58,8 @@ class MagicPen(Core):
             return self._fill_shape_rgb(visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels)
         else:
             raise NotImplementedError("Mathod not implmented: "+str(method))
-        print("MagicPen: image created")
         
     def _fill_shape_rgb(self, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
-        #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
         target_rgb = self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(int)   
         queue = deque()
         
@@ -84,7 +77,6 @@ class MagicPen(Core):
             if dist < tolerance: continue
             
             #Color the new_overlay
-            #self.labeling_overlay.setPixel(x, y, 1)
             painter = self.get_current_image_item().get_labeling_overlay().get_painter()
             painter.setPen(self.color)
             painter.drawPoint(x, y)
@@ -96,13 +88,11 @@ class MagicPen(Core):
                 if (0 <= new_x < width and 0 <= new_y < height):
                     queue.append((new_x, new_y))
         
-        print("MagicPen: end n_pixels:", n_pixels)
         
     
     def _fill_shape_hsv(self, visited, initial_position_x, initial_position_y, width, height, tolerance, max_pixels):
         #Convertion HSV is to slow: an optimization to do is to use openCv2 to store an HSV matrix in LoadImage. 
 
-        #target_color = QColor(self.raw_image.pixel(initial_position_x, initial_position_y))
         target_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.numpy_pixels_rgb[initial_position_y, initial_position_x].astype(float), 255))   
         queue = deque()
         
@@ -115,11 +105,8 @@ class MagicPen(Core):
             if visited[x][y] == True: continue
             visited[x][y] = True
             current_hsv = matplotlib.colors.rgb_to_hsv(numpy.divide(self.numpy_pixels_rgb[y, x].astype(float), 255))
-            #print("target_hsv:", target_hsv)
-            #print("current_hsv:", current_hsv)
             
             dist = numpy.mean(100-numpy.multiply(numpy.abs(target_hsv-current_hsv), 100))
-            #print("dist:", dist)
             if dist < tolerance: continue
             
             #Color the new_overlay
@@ -134,7 +121,6 @@ class MagicPen(Core):
                 if (0 <= new_x < width and 0 <= new_y < height):
                     queue.append((new_x, new_y))
 
-        print("MagicPen: end n_pixels:", n_pixels)
 
     def fill_color_clicked(self, scene_pos):
         """Fill all pixels similar in color to the clicked point"""
@@ -174,7 +160,6 @@ class MagicPen(Core):
         for point in points:
             painter.drawPoint(point[0], point[1])
         self.get_current_image_item().update_labeling_overlay()
-        print("MagicPen: fill_color_clicked done")
 
    
     

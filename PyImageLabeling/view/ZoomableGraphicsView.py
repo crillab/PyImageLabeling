@@ -1,17 +1,5 @@
-import cv2
-import numpy as np
-import sys
-import os
-import time
-from PyQt6.QtWidgets import (
-    QGraphicsEllipseItem, QComboBox, QGraphicsRectItem, QInputDialog, QGraphicsItem, QGraphicsItemGroup, QGraphicsPixmapItem, QGraphicsOpacityEffect, QGraphicsView, QGraphicsScene, QApplication, QMainWindow, QLabel, QVBoxLayout, QPushButton, 
-    QFileDialog, QWidget, QMessageBox, QHBoxLayout, QColorDialog, QDialog, QSlider, QFormLayout, QDialogButtonBox, QGridLayout, QProgressDialog, QCheckBox, QSpinBox, QSplashScreen, QMenu, QLineEdit, QFrame
-)
-from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
-from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF
-import gc
-import math
-import traceback
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene
+from PyQt6.QtGui import QPixmap, QPainter, QCursor
 
 from PyImageLabeling.model.Utils import Utils
 
@@ -27,7 +15,6 @@ from PyImageLabeling.model.Utils import Utils
 #from models.tools.ContourTool import ContourTool
 #from models.tools.PolygonTool import PolygonTool, LabelPolygonPropertiesDialog
 
-#class ZoomableGraphicsView(QGraphicsView, PaintTool, EraserTool, MagicPenTool, OverlayTool, RectangleTool, ContourTool, PolygonTool):
 
 class ZoomableGraphicsView(QGraphicsView):
     def __init__(self, view, parent=None):
@@ -47,8 +34,6 @@ class ZoomableGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
-        #self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        #self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
 
         self.data_parameters = Utils.load_parameters() # To use only for recuparate constant values (not save)
 
@@ -72,46 +57,10 @@ class ZoomableGraphicsView(QGraphicsView):
             self.viewport().setCursor(cursor)
             return cursor.pixmap().width(), cursor.pixmap().height()
 
-    def change_cursor_n(self, name):
-        cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"]) 
-        cursor = QCursor(cursor_pixmap)
-        self.viewport().setCursor(cursor)
-        return cursor.pixmap().width(), cursor.pixmap().height()
-    
-    def change_cursor_n(self, name):
-        cursor_pixmap = QPixmap(Utils.get_icon_path(name))
-        cursor_pixmap = cursor_pixmap.scaled(*self.view.config["window_size"]["icon"])
-        
-        # Create a new pixmap with border
-        border_width = 2
-        new_size = cursor_pixmap.size() + QSize(border_width * 2, border_width * 2)
-        bordered_pixmap = QPixmap(new_size)
-        bordered_pixmap.fill(Qt.GlobalColor.transparent)
-        
-        painter = QPainter(bordered_pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
-        # Draw border/outline
-        pen = QPen(Qt.GlobalColor.white, border_width)  # or Qt.black for dark border
-        painter.setPen(pen)
-        painter.drawRect(border_width//2, border_width//2, 
-                        cursor_pixmap.width() + border_width, 
-                        cursor_pixmap.height() + border_width)
-        
-        # Draw original cursor on top
-        painter.drawPixmap(border_width, border_width, cursor_pixmap)
-        painter.end()
-        
-        cursor = QCursor(bordered_pixmap)
-        self.viewport().setCursor(cursor)
-        return cursor.pixmap().width(), cursor.pixmap().height()
-
     def zoom(self, factor):
         if self.view.min_zoom <= self.view.zoom_factor*factor <= self.view.max_zoom:
             view = self.view.zoomable_graphics_view
             self.view.zoom_factor = self.view.zoom_factor * factor
-            #self.view.controller.model.get_current_image_item().set_zoom_factor(self.view.zoom_factor)
             mouse_pos = view.mapFromGlobal(view.cursor().pos())
             scene_pos = view.mapToScene(mouse_pos)
             view.scale(factor, factor)

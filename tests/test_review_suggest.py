@@ -5,7 +5,6 @@ the network: a 1-epoch training on the fixture set provides it.
 """
 import os
 
-import numpy as np
 from PyQt6.QtCore import QPointF
 
 

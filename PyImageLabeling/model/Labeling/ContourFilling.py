@@ -1,14 +1,11 @@
-from PyQt6.QtWidgets import QMessageBox, QProgressDialog, QGraphicsItem
-from PyQt6.QtCore import Qt, QPointF, QPoint, QLine, QRectF, QRect
-from PyQt6.QtGui import QPixmap, QImage, QColor,  QPainter, QPen
+from PyQt6.QtCore import QRectF
+from PyQt6.QtGui import QPixmap, QImage
 from PyImageLabeling.model.Core import Core
 import numpy as np
 import cv2
-import traceback
 
 from PyImageLabeling.model.Utils import Utils
 
-import time
 
 TOLERENCE_PARAMETERS = {
     1:  {'canny_low': 100, 'canny_high': 200, 'blur_kernel': 3, 'dilate_iter': 0, 'min_area': 60},
@@ -131,7 +128,6 @@ class ContourFilling(Core):
         self.coutour_filling_pixmap = QPixmap.fromImage(QImage(contour_numpy_pixels.data, self.width, self.height, self.width * 4, QImage.Format.Format_RGBA8888))
         self.coutour_filling_item = self.view.zoomable_graphics_view.scene.addPixmap(self.coutour_filling_pixmap)
         self.coutour_filling_item.setZValue(1)
-        print("end apply_contour")
 
     def find_closest_contour(self, position_x, position_y):
         for contour in self.contours:

@@ -1,17 +1,35 @@
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox,QMessageBox, QFileDialog, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QLabel, QSpinBox, QDoubleSpinBox, QCheckBox,
-    QListWidget, QListWidgetItem, QPushButton, QSlider,
-    QComboBox, QScrollArea, QWidget, QSplitter, QAbstractItemView, QInputDialog, QLineEdit
+    QDialog,
+    QDialogButtonBox,
+    QMessageBox,
+    QFileDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+    QLabel,
+    QSpinBox,
+    QDoubleSpinBox,
+    QCheckBox,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QComboBox,
+    QScrollArea,
+    QWidget,
+    QAbstractItemView,
+    QInputDialog,
+    QLineEdit,
 )
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QColor, QScreen
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.model.ML.MLPredictor import BACKBONE_NAMES, DEFAULT_BACKBONE,FastObjectDetectorWithSegmentation
+from PyImageLabeling.model.ML.MLPredictor import (
+    BACKBONE_NAMES,
+    DEFAULT_BACKBONE,
+)
 import os
-import torch
 
 class MLSetting(QDialog):
     def __init__(self, zoomable_graphic_view, model):

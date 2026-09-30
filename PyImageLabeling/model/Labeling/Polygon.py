@@ -118,14 +118,6 @@ class Polygon(Core):
         self.is_drawing = False
         self.get_current_image_item().update_labeling_overlay()
         self.controller.ml_update_stats() 
-
-    def cancel_polygon(self):
-        """Cancel current polygon drawing"""
-        if self.is_drawing:
-            self.cleanup_preview()
-            self.polygon_points.clear()
-            self.is_drawing = False
-
     def update_selected_polygon(self):
         """Update current selected polygon reference"""
         items = self.zoomable_graphics_view.scene.selectedItems()

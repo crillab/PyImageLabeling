@@ -1,10 +1,6 @@
 """ML bar has no dangling slots; the SAM floating bar drives accept/clear."""
-import os
 
-import numpy as np
-from PIL import Image as PILImage
 from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QDialogButtonBox
 
 

@@ -1,4 +1,13 @@
-from PyQt6.QtWidgets import QCheckBox, QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout, QGroupBox
+from PyQt6.QtWidgets import (
+    QDialog,
+    QSlider,
+    QDialogButtonBox,
+    QSpinBox,
+    QLabel,
+    QHBoxLayout,
+    QVBoxLayout,
+    QGroupBox,
+)
 from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Utils import Utils
 

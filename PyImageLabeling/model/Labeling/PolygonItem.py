@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsItem
-from PyQt6.QtGui import QPen, QBrush, QPolygonF
+from PyQt6.QtGui import QPen, QBrush
 from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
 import math
 from PyImageLabeling.model.Utils import Utils

@@ -101,14 +101,6 @@ def rgb_to_binary(file_path, color):
         target = np.array(list(color)[:3], dtype=np.uint8)
     mask = np.all(arr == target, axis=2).astype(np.uint8) * 255
     return Image.fromarray(mask, mode="L")
-
-
-def indexed_values_present(file_path):
-    """Sorted distinct values of a grayscale mask (bg included)."""
-    arr = np.array(Image.open(file_path).convert("L"))
-    return sorted(int(v) for v in np.unique(arr).tolist())
-
-
 def rgb_colors_present(file_path, max_colors=32):
     """Distinct non-black RGB colours of a mask, most frequent first."""
     arr = np.array(Image.open(file_path).convert("RGB")).reshape(-1, 3)

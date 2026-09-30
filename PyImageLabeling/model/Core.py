@@ -1,7 +1,14 @@
 
-from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap, QColor, QPainter, QBrush, QPen
+from PyQt6.QtGui import (
+    QPainter,
+    QImage,
+    QPixmap,
+    QColor,
+    QPainter,
+    QBrush,
+    QPen,
+)
 from PyQt6.QtCore import Qt, QSize, QTimer, QDateTime
-from PyQt6.QtWidgets import QFileDialog
 from PyImageLabeling.view.QBackgroundItem import QBackgroundItem
 
 from PIL import Image
@@ -179,10 +186,6 @@ class LabelingOverlay():
         self.opacity = Utils.load_parameters()["labeling_opacity"]/100 # To normalize
         self.memory_depth = Utils.load_parameters()["undo"]["depth"] 
         self.image_item = image_item 
-        #self.label_id = label_id
-        #self.name = name
-        #self.labeling_mode = labeling_mode
-        #self.color = QColor(color) # The color of labels in the Labeling Overlay
         # Note: The color is in RGB, the alpha is set at only the end for the view part :)
        
 
@@ -208,7 +211,6 @@ class LabelingOverlay():
                 label_pixmap = QPixmap(from_file)
                 if label_pixmap.isNull():
                     # The registered label file no longer exists (deleted
-                    # while the folder was open, then reloaded). QPixmap()
                     # returns a null pixmap, which used to REPLACE the
                     # working overlay: every stroke drawn on that image was
                     # then silently dropped.
@@ -272,11 +274,6 @@ class LabelingOverlay():
         
         self.labeling_overlay_item.setVisible(self.label.get_visible())
 
-    #def change_visible(self):
-    #    if self.labeling_overlay_item.isVisible() is True:
-    #        self.labeling_overlay_item.setVisible(False)
-    #    else:
-    #        self.labeling_overlay_item.setVisible(True)
 
     def reset(self):
         # Snapshot BEFORE clearing: an undo right after Clear All must
@@ -530,26 +527,12 @@ class LabelingOverlay():
                 except Exception:
                     pass
 
-    #def get_color(self):
-    #     return self.color
     
-    #def set_color(self, color):
-    #     self.color = color
 
-    #def get_name(self):
-    #    return self.name
     
-    # def set_name(self, name):
-    #     self.name = name
 
-    # def get_labeling_mode(self):
-    #     return self.labeling_mode
     
-    # def set_labeling_mode(self, labeling_mode):
-    #     self.labeling_mode = labeling_mode
 
-    # def get_label_id(self):
-    #     return self.label_id
     
     def get_painter(self):
         return self.labeling_overlay_painter
@@ -593,14 +576,6 @@ class LabelingOverlay():
         else:
             mask.save(save_file, format.upper())
 
-    def remove_save(self, current_file_path, path_image):
-        name = os.path.basename(path_image)
-        name, format = name.rsplit(".", 1)
-        format = "png"
-        save_file = current_file_path + os.sep+name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
-        if os.path.isfile(save_file):
-            os.remove(save_file)
-        
 class ImageItem():
 
     def __init__(self, view, controller, path_image, icon_button, labeling_overview_was_loaded, labeling_overview_file_paths):
@@ -630,7 +605,6 @@ class ImageItem():
         self.alpha_color = Utils.load_parameters()["load"]["alpha_color"] 
         
         #save a numpy matrix of colors
-        #self.image_numpy_pixels_rgb = numpy.array(Image.open(path_image).convert("RGB"))
 
         self.is_displayed_in_scene = False
 
@@ -638,17 +612,10 @@ class ImageItem():
         self.image_rectangles = []
         self.image_ellipses = []
         self.image_polygons = []
-        self.ml_predictions = []
 
     def get_edited(self):
         for label_id in self.labeling_overlays:
             if self.labeling_overlays[label_id].get_is_edited() is True:
-                return True
-        return False
-    
-    def get_undo_none(self):
-        for label_id in self.labeling_overlays:
-            if self.labeling_overlays[label_id].get_is_undo_none() is True:
                 return True
         return False
 
@@ -682,17 +649,10 @@ class ImageItem():
 
             self.initialyse_zoom_factor()
             self.is_displayed_in_scene = True
-            # for label_id in self.labeling_overlays:
-            #     self.labeling_overlays[label_id].update_scene()
                 
             #     # Apply the label's visibility state using existing change_visible logic
-            #     if label_id in self.controller.model.get_label_items():
-            #         label_item = self.controller.model.get_label_items()[label_id]
-            #         overlay = self.labeling_overlays[label_id]
                     
             #         # Only change if current visibility doesn't match desired state
-            #         if overlay.labeling_overlay_item.isVisible() != label_item.get_visible():
-            #             overlay.change_visible()
 
         # Update the labeling overlays
         for label_id in self.labeling_overlays:
@@ -751,34 +711,18 @@ class ImageItem():
             else:
                 self.labeling_overlays[label_id].set_zvalue(2)
         # Force the visibility 
-        # self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
         
        
 
-    # def new_labeling_overlay(self, label_id, name, labeling_mode, color):
     #     # Add a new labeling overlay 
-    #     self.current_labeling_overlay = 
         
     #     # Add the data of this new label in the label dictionnary
-    #     self.labeling_overlays[label_id] = self.current_labeling_overlay
 
     #     # Set the current label
-    #     self.current_label_id = label_id
         
     #     # Put at the first plan the current label
-    #     self.foreground_current_labeling_overlay()
 
     # # Change the current labeling overlay
-    # def select_labeling_overlay(self, label_id):
-    #     self.current_label_id = label_id
-
-    #     self.current_labeling_overlay = self.labeling_overlays[label_id]
-    #     self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
-    #     self.foreground_current_labeling_overlay()
-
-    def n_labeling_overlays(self):
-        return len(self.labeling_overlays)
-    
     def get_labeling_overlay(self):
         return self.current_labeling_overlay
     
@@ -818,29 +762,12 @@ class ImageItem():
         self.update_icon_file()
         # paint mask changed: the cached counts and the "is it painted?"
         # scan for this image are now stale. Both live on the model
-        # (ml_invalidate_stats_cache is relayed from the controller).
+# (ml_invalidate_stats_cache is relayed from the controller).
         try:
             self.view.controller.model.ml_invalidate_caches(self.path_image)
         except AttributeError:
             pass
-    
-    # # Put at the foreground the current labeling overlay 
-    # def foreground_current_labeling_overlay(self):        
-    #     for label_id in self.labeling_overlays:
-    #         if label_id == self.current_label_id:
-    #             self.labeling_overlays[label_id].set_zvalue(3)
-    #         else:
-    #             self.labeling_overlays[label_id].set_zvalue(2)
-    #     self.view.zoomable_graphics_view.scene.update()
 
-    # Return QPixmap of all labeling overlay except the current one in a ordered list. 
-    def get_labeling_overlay_pixmaps(self):
-        if self.n_labeling_overlays() == 1:
-            return []
-        result = [labeling_overlay for labeling_overlay in self.labeling_overlays.values() if labeling_overlay != self.current_labeling_overlay]
-        result.sort(key=lambda x: x.label.get_label_id())
-        return [element.labeling_overlay_pixmap for element in result]
-        
     def set_opacity(self, opacity):
         for labeling_overlay in self.labeling_overlays.values():
             labeling_overlay.set_opacity(opacity)
@@ -930,7 +857,6 @@ class Core():
 
     def __init__(self):
         
-        #self.labels = dict() # All labels in the form of {'label1': {'name': 'label1', 'color': <PyQt6.QtGui.QColor>, 'labeling_mode': 'Pixel-by-pixel'}, ...}
         
         self.checked_button = None # The current button checked => usefull to know the labelinf tool to use
         
@@ -945,7 +871,6 @@ class Core():
         self.icon_button_files = dict()
 
         self.save_directory = ""
-        self.copy_save_dir = ""
 
         # For a file_path, say if a labeling overview was loaded or not   
         self.labeling_overview_was_loaded = dict() # Dictionnary: (key: basename) -> (value: True or False)
@@ -1049,13 +974,7 @@ class Core():
                 except Exception:
                     pass
         return count
-    
-    def get_undo_none(self):
-        for label_id in self.labeling_overlays:
-            if self.labeling_overlays[label_id].get_is_undo_none() is False:
-                return False
-        return True
-                 
+
     def get_label_items(self):
         return self.label_items
     
@@ -1070,10 +989,7 @@ class Core():
     
     def get_current_image_item(self):
         return self.current_image_item
-    
-    def get_current_labeling_overlay(self, label_id):
-        return self.current_image_item.labeling_overlays[label_id]
-    
+
     def get_static_label_id(self):
         return LabelItem.static_label_id
     
@@ -1253,7 +1169,6 @@ class Core():
 
     def save_copy(self, copy_directory):
         if not self.save_directory or not os.path.exists(self.save_directory):
-            print("no file found")
             return
         
         if os.path.normpath(copy_directory) == os.path.normpath(self.save_directory):

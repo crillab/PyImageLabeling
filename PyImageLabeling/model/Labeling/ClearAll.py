@@ -1,4 +1,3 @@
-from PyQt6.QtGui import QPainter, QBitmap, QImage, QPixmap
 from PyImageLabeling.model.Core import Core
 from PyQt6.QtWidgets import QMessageBox
 

@@ -1,8 +1,7 @@
 
 from PyImageLabeling.controller.Events import Events
 
-from PyQt6.QtWidgets import QMessageBox, QFileDialog, QDialog, QColorDialog
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtWidgets import QMessageBox, QColorDialog
 
 from PyImageLabeling.controller.settings.OpacitySetting import OpacitySetting
 from PyImageLabeling.controller.settings.LabelSetting import LabelSetting
@@ -67,7 +66,6 @@ class LabelEvents(Events):
             
         # Call the model part to change the labeling overlay
         self.model.update_labeling_overlays(label_id)      
-        #self.model.select_labeling_overlay(label_id) 
 
         # Ensure that the visibility button of this label is checked
         self.view.buttons_label_bar_temporary[label_id]["visibility"].setChecked(True)
@@ -80,9 +78,6 @@ class LabelEvents(Events):
         if label_item.get_color() != color:
             label_item.set_color(color)
             self.model.update_color(label_id)
-            print("label_id:", label_id)
-            print("color:", color)
-            print("color:", type(color))
             
             self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(color))
 
@@ -134,9 +129,6 @@ class LabelEvents(Events):
         self.all_events(self.label_setting.__name__)
         
         label_item = self.model.get_label_items()[label_id]
-        #name = self.model.labeling_overlays[label_id].get_name()
-        #labeling_mode = self.model.labeling_overlays[label_id].get_labeling_mode() 
-        #color = self.model.labeling_overlays[label_id].get_color()   
         
         label_setting = LabelSetting(self.view.zoomable_graphics_view, 
                                      label_item.get_name(), 
@@ -189,7 +181,6 @@ class LabelEvents(Events):
                 self.view.buttons_label_bar_temporary[label_id]["color"].setStyleSheet(Utils.color_to_stylesheet(label_setting.color))
 
             if label_item.get_labeling_mode() == self.view.config["labeling_bar"]["geometric"]["name_view"]:
-                print("caco")
                 old_thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
                 new_thickness = label_setting.thickness_spin.value()
                 data = Utils.load_parameters()

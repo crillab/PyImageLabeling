@@ -18,13 +18,6 @@ class QBackgroundItem(QGraphicsItem):
     
     def boundingRect(self):
         return self.rect
-
-    def set_background_color(self, background_color):
-        self.background_color = background_color
-        self.update()
-    
     def paint(self, painter, option, widget):
-        #painter.setPen(QColor(139,161,255))
-        #painter.drawRect(self.rect)
         painter.fillRect(self.rect, self.background_color)
         

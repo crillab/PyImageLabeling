@@ -1,4 +1,13 @@
-from PyQt6.QtWidgets import QDialog, QSlider, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QVBoxLayout, QHBoxLayout, QGroupBox
+from PyQt6.QtWidgets import (
+    QDialog,
+    QSlider,
+    QDialogButtonBox,
+    QSpinBox,
+    QLabel,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGroupBox,
+)
 from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Utils import Utils
 
@@ -84,13 +93,6 @@ class ContourFillingSetting(QDialog):
         }
         description = descriptions.get(self.tolerance, "Unknown tolerance level")
         self.tolerance_description_label.setText(description)
-
-    def get_settings(self):
-        """Return current settings from the UI controls"""
-        tolerance = self.tolerance_slider.value()
-        self.tolerance = tolerance
-        return tolerance
-
     def accept(self):
         """Override accept to ensure settings are updated before closing"""
         self.tolerance = self.tolerance_slider.value()

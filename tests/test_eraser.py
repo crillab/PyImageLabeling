@@ -4,8 +4,7 @@ import pytest
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QColor, QPixmap
 
-from tests.conftest import (
-    make_images, write_labels_json, overlay_alpha, reset_overlay)
+from tests.conftest import write_labels_json, overlay_alpha, reset_overlay
 
 
 @pytest.fixture()

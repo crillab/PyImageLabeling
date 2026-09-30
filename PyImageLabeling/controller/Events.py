@@ -1,10 +1,6 @@
-from PyQt6.QtWidgets import QMessageBox, QGraphicsView, QApplication, QGraphicsItem
-from PyQt6.QtCore import QObject, QEvent, Qt, QRectF, QRect
-from PyQt6.QtGui import QPixmap, QMouseEvent, QKeyEvent, QBrush, QColor, QShortcut, QKeySequence
-from PyQt6.QtWidgets import QLabel
-import os
+from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import QObject, QEvent, Qt
 
-from PyImageLabeling.model.Utils import Utils
 
 
 
@@ -20,9 +16,6 @@ class eventEater(QObject):
         self.model = model
 
     def eventFilter(self, event):
-        #self.view.zoomable_graphics_view.setDragMode(QGraphicsView.DragMode.NoDrag)
-        #print("event.type() QObject", event.type())
-        #print("event.type() QObject", obj)
         try:
             event_type = event.type()
         except RecursionError:
@@ -100,8 +93,6 @@ class eventEater(QObject):
                     self.model.start_sam_assist(event.scenePos(), is_negative=neg)
 
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
-        #elif event.type() == QEvent.Type.KeyPress:
-            #if event.key() == Qt.Key.Key_Delete:
             if self.model.checked_button == "sam_assist":
                 self.model.start_sam_assist(event.scenePos(), is_negative=True)
                 return True
@@ -112,10 +103,6 @@ class eventEater(QObject):
             if self.model.checked_button == "ellipse":
                 self.model.clear_ellipse()
                 
-        #elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
-        #    if self.model.checked_button == "contour_filling":
-        #        if self.view.layer_activation == True :
-        #            self.model.fill_contour(event.scenePos())
         
         #MouseButton.MiddleButton: move tool
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.MiddleButton:
@@ -127,8 +114,6 @@ class eventEater(QObject):
 
         #MouseButton.MiddleButton: zoom tool
         elif event.type() == QEvent.Type.Wheel and self.model.move_tool_activation == False:
-            #if QApplication.mouseButtons() & Qt.MiddleButton:
-            #    return False  
             if hasattr(self.view, 'zoomable_graphics_view'):
                 self.view.zoomable_graphics_view.wheelEvent(event)
         return True
@@ -143,22 +128,17 @@ class Events:
     def set_view(self, view):
         self.view = view
         self.event_eater = eventEater(self, self.view, self.model)
-        #self.view.zoomable_graphics_view.scene.installEventFilter(self.event_eater)
-    
+
     def set_model(self, model):
         self.model = model
         self.event_eater.set_model(model)
 
     def all_events(self, event_name):
-        print("all_events")
-    
+        """Single hook every action funnels through (extension point)."""
+
     def desactivate_buttons_labeling_image_bar(self, event_name):
         self.view.desactivate_buttons(event_name, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])
-        
-    def desactivate_buttons_label_bar(self, event_name):
-        buttons_bar = {key: self.view.buttons_label_bar_temporary[key] for key in self.view.buttons_label_bar_temporary.keys() if key.startswith("activation_")}
-        self.view.desactivate_buttons(event_name, [buttons_bar])
-    
+
     def error_message(self, title, text):
         msg_box = QMessageBox(self.view)
         for button in msg_box.buttons():

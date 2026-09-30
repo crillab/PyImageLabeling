@@ -1,14 +1,12 @@
 from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt
-import sys
 import os
 import numpy as np
-import torch
 import cv2
 from PyQt6.QtGui import QImage
 
 from PyImageLabeling.controller.Events import Events
-from PyImageLabeling.model.ML.MLPredictor import MLPredictor, ml_log
+from PyImageLabeling.model.ML.MLPredictor import ml_log
 from PyImageLabeling.controller.settings.MLSetting import MLSetting
 
 class MLEvents(Events):
@@ -16,12 +14,6 @@ class MLEvents(Events):
         super().__init__()
         self.ml_predictions_current = []  # Current predictions for active image
 
-    def ml_collect_training_data(self):
-        return self.model.start_data_collection()
-
-    def save_project(self, project_file):
-        return self.model.start_project_load(project_file)
-    
     def ml_predictor_start(self, image_path, confidence_threshold=0.7):
         return self.model.predict_image(image_path, confidence_threshold)
 

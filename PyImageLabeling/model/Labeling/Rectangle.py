@@ -1,8 +1,7 @@
 from PyImageLabeling.model.Core import Core
 from PyQt6.QtWidgets import QGraphicsRectItem
-from PyQt6.QtGui import QPen, QCursor, QBrush, QColor
-from PyQt6.QtCore import Qt, QPointF, QRectF, QSizeF
-import math
+from PyQt6.QtGui import QPen
+from PyQt6.QtCore import Qt, QPointF
 from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 
@@ -74,7 +73,6 @@ class Rectangle(Core):
             final_rectangle.setZValue(2)
             self.selected_rectangle = final_rectangle
             if self.current_image_item:
-                #rect_data = (final_rectangle.rect())
                 rect_data = {
                     "x":  final_rectangle.rect().x(),
                     "y":  final_rectangle.rect().y(),
@@ -100,7 +98,6 @@ class Rectangle(Core):
     def clear_rectangle(self):
         selected_rectangles = [item for item in self.zoomable_graphics_view.scene.items() 
                             if isinstance(item, RectangleItem) and item.isSelected()]
-        print("selected_rectangles:",selected_rectangles)
 
         for rectangle in selected_rectangles:
             # Remove the visual item from the scene

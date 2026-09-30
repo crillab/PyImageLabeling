@@ -1,9 +1,5 @@
-import json
 import os
-from pathlib import Path
-from collections import defaultdict
 from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
-import cv2
 import numpy as np
 
 class DataManager(Core):
@@ -14,7 +10,6 @@ class DataManager(Core):
     
     def __init__(self):
         super().__init__()
-        self.project_metadata = {}
         # path -> True/False, for images that are NOT currently loaded.
         # Seeded from disk, and updated when a loaded ImageItem is released,
         # so that releasing memory does not turn annotated images into
@@ -27,9 +22,6 @@ class DataManager(Core):
     def ml_note_annotated_state(self, file_path, annotated):
         """Remember whether an image is annotated (used once it is unloaded)."""
         self._ml_annotated[file_path] = bool(annotated)
-
-    def ml_forget_annotated_state(self, file_path):
-        self._ml_annotated.pop(file_path, None)
 
     def _annotated_basenames_on_disk(self):
         """Basenames of images that have a saved label file in their folder.
@@ -189,118 +181,4 @@ class DataManager(Core):
                     return True
         except Exception:
             pass
-        return False
-    
-    def get_annotation_count(self, file_path):
-        """Get number of annotations for a specific image"""
-        image_item = self.image_items.get(file_path)
-        if image_item is None:
-            return 0
-        
-        return (
-            len(image_item.image_rectangles) +
-            len(image_item.image_ellipses) +
-            len(image_item.image_polygons)
-        )
-    
-    def collect_all_annotations(self):
-        all_annotations = {}
-        
-        for file_path in self.file_paths:
-            image_item = self.image_items.get(file_path)
-            
-            if image_item is None:
-                continue
-            
-            annotations = []
-            
-            # Collect rectangles
-            for rect in image_item.image_rectangles:
-                x = rect.get('x', 0)
-                y = rect.get('y', 0)
-                w = rect.get('width', 0)
-                h = rect.get('height', 0)
-                label_id = rect.get('label_id', 0)
-                
-                label_name = self._get_label_name(label_id)
-                annotations.append((x, y, w, h, label_name))
-            
-            # Collect ellipses (as bounding boxes)
-            for ellipse in image_item.image_ellipses:
-                x = ellipse.get('x', 0)
-                y = ellipse.get('y', 0)
-                w = ellipse.get('width', 0)
-                h = ellipse.get('height', 0)
-                label_id = ellipse.get('label', 0)
-                
-                label_name = self._get_label_name(label_id)
-                annotations.append((x, y, w, h, label_name))
-            
-            # Collect polygons (as bounding boxes)
-            for polygon in image_item.image_polygons:
-                points = polygon.get('points', [])
-                label_id = polygon.get('label_id', 0)
-                
-                if points:
-                    x_coords = [p['x'] for p in points]
-                    y_coords = [p['y'] for p in points]
-                    
-                    x = min(x_coords)
-                    y = min(y_coords)
-                    w = max(x_coords) - x
-                    h = max(y_coords) - y
-                    
-                    label_name = self._get_label_name(label_id)
-                    annotations.append((x, y, w, h, label_name))
-            
-            if annotations:
-                all_annotations[file_path] = annotations
-        
-        return all_annotations
-
-    def _get_label_name(self, label_id):
-        """Get label name from label_id"""
-        if label_id in self.label_items:
-            return self.label_items[label_id].get_name()
-        return f"label_{label_id}"
-    
-    def ml_store_predictions(self, image_path, predictions):
-        current_image_item = self.get_current_image_item()
-        current_image_item_path  = current_image_item.path_image
-        image_item = self.image_items.get(image_path)
-
-        if image_item is None:
-            image_item = self.image_items.get(current_image_item_path )
-            if image_item is None:
-                return False
-
-        if not hasattr(image_item, "ml_predictions"):
-            image_item.ml_predictions = []
-
-        stored = []
-
-        for pred in predictions:
-            if len(pred) == 5:
-                x, y, w, h, conf = pred
-                label_id = self.current_label_id if hasattr(self, "current_label_id") else 0
-            elif len(pred) == 6:
-                x, y, w, h, conf, label_id = pred
-            else:
-                continue  # invalid prediction format
-
-            stored.append({
-                "x": float(x),
-                "y": float(y),
-                "width": float(w),
-                "height": float(h),
-                "confidence": float(conf),
-                "label_id": int(label_id),
-            })
-
-        image_item.ml_predictions.extend(stored)
-        return True
-    
-    def start_data_collection(self):
-        """Collect all annotations for ML training"""
-        all_annotations = self.collect_all_annotations()
-        return [(path, anns) for path, anns in all_annotations.items()]
+        return False

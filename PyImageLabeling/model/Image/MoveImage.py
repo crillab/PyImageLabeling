@@ -1,5 +1,4 @@
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtWidgets import QGraphicsView
 
 class MoveImage(Core):
     def __init__(self):

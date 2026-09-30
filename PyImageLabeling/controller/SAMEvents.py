@@ -116,10 +116,6 @@ class SAMEvents(Events):
             if self.model.checked_button == "sam_assist":
                 self.sam_assist()
 
-    def sam_negative(self):
-        """Toggle next-click negative mode."""
-        self.model.sam_toggle_negative()
-
     def sam_accept(self):
         self.model.sam_accept_session()
 

@@ -1,5 +1,4 @@
 """Undo restores exactly, on all three entry forms, without leaking."""
-import numpy as np
 from PyQt6.QtCore import QPointF
 
 from tests.conftest import overlay_alpha, reset_overlay

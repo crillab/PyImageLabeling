@@ -821,7 +821,7 @@ class SAM2Assistant(Core):
     def _sam_paint_mask(self, image_item, mask):
         """Paint bool mask onto current overlay (creates undo entry)."""
         import numpy as np
-        from PyQt6.QtGui import QImage, QPixmap, QPainter
+        from PyQt6.QtGui import QImage, QPixmap
         overlay = image_item.get_labeling_overlay()
         color = self.get_current_label_item().get_color()
         h, w = mask.shape[:2]

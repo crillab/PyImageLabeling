@@ -35,7 +35,6 @@ class EllipseItem(QGraphicsEllipseItem):
         )
 
         self.handles = {}  # Dictionary to track handles
-        self.rotation_handle = None  # Rotation handle
         self.handle_selected = None
         self.mouse_press_pos = None
         self.handles_visible = False

@@ -6,7 +6,6 @@ line is solid; the release position is interpolated too.
 """
 import time
 
-import numpy as np
 import pytest
 from PyQt6.QtCore import QPointF
 

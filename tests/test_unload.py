@@ -1,9 +1,7 @@
 """Unload releases background ImageItems without losing track of them."""
-import os
 
 from PyQt6.QtCore import QPointF
 
-from tests.conftest import overlay_alpha
 
 
 def _paint(model, path):

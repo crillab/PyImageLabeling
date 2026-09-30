@@ -2,12 +2,20 @@
 from PyImageLabeling.view.Builder import Builder
 from PyImageLabeling.model.Utils import Utils
 
-from PyQt6.QtWidgets import QListWidget, QProgressDialog, QApplication, QMainWindow, QWidget, QHBoxLayout,  QListWidgetItem, QLabel,  QPushButton, QGraphicsItem, QGraphicsEllipseItem, QCheckBox
-from PyQt6.QtGui import QPixmap, QMouseEvent, QImage, QPainter, QColor, QPen, QBrush, QCursor, QIcon, QPainterPath, QFont
-from PyQt6.QtCore import Qt, QPoint, QPointF, QTimer,  QThread, pyqtSignal, QSize, QRectF, QObject, QLineF, QDateTime
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QHBoxLayout,
+    QListWidgetItem,
+    QLabel,
+    QPushButton,
+    QCheckBox,
+)
+from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtCore import Qt, QSize
 from functools import partial
 import os
-import time
 
 class View(QMainWindow):
     def __init__(self, controller, config):
@@ -23,8 +31,7 @@ class View(QMainWindow):
         self.buttons_label_bar_temporary = dict()
         self.buttons_image_bar = dict()
         self.buttons_file_bar = dict()
-        self.buttons_apply_cancel_bar = dict()
-        
+
         self.container_label_bar_temporary = dict()
         
         self.zoomable_graphics_view = None
@@ -65,7 +72,6 @@ class View(QMainWindow):
                 # The button have not to be the same that clicked
                 # The button have to be checked 
                 # The clicked button have to be checkable 
-                #print("button:",button)
                 if button != clicked and buttons_bar[button].isChecked() is True:
                     buttons_bar[button].setChecked(False)
                 if button == clicked:
@@ -74,7 +80,6 @@ class View(QMainWindow):
    
 
     def update_labeling_buttons(self, labeling_mode):
-        print("labeling_mode", labeling_mode)
         category_key_selected = None
         for category_key in self.config["labeling_bar"].keys():
             category_name = self.config["labeling_bar"][category_key]["name_view"]
@@ -83,8 +88,6 @@ class View(QMainWindow):
         if category_key_selected is None:
             raise ValueError("Bad category_key in the dictionnary `self.config[labeling_bar]` for " + str(labeling_mode)+ ".")
 
-        #print("ess:", self.buttons_labeling_bar)
-        #print("Labeling Type:", category_key_selected)
 
         for button_key in self.buttons_labeling_bar.keys():
             self.buttons_labeling_bar[button_key].setEnabled(False)
@@ -101,21 +104,6 @@ class View(QMainWindow):
             if name+"_setting" in self.buttons_labeling_bar.keys():
                 self.buttons_labeling_bar[name+"_setting"].setEnabled(True)
 
-        # exit(0)
-        # buttons = self.buttons_labeling_bar
-        # pixel_tools = ["contour_filling", "paintbrush", "magic_pen"]
-        # geometric_tools = ["ellipse", "rectangle", "polygon"]
-        # for button in buttons.items():
-        #     if labeling_mode == "Geometric":
-        #         for button in geometric_tools:
-        #             self.buttons_labeling_bar[button].setEnabled(True)
-        #         for button in pixel_tools:
-        #             self.buttons_labeling_bar[button].setEnabled(False)
-        #     elif labeling_mode == "Pixel":
-        #         for button in pixel_tools:
-        #             self.buttons_labeling_bar[button].setEnabled(True)
-        #         for button in geometric_tools:
-        #             self.buttons_labeling_bar[button].setEnabled(False)
 
     
 
@@ -320,7 +308,6 @@ class View(QMainWindow):
     def initialize(self):
         version = Utils.get_version()
         self.setWindowTitle("PyImageLabeling - "+ str(version))
-        self.label_properties_dialogs = []
         # Get screen information
         self.screen = QApplication.primaryScreen()
 

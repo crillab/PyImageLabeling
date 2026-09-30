@@ -3,14 +3,9 @@ import contextlib
 import io
 import os
 
-import numpy as np
-from PIL import Image as PILImage
 from PyQt6.QtCore import QPointF
-from PyQt6.QtGui import QColor
 
-from tests.conftest import make_images
-from PyImageLabeling.model.ML.MLPredictor import (
-    ml_log, set_ml_verbose, ML_VERBOSE)
+from PyImageLabeling.model.ML.MLPredictor import ml_log, set_ml_verbose
 import PyImageLabeling.model.ML.MLPredictor as MLP
 
 

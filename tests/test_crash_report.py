@@ -1,7 +1,5 @@
 """Crash-report parsing: torn writes, code hints, breadcrumbs."""
-import os
 
-import pytest
 
 from PyImageLabeling.model.SAM import crash_report as cr
 from PyImageLabeling.model.SAM import debug_log

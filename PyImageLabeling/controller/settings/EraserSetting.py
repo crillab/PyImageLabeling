@@ -1,6 +1,20 @@
-from PyQt6.QtWidgets import QCheckBox, QColorDialog, QDialog, QSlider, QPushButton, QFormLayout, QDialogButtonBox, QSpinBox, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QGroupBox, QMessageBox, QApplication
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QDialog,
+    QSlider,
+    QPushButton,
+    QDialogButtonBox,
+    QSpinBox,
+    QLabel,
+    QHBoxLayout,
+    QVBoxLayout,
+    QComboBox,
+    QGroupBox,
+    QApplication,
+)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPainter, QPen, QPainterPath, QPixmap, QImage
+from PyQt6.QtGui import QColor, QPainter, QImage
 from PyImageLabeling.model.Utils import Utils
 import numpy as np
 
@@ -161,13 +175,6 @@ class DynamicEraserDialog(QDialog):
 
     def get_tolerance(self):
         return self.tolerance
-
-    def get_keep_rgba(self):
-        return self.keep_rgba
-
-    def get_use_color(self):
-        return self.use_color
-
     # -- preview --------------------------------------------------------
     def update_preview(self, tolerance):
         """Base image + overlay, with the pixels to erase tinted red.

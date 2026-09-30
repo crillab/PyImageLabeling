@@ -1,12 +1,8 @@
 
 
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtCore import QTimer
 
 class ZoomPlus(Core):
-    def __init__(self):
-        super().__init__() 
-        
     def zoom_plus(self):
         self.checked_button = self.zoom_plus.__name__
         

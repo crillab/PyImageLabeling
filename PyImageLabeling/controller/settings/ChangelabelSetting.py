@@ -1,7 +1,13 @@
 from PyQt6.QtWidgets import (
-    QDialog, QSlider, QFormLayout, QDialogButtonBox,
-    QSpinBox, QLabel, QHBoxLayout, QVBoxLayout,
-    QComboBox, QGroupBox
+    QDialog,
+    QSlider,
+    QDialogButtonBox,
+    QSpinBox,
+    QLabel,
+    QHBoxLayout,
+    QVBoxLayout,
+    QComboBox,
+    QGroupBox,
 )
 from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Utils import Utils

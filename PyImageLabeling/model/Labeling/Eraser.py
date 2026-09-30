@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, QPointF, QRectF, QRect
+from PyQt6.QtCore import Qt, QRectF, QRect
 from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QImage
-from PyQt6.QtWidgets import QGraphicsItem, QDialog
+from PyQt6.QtWidgets import QGraphicsItem
 from PyImageLabeling.model.Core import Core
 from PyImageLabeling.model.Utils import Utils
 import numpy as np
@@ -83,8 +83,6 @@ class Eraser(Core):
         self.point_spacing = 2
         self.eraser_brush_items = []
         self.eraser_mode = "original"
-        # the keep-colour can be changed live from the interactive dialog
-        self._last_keep_color = None
 
     def eraser(self):
         self.checked_button = self.eraser.__name__
@@ -105,22 +103,11 @@ class Eraser(Core):
             "use_color": bool(params.get("use_color", True)),
         }
 
-    def set_eraser_keep_color(self, rgba):
-        """Remember the colour to keep (used by the interactive dialog)."""
-        self._last_keep_color = tuple(int(v) for v in rgba)
-
     def _status(self, message):
         try:
             self.view.statusBar().showMessage(message)
         except Exception:
             pass
-
-    def _warn(self, title, text):
-        try:
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(self.view, title, text)
-        except Exception:
-            self._status(f"{title}: {text}")
 
     def start_eraser(self, current_position):
         self.view.zoomable_graphics_view.change_cursor("eraser")
@@ -145,14 +132,6 @@ class Eraser(Core):
         self.eraser_brush_items.append(eraser_brush_item)
 
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
-
-    def safe_end(painter):
-        if painter is not None and painter.isActive():
-            painter.end()
-
-    def safe_begin(painter, device):
-        if painter is not None and not painter.isActive():
-            painter.begin(device)
 
     def move_eraser(self, current_position):
         if self.eraser_mode == "intelligent":
@@ -209,13 +188,10 @@ class Eraser(Core):
         tolerance = params["tolerance"]
 
         if use_color:
-            if self._last_keep_color is not None:
-                keep_rgba = np.array(self._last_keep_color[:3], dtype=np.int16)
-            else:
-                keep_color = QColor(params["keep_color"])
-                # RGB only: the image has no alpha channel to compare
-                keep_rgba = np.array([keep_color.red(), keep_color.green(),
-                                      keep_color.blue()], dtype=np.int16)
+            keep_color = QColor(params["keep_color"])
+            # RGB only: the image has no alpha channel to compare
+            keep_rgba = np.array([keep_color.red(), keep_color.green(),
+                                  keep_color.blue()], dtype=np.int16)
         else:
             keep_rgba = None
 

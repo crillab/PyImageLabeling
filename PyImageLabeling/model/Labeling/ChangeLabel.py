@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtCore import Qt
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtGui import QColor, QPixmap, QImage, QPen, QBrush, QPainter
+from PyQt6.QtGui import QPixmap, QImage, QPen, QBrush
 from PyQt6.QtWidgets import QMessageBox
 from PyImageLabeling.model.Utils import Utils
 from collections import deque

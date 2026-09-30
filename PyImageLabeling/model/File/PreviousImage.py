@@ -1,9 +1,5 @@
 
 from PyImageLabeling.model.Core import Core
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFileDialog
-from PyQt6.QtGui import QPixmap
-import os
 
 class PreviousImage(Core):
     def __init__(self):

@@ -1,6 +1,23 @@
-from PyQt6.QtWidgets import QVBoxLayout, QSizePolicy, QWidget, QListWidget, QHBoxLayout, QPushButton, QGroupBox, QLayout, QStackedLayout, QLabel, QScrollArea, QGridLayout, QProgressBar, QSlider, QCheckBox, QDialog, QTextEdit, QVBoxLayout, QMessageBox
+from PyQt6.QtWidgets import (
+    QVBoxLayout,
+    QSizePolicy,
+    QWidget,
+    QListWidget,
+    QHBoxLayout,
+    QPushButton,
+    QGroupBox,
+    QLayout,
+    QStackedLayout,
+    QLabel,
+    QScrollArea,
+    QGridLayout,
+    QProgressBar,
+    QSlider,
+    QCheckBox,
+    QVBoxLayout,
+)
 from PyQt6.QtGui import QIcon, QKeySequence, QAction
-from PyQt6.QtCore import Qt, QSize, QRect
+from PyQt6.QtCore import Qt, QSize
 from PyImageLabeling.model.Utils import Utils
 
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
@@ -202,7 +219,6 @@ class Builder:
     def build_file_bar(self):
         self.view.file_bar_container = QWidget()
         self.view.file_bar_layout = QVBoxLayout(self.view.file_bar_container)
-        self.file_bar_scroll = QScrollArea()
         self.file_bar_button_container = QWidget()
         self.file_bar_button_container.setObjectName("file_bar")
 
@@ -394,7 +410,6 @@ class Builder:
         self.labeling_bar_container = QWidget()
         self.labeling_bar_scroll = QScrollArea()
         labeling_bar_layout = QVBoxLayout(self.labeling_bar_container)
-        #left_layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         mode_header = QGroupBox()
         mode_header.setTitle("Labeling Mode")
@@ -469,22 +484,14 @@ class Builder:
 
             labeling_bar_layout.addWidget(frame)
 
-        #self.labeling_bar_container.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])    
-        #self.labeling_bar_container.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
-        #labeling_bar_layout.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"])
-        #labeling_bar_layout.setSpacing(self.view.config["window_size"]["margin"])
         
         self.labeling_bar_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.labeling_bar_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.labeling_bar_scroll.setWidgetResizable(True)
         self.labeling_bar_scroll.setMinimumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
         self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])     
-        #self.labeling_bar_scroll.setMaximumWidth(self.view.config["window_size"]["labeling_bar"]["width"])
         labeling_bar_layout.setContentsMargins(0,0,0,0)
-        #self.labeling_bar_scroll.setMaximumHeight(self.view.config["window_size"]["label_bar"]["height"])    
 
-        #self.labeling_bar_container.setContentsMargins(0,0,0,self.view.config["window_size"]["margin"]) 
-        #self.labeling_bar_scroll.setSpacing(self.view.config["window_size"]["margin"])
         self.labeling_bar_scroll.setWidget(self.labeling_bar_container)
         
         labeling_bar_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -509,10 +516,6 @@ class Builder:
         self.graphics_view_container.setMinimumWidth(self.view.config["window_size"]["graphics_view"]["width"])
 
     # New method to toggle menu visibility
-    def toggle_menu(self):
-        self.menu_content.setVisible(not self.menu_content.isVisible())
-        self.option_container.adjustSize()
-    
     def build_image_bar(self):
         self.image_bar_container_1 = QWidget()
         

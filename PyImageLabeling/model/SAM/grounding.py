@@ -8,7 +8,6 @@ Much stronger than CLIPSeg for:
 Outputs boxes that SAM refines into pixel-perfect masks.
 """
 
-import numpy as np
 
 GROUNDING_MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 
@@ -100,82 +99,6 @@ def text_to_boxes(rgb, description, device="cuda", box_threshold=0.15,
     boxes = [b for b in merged if b["score"] >= box_threshold]
     boxes.sort(key=lambda b: -b["score"])
     return boxes
-
-
-def text_to_boxes_multi(rgb, description, device="cuda", box_threshold=0.15):
-    """Multi-prompt DINO: try multiple text variations, merge results.
-
-    Strategy:
-    1. Run DINO once per variation at very low threshold (0.05)
-    2. Collect all boxes
-    3. Filter by user's threshold client-side (stable zones)
-    4. Deduplicate by IoU
-
-    Returns merged list of boxes, sorted by score descending.
-    """
-    from PIL import Image
-    h, w = rgb.shape[:2]
-    variations = _generate_variations(description)
-    all_boxes = []
-    for var in variations:
-        try:
-            # always run at very low threshold for stable NMS
-            boxes = text_to_boxes(rgb, var, device=device,
-                                  box_threshold=0.05)
-            all_boxes.extend(boxes)
-        except Exception:
-            continue
-    # filter by user's threshold client-side (zones stay stable)
-    filtered = [b for b in all_boxes if b["score"] >= box_threshold]
-    # deduplicate by IoU > 0.7 (keep adjacent objects separate),
-    # keep highest score
-    merged = []
-    for b in sorted(filtered, key=lambda x: -x["score"]):
-        is_dup = False
-        for m in merged:
-            if _box_iou(b["box"], m["box"]) > 0.7:
-                is_dup = True
-                break
-        if not is_dup:
-            merged.append(b)
-    return merged
-
-
-def _generate_variations(description):
-    """Generate text variations for robust matching."""
-    desc = description.lower().strip()
-    variations = [desc]
-    # synonym expansion
-    expanded = expand_synonyms(desc)
-    if expanded != desc:
-        variations.append(expanded)
-    # simplified: remove relational words
-    relational = {"background", "foreground", "behind", "front",
-                  "left", "right", "top", "bottom", "center",
-                  "bigger", "smaller", "closest", "farthest",
-                  "nearest", "furthest", "first", "last", "of", "the", "a"}
-    words = [w for w in desc.split() if w not in relational]
-    if len(words) >= 1 and " ".join(words) != desc:
-        variations.append(" ".join(words))
-    # with "a" prefix
-    if not desc.startswith("a "):
-        variations.append("a " + desc)
-    return list(dict.fromkeys(variations))  # deduplicate, keep order
-
-
-def _box_iou(box1, box2):
-    """IoU between two boxes [x1, y1, x2, y2]."""
-    x1 = max(box1[0], box2[0])
-    y1 = max(box1[1], box2[1])
-    x2 = min(box1[2], box2[2])
-    y2 = min(box1[3], box2[3])
-    inter = max(0, x2 - x1) * max(0, y2 - y1)
-    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
-    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
-    union = area1 + area2 - inter
-    return inter / union if union > 0 else 0.0
-
-
 # Synonym expansion for universal coverage
 SYNONYMS = {
     "water": ["water", "flood", "river", "lake", "ocean", "sea", "stream"],

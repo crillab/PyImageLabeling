@@ -2,8 +2,7 @@
 
 
 from PyQt6.QtCore import Qt, QFileInfo
-from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox, QLineEdit
-from PyQt6.QtGui import QPixmap, QBitmap, QImage
+from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 
 from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
 from PyImageLabeling.model.Utils import Utils
@@ -21,7 +20,6 @@ class Files(Core):
     
     def select_image(self, path_image):
         #remove all overlays#
-        #self.clear_all()
         super().select_image(path_image)
         
     def save(self):
@@ -248,11 +246,6 @@ class Files(Core):
         if default_path is None:
             self.default_path = Utils.load_parameters()["load"]["path"]
             
-            # file_dialog = QFileDialog()
-            # current_file_path = file_dialog.getExistingDirectory(
-            #         parent=self.view, 
-            #         caption="Open Folder", 
-            #         directory=default_path)
             
             dialog = QFileDialog()
             dialog.setFileMode(QFileDialog.FileMode.Directory)

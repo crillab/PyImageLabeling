@@ -4,13 +4,7 @@ from PyImageLabeling.controller.Controller import Controller
 from PyImageLabeling.model.Model import Model
 
 from PyQt6.QtWidgets import QApplication
-import sys 
-import os
-import PyImageLabeling
-
-__version__ = Utils.get_version()
-__python_version__ = str(sys.version).split(os.linesep)[0].split(' ')[0]
-__location__ = os.sep.join(PyImageLabeling.__file__.split(os.sep)[:-1])
+import sys
 
 try:
     from PyImageLabeling.model.SAM.debug_log import install_excepthook

@@ -1,10 +1,7 @@
 
 from PyImageLabeling.controller.Events import Events
 
-from PyQt6.QtWidgets import QFileDialog, QLabel
-from PyQt6.QtGui import QPixmap, QImage
 
-import os
 
 class FileEvents(Events):
     def __init__(self):
