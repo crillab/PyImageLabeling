@@ -8,7 +8,7 @@ from PyQt6.QtGui import QPixmap, QBitmap, QImage
 from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
 from PyImageLabeling.model.Utils import Utils
 
-
+import numpy as np
 import os
 
         
@@ -102,6 +102,148 @@ class Files(Core):
         # Call the parent class save_copy method with the target directory
         super().save_copy(copy_directory)
 
+    def import_external_masks(self, folder_path, mask_candidates,
+                                plain_images):
+        """Offer binary/indexed/RGB import for mask-like files.
+
+        Returns the labels.json path to continue the native load, or None
+        if the user declined (candidates then load as plain images).
+        """
+        import json
+        from PyQt6.QtWidgets import QDialog
+        from PyImageLabeling.controller.settings.LabelSetting import (
+            ImportFormatDialog)
+        from PyImageLabeling.model.File.MaskImport import (
+            normalize_binary_mask, indexed_to_binary, rgb_to_binary,
+            rgb_colors_present, palette_color)
+
+        fmt_dialog = ImportFormatDialog(self.view.zoomable_graphics_view)
+        fmt_dialog.setWindowTitle(
+            f"Import masks — {len(mask_candidates)} file(s) look like "
+            f"annotations")
+        if fmt_dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        fmt = fmt_dialog.selected_format
+
+        # ── label specs: (kind, payload, name, QColor) ──
+        specs = []
+        if fmt == ImportFormatDialog.FORMAT_INDEXED:
+            values = list(dict.fromkeys(fmt_dialog.index_values)) or [1]
+            for i, v in enumerate(values):
+                specs.append(("indexed", int(v), f"class_{v}",
+                              palette_color(i)))
+        elif fmt == ImportFormatDialog.FORMAT_RGB:
+            seen, union = set(), []
+            for mask_path, _ in mask_candidates:
+                try:
+                    for c in rgb_colors_present(mask_path):
+                        if c not in seen:
+                            seen.add(c)
+                            union.append(c)
+                        if len(union) >= 12:
+                            break
+                except Exception as e:
+                    print(f"[import] cannot read '{mask_path}': {e}")
+                if len(union) >= 12:
+                    break
+            if not union:
+                self.controller.error_message(
+                    "Import", "No non-black colours found in RGB masks.")
+                return None
+            for i, (r, g, b) in enumerate(union):
+                from PyQt6.QtGui import QColor as _QC
+                specs.append(("rgb", (r, g, b), f"class_{r}_{g}_{b}",
+                              _QC(r, g, b)))
+        else:
+            specs.append(("binary", None, "imported_mask", palette_color(0)))
+
+        # ── allocate label ids + names (items/bars are built later by the
+        # native labels.json loader; reuses same-named labels) ──
+        from PyImageLabeling.model.Core import LabelItem
+        pixel_mode = self.view.config["labeling_bar"]["pixel"]["name_view"]
+        existing_by_name = {item.get_name(): lid
+                            for lid, item in self.label_items.items()}
+        label_ids = {}  # specs index -> label_id
+        label_defs = {}  # specs index -> (name, QColor)
+        for i, (kind, payload, name, color) in enumerate(specs):
+            if name in existing_by_name:
+                lid = existing_by_name[name]
+            else:
+                while (LabelItem.static_label_id in LabelItem.used_ids):
+                    LabelItem.static_label_id += 1
+                lid = LabelItem.static_label_id
+                LabelItem.static_label_id += 1
+                existing_by_name[name] = lid
+            label_ids[i] = lid
+            label_defs[i] = (name, color)
+
+        # ── convert + write native files ──
+        progress = QProgressDialog("Importing masks…", "Cancel",
+                                   0, len(mask_candidates), self.view)
+        progress.setWindowTitle("Importing Masks")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        try:
+            for j, (mask_path, image_path) in enumerate(mask_candidates):
+                if progress.wasCanceled():
+                    break
+                progress.setLabelText(
+                    f"Importing '{os.path.basename(mask_path)}'…  "
+                    f"({j + 1} / {len(mask_candidates)})")
+                progress.setValue(j)
+                base = os.path.splitext(os.path.basename(image_path))[0]
+                for i, (kind, payload, _name, _c) in enumerate(specs):
+                    try:
+                        if kind == "indexed":
+                            m = indexed_to_binary(mask_path, [payload])
+                        elif kind == "rgb":
+                            m = rgb_to_binary(mask_path, payload)
+                        else:
+                            m = normalize_binary_mask(mask_path)
+                    except Exception as e:
+                        print(f"[import] cannot convert "
+                              f"'{mask_path}': {e}")
+                        continue
+                    if np.any(np.array(m)):
+                        dest = os.path.join(
+                            folder_path,
+                            f"{base}.label.{label_ids[i]}.png")
+                        m.save(dest)
+                        # written after the folder scan: register it so
+                        # overlays pick it up like native label files
+                        self.load_labels_images(dest)
+                progress.setValue(j + 1)
+        finally:
+            progress.setValue(len(mask_candidates))
+
+        # ── merge labels.json (native loader takes over afterwards) ──
+        labels_path = os.path.join(folder_path, "labels.json")
+        data = {}
+        if os.path.isfile(labels_path):
+            try:
+                with open(labels_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        for _i, (_kind, _p, _n, _c) in enumerate(specs):
+            lid = label_ids[_i]
+            name, color = label_defs[_i]
+            data[str(lid)] = {
+                "name": name,
+                "labeling_mode": pixel_mode,
+                "color": [color.red(), color.green(), color.blue()],
+            }
+        with open(labels_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        try:
+            self.view.statusBar().showMessage(
+                f"Imported {len(mask_candidates)} mask(s) → "
+                f"{len(specs)} label(s)")
+        except Exception:
+            pass
+        return labels_path
+
     def load(self, default_path=None):
         if default_path is None:
             self.default_path = Utils.load_parameters()["load"]["path"]
@@ -153,32 +295,61 @@ class Files(Core):
         # The model variables is update in this method: file_paths and image_items
         current_files = [current_file_path+os.sep+f for f in sorted(os.listdir(current_file_path))]
         current_files_to_add = []
-        
+
         labels_json = None
         rectangle_json = None
         ellipse_json = None
         polygon_json = None
         labels_images = []
+        raw_images = []  # non-native image files (plain images or ext. masks)
         for file in current_files:
             if file in self.file_paths:
                 continue
-            if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+            if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif",
+                                       ".bmp", ".tiff", ".tif")):
                 if KEYWORD_SAVE_LABEL in file:
-                    # It is a label file  
+                    # It is a label file
                     labels_images.append(file)
                 else:
-                    # It is a image 
-                    self.file_paths.append(file)
-                    self.image_items[file] = None
-                    current_files_to_add.append(file)
+                    raw_images.append(file)
             elif file.endswith("labels.json"):
-                labels_json = file # Load it later 
+                labels_json = file # Load it later
             elif file.endswith("Rectangles.json"):
-                rectangle_json = file # Load it later 
+                rectangle_json = file # Load it later
             elif file.endswith("Ellipses.json"):
-                ellipse_json = file # Load it later 
+                ellipse_json = file # Load it later
             elif file.endswith("Polygons.json"):
-                polygon_json = file # Load it later 
+                polygon_json = file # Load it later
+
+        # ── External masks? (binary / indexed / RGB next to the images) ──
+        # Files like "img_mask.png" next to "img.png" are probably masks,
+        # not images: offer the import modes instead of loading them as
+        # images.
+        from PyImageLabeling.model.File.MaskImport import (
+            find_mask_candidates)
+        mask_candidates, plain_images = find_mask_candidates(
+            raw_images, raw_images)
+        for file in plain_images:
+            self.file_paths.append(file)
+            self.image_items[file] = None
+            current_files_to_add.append(file)
+        if mask_candidates:
+            imported_json = self.import_external_masks(
+                current_file_path, mask_candidates, plain_images)
+            if imported_json is not None:
+                labels_json = imported_json
+            else:
+                # user declined: load them as plain images (legacy behaviour)
+                for mask_path, _ in mask_candidates:
+                    self.file_paths.append(mask_path)
+                    self.image_items[mask_path] = None
+                    current_files_to_add.append(mask_path)
+                try:
+                    self.view.statusBar().showMessage(
+                        f"{len(mask_candidates)} file(s) loaded as plain "
+                        f"images (mask import declined)")
+                except Exception:
+                    pass
         # ── Progress bar ─────────────────────────────────────────────────────
         # Compute an approximate step count so the bar fills evenly:
         #   • 1 step per image added to the file bar
@@ -300,6 +471,16 @@ class Files(Core):
 
         # ── Index label PNG files ─────────────────────────────────────────
         if labels_images is not None:
+            # Drop entries whose file disappeared (deleted mask, moved
+            # folder): a stale entry made the overlay load a null pixmap and
+            # every stroke on that image was silently lost.
+            try:
+                for key in list(self.labeling_overview_file_paths):
+                    if not os.path.isfile(self.labeling_overview_file_paths[key]):
+                        self.labeling_overview_file_paths.pop(key, None)
+                        self.labeling_overview_was_loaded.pop(key, None)
+            except Exception:
+                pass
             _upd = max(1, n_labels // 100)   # same throttle: ~100 updates max
             for i, file in enumerate(labels_images):
                 self.load_labels_images(file)

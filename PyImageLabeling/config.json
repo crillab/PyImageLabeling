@@ -212,6 +212,42 @@
                 "checkable": false,
                 "slot": "ml_clear_predictions",
                 "shortcut": ""
+            },
+            {
+                "name": "sam_propagate_btn",
+                "name_view": "Propagate SAM (one-shot)",
+                "icon": "batch",
+                "tooltip": "Use the current image + label mask as reference and propagate it to all other images (DINOv2 + SAM, no training)",
+                "checkable": false,
+                "slot": "sam_propagate",
+                "shortcut": ""
+            },
+            {
+                "name": "sam_text_btn",
+                "name_view": "Text-to-mask",
+                "icon": "border",
+                "tooltip": "Describe the object in French/English (colors, shapes, position) and get a local text-to-mask preview",
+                "checkable": false,
+                "slot": "sam_text_mask",
+                "shortcut": ""
+            },
+            {
+                "name": "ml_review_btn",
+                "name_view": "Review batch",
+                "icon": "visibility",
+                "tooltip": "Step through the images painted by the last propagation (review each, fix with undo/eraser)",
+                "checkable": false,
+                "slot": "ml_review_next",
+                "shortcut": ""
+            },
+            {
+                "name": "ml_suggest_btn",
+                "name_view": "Suggest next to label",
+                "icon": "open_layer",
+                "tooltip": "Active learning: jump to the unlabeled image the model is most uncertain about",
+                "checkable": false,
+                "slot": "ml_suggest_next",
+                "shortcut": ""
             }
         ],
     "labeling_bar": 
@@ -244,6 +280,15 @@
                         "icon_tool": "magi_tool",
                         "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
                         "shortcut": "M"
+                    },
+                    {
+                        "name": "sam_assist",
+                        "name_view": "SAM Assist",
+                        "checkable": true,
+                        "icon": "magic_ball",
+                        "icon_tool": "magic_ball",
+                        "tooltip": "SAM2 interactive: left-click=+ point, shift/right-click=- point, drag=box. Needs transformers + weights (first run downloads ~150MB).",
+                        "shortcut": "A"
                     }
                 ]
             }
@@ -367,6 +412,14 @@
                     "icon": "setting",
                     "checkable": false,
                     "tooltip": "Parameters of magic pen.",
+                    "shortcut": ""
+                },
+                {
+                    "name": "sam_assist_setting",
+                    "name_view": "SAM Assist Setting",
+                    "icon": "setting",
+                    "checkable": false,
+                    "tooltip": "Choose the SAM assistant (general, medical, ...) and inference options.",
                     "shortcut": ""
                 }
             ]},

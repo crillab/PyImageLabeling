@@ -12,6 +12,33 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
+try:
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+    ALBUMENTATIONS_AVAILABLE = True
+except Exception:
+    A = None
+    ToTensorV2 = None
+    ALBUMENTATIONS_AVAILABLE = False
+
+# --- console noise -------------------------------------------------------
+# Training used to print one line per image (and per label per image), which
+# buried everything useful: ~500 lines for a 500-image run. Chatter now goes
+# through ml_log() and stays quiet unless the user asks for it.
+# Errors keep printing (force=True), they are actionable.
+ML_VERBOSE = False
+
+
+def ml_log(message, force=False):
+    """Print `message` only when ML_VERBOSE is on, or when force=True."""
+    if force or ML_VERBOSE:
+        print(message)
+
+
+def set_ml_verbose(value):
+    global ML_VERBOSE
+    ML_VERBOSE = bool(value)
+
 BACKBONE_REGISTRY = {
     # ========== ResNet Family (Classic CNNs) ==========
     "ResNet18":        ("resnet18",           "ResNet18_Weights"),
@@ -600,6 +627,15 @@ class MLPredictor(Core):
     def __init__(self):
         super().__init__()
 
+        # one read per session: parameters["ml"]["verbose"] turns the ML
+        # chatter back on when someone is actually debugging a training run
+        try:
+            from PyImageLabeling.model.Utils import Utils as _U
+            set_ml_verbose(
+                _U.load_parameters().get("ml", {}).get("verbose", False))
+        except Exception:
+            set_ml_verbose(False)
+
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
 
@@ -626,6 +662,143 @@ class MLPredictor(Core):
 
         self.label_id_to_class = {}
         self.class_to_label_id = {}
+        self.val_metrics = {}
+        self._det_val_loader = None
+        self._seg_val_loader = None
+
+    # ------------------------------------------------------------------
+    # Train/val split + shared loss (used by training and evaluation)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _split_train_val(items, val_every=5):
+        """Deterministic split: every `val_every`-th item goes to val.
+
+        Guarantees at least 1 val item when len(items) >= val_every,
+        and never empties the train set.
+        """
+        if len(items) < val_every:
+            return list(items), []
+        train, val = [], []
+        for i, it in enumerate(items):
+            if (i + 1) % val_every == 0:
+                val.append(it)
+            else:
+                train.append(it)
+        if not val:
+            val.append(train.pop())
+        return train, val
+
+    def _detection_batch_loss(self, images, targets, num_classes):
+        """Forward + loss for one detection batch (no backward).
+
+        Returns (loss_tensor, {"obj": float, "bbox": float, "cls": float}).
+        Shared by the training loop and validation.
+        """
+        objectness, bbox_pred, class_pred, _ = self.model(images)
+        gs = self.model.grid_size
+
+        obj_t   = torch.zeros_like(objectness)
+        bbox_t  = torch.zeros_like(bbox_pred)
+        cls_t   = torch.zeros(images.size(0), gs, gs,
+                              dtype=torch.long, device=self.device)
+
+        for b in range(images.size(0)):
+            boxes  = targets[b]["boxes"].to(self.device)
+            labels = targets[b]["labels"].to(self.device)
+            for bi, box in enumerate(boxes):
+                if box.sum() <= 0:
+                    continue
+                x1, y1, x2, y2 = box
+                cx = (x1 + x2) / 2;  cy = (y1 + y2) / 2
+                w  =  x2 - x1;        h  =  y2 - y1
+                gx = max(0, min(int(cx/self.image_size*gs), gs-1))
+                gy = max(0, min(int(cy/self.image_size*gs), gs-1))
+                stride = self.image_size / gs
+                obj_t[b, gy, gx, 0] = 1.0
+                bbox_t[b, gy, gx, 0] = (cx - gx*stride) / stride
+                bbox_t[b, gy, gx, 1] = (cy - gy*stride) / stride
+                bbox_t[b, gy, gx, 2] = torch.log(torch.clamp(w/stride/2, min=1e-6))
+                bbox_t[b, gy, gx, 3] = torch.log(torch.clamp(h/stride/2, min=1e-6))
+                lv = min(labels[bi].item(), num_classes - 1)
+                cls_t[b, gy, gx] = lv
+
+        pos = obj_t == 1;  neg = obj_t == 0
+        pos_loss = F.binary_cross_entropy(objectness[pos], obj_t[pos]) \
+                   if pos.any() else torch.tensor(0., device=self.device)
+        neg_loss = F.binary_cross_entropy(objectness[neg], obj_t[neg])
+        obj_loss = 5.0 * pos_loss + 0.5 * neg_loss
+
+        obj_mask = obj_t > 0.5
+        if obj_mask.any():
+            bbox_loss = F.smooth_l1_loss(
+                bbox_pred[obj_mask.expand_as(bbox_pred)],
+                bbox_t   [obj_mask.expand_as(bbox_t)])
+            sq = obj_mask.squeeze(-1)
+            ct = torch.clamp(cls_t[sq], 0, num_classes - 1)
+            cls_loss = F.cross_entropy(class_pred[sq], ct)
+        else:
+            bbox_loss = cls_loss = torch.tensor(0., device=self.device)
+
+        loss = 2.0*obj_loss + 5.0*bbox_loss + 2.0*cls_loss
+        return loss, {"obj": obj_loss.item(),
+                      "bbox": bbox_loss.item(),
+                      "cls": cls_loss.item()}
+
+    @torch.no_grad()
+    def evaluate_model(self):
+        """Evaluate on held-out val loaders (built in train_model_core).
+
+        Returns dict with det_loss / seg_loss / seg_miou (missing keys
+        when the corresponding val set is empty).
+        """
+        out = {}
+        if self.model is None:
+            return out
+        was_training = self.model.training
+        self.model.eval()
+        num_classes = getattr(self.model, "num_classes", 2)
+        det_val = getattr(self, "_det_val_loader", None)
+        if det_val is not None:
+            total, n = 0.0, 0
+            for images, targets in det_val:
+                images = images.to(self.device)
+                loss, _ = self._detection_batch_loss(
+                    images, targets, num_classes)
+                total += loss.item()
+                n += 1
+            if n:
+                out["det_loss"] = total / n
+                out["n_val_det"] = n
+        seg_val = getattr(self, "_seg_val_loader", None)
+        if seg_val is not None:
+            total, n = 0.0, 0
+            inter = torch.zeros(num_classes)
+            union = torch.zeros(num_classes)
+            for images, masks in seg_val:
+                images = images.to(self.device)
+                masks  = masks.to(self.device)
+                _, _, _, seg_pred = self.model(images)
+                if seg_pred is None:
+                    continue
+                total += F.cross_entropy(seg_pred, masks).item()
+                n += 1
+                pred = seg_pred.argmax(dim=1)
+                for c in range(num_classes):
+                    pc = (pred == c)
+                    mc = (masks == c)
+                    inter[c] += (pc & mc).sum().cpu()
+                    union[c] += (pc | mc).sum().cpu()
+            if n:
+                out["seg_loss"] = total / n
+                out["n_val_seg"] = n
+                valid = union > 0
+                if valid.any():
+                    out["seg_miou"] = float(
+                        (inter[valid] / union[valid]).mean())
+        if was_training:
+            self.model.train()
+        return out
 
     # ------------------------------------------------------------------
     # Collate
@@ -681,7 +854,7 @@ class MLPredictor(Core):
     def collect_segmentation_data(self, selected_paths=None):
         segmentation_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
-        print("COLLECTING SEGMENTATION DATA")
+        ml_log("Collecting segmentation data")
 
         for file_path in paths:
             image_item = self.image_items.get(file_path)
@@ -712,12 +885,12 @@ class MLPredictor(Core):
                 if cnt > 0:
                     combined_mask[painted] = label_id
                     colors_found[label_id] = cnt
-                    print(f"  Label {label_id}: {cnt} painted pixels")
+                    ml_log(f"  Label {label_id}: {cnt} painted pixels")
 
             if colors_found:
                 segmentation_data.append((file_path, combined_mask))
 
-        print(f"FINAL SEGMENTATION DATA: {len(segmentation_data)} images")
+        ml_log(f"Segmentation data: {len(segmentation_data)} images")
         return segmentation_data
 
     # ------------------------------------------------------------------
@@ -806,12 +979,17 @@ class MLPredictor(Core):
             raise ValueError(
                 f"Class ID {max_cls} exceeds num_classes {num_classes}")
 
-        # ---- dataloaders ------------------------------------------------
+        # ---- dataloaders (train + held-out val, no augmentation) -----
+        det_train, det_val = self._split_train_val(detection_data)
+        seg_train, seg_val = self._split_train_val(segmentation_data)
+        log(f"Train: {len(det_train)} det + {len(seg_train)} seg | "
+            f"Val: {len(det_val)} det + {len(seg_val)} seg")
+
         detection_loader = None
-        if has_detection:
+        if det_train:
             ds = ObjectDetectionDataset(
-                [p for p, _ in detection_data],
-                [a for _, a in detection_data],
+                [p for p, _ in det_train],
+                [a for _, a in det_train],
                 self.label_id_to_class,
                 self.image_size, augment=True)
             detection_loader = DataLoader(
@@ -819,16 +997,37 @@ class MLPredictor(Core):
                 num_workers=0, collate_fn=MLPredictor.detection_collate_fn)
             log(f"Detection dataloader: {len(detection_loader)} batches")
 
+        self._det_val_loader = None
+        if det_val:
+            ds = ObjectDetectionDataset(
+                [p for p, _ in det_val],
+                [a for _, a in det_val],
+                self.label_id_to_class,
+                self.image_size, augment=False)
+            self._det_val_loader = DataLoader(
+                ds, batch_size=self.batch_size, shuffle=False,
+                num_workers=0, collate_fn=MLPredictor.detection_collate_fn)
+
         segmentation_loader = None
-        if has_segmentation:
+        if seg_train:
             ds = SegmentationDataset(
-                [p for p, _ in segmentation_data],
-                [m for _, m in segmentation_data],
+                [p for p, _ in seg_train],
+                [m for _, m in seg_train],
                 self.label_id_to_class,
                 self.image_size, augment=True)
             segmentation_loader = DataLoader(
                 ds, batch_size=self.batch_size, shuffle=True, num_workers=0)
             log(f"Segmentation dataloader: {len(segmentation_loader)} batches")
+
+        self._seg_val_loader = None
+        if seg_val:
+            ds = SegmentationDataset(
+                [p for p, _ in seg_val],
+                [m for _, m in seg_val],
+                self.label_id_to_class,
+                self.image_size, augment=False)
+            self._seg_val_loader = DataLoader(
+                ds, batch_size=self.batch_size, shuffle=False, num_workers=0)
 
         # ---- model ------------------------------------------------------
         backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
@@ -864,60 +1063,16 @@ class MLPredictor(Core):
                     images = images.to(self.device)
                     optimizer.zero_grad()
 
-                    objectness, bbox_pred, class_pred, _ = self.model(images)
-                    gs = self.model.grid_size
-
-                    obj_t   = torch.zeros_like(objectness)
-                    bbox_t  = torch.zeros_like(bbox_pred)
-                    cls_t   = torch.zeros(images.size(0), gs, gs,
-                                          dtype=torch.long, device=self.device)
-
-                    for b in range(images.size(0)):
-                        boxes  = targets[b]["boxes"].to(self.device)
-                        labels = targets[b]["labels"].to(self.device)
-                        for bi, box in enumerate(boxes):
-                            if box.sum() <= 0:
-                                continue
-                            x1, y1, x2, y2 = box
-                            cx = (x1 + x2) / 2;  cy = (y1 + y2) / 2
-                            w  =  x2 - x1;        h  =  y2 - y1
-                            gx = max(0, min(int(cx/self.image_size*gs), gs-1))
-                            gy = max(0, min(int(cy/self.image_size*gs), gs-1))
-                            stride = self.image_size / gs
-                            obj_t[b, gy, gx, 0] = 1.0
-                            bbox_t[b, gy, gx, 0] = (cx - gx*stride) / stride
-                            bbox_t[b, gy, gx, 1] = (cy - gy*stride) / stride
-                            bbox_t[b, gy, gx, 2] = torch.log(torch.clamp(w/stride/2, min=1e-6))
-                            bbox_t[b, gy, gx, 3] = torch.log(torch.clamp(h/stride/2, min=1e-6))
-                            lv = min(labels[bi].item(), num_classes - 1)
-                            cls_t[b, gy, gx] = lv
-
-                    pos = obj_t == 1;  neg = obj_t == 0
-                    pos_loss = F.binary_cross_entropy(objectness[pos], obj_t[pos]) \
-                               if pos.any() else torch.tensor(0., device=self.device)
-                    neg_loss = F.binary_cross_entropy(objectness[neg], obj_t[neg])
-                    obj_loss = 5.0 * pos_loss + 0.5 * neg_loss
-
-                    obj_mask = obj_t > 0.5
-                    if obj_mask.any():
-                        bbox_loss = F.smooth_l1_loss(
-                            bbox_pred[obj_mask.expand_as(bbox_pred)],
-                            bbox_t   [obj_mask.expand_as(bbox_t)])
-                        sq = obj_mask.squeeze(-1)
-                        ct = torch.clamp(cls_t[sq], 0, num_classes - 1)
-                        cls_loss = F.cross_entropy(class_pred[sq], ct)
-                    else:
-                        bbox_loss = cls_loss = torch.tensor(0., device=self.device)
-
-                    loss = 2.0*obj_loss + 5.0*bbox_loss + 2.0*cls_loss
+                    loss, info = self._detection_batch_loss(
+                        images, targets, num_classes)
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
                     optimizer.step()
 
                     total_loss += loss.item()
-                    total_obj  += obj_loss.item()
-                    total_bbox += bbox_loss.item()
-                    total_cls  += cls_loss.item()
+                    total_obj  += info["obj"]
+                    total_bbox += info["bbox"]
+                    total_cls  += info["cls"]
                     num_batches += 1
 
                 n = len(detection_loader)
@@ -956,6 +1111,27 @@ class MLPredictor(Core):
 
         self.trained = True
         log(f"TRAINING COMPLETE! Best loss: {best_loss:.4f}")
+
+        # ---- held-out evaluation --------------------------------------
+        try:
+            self.val_metrics = self.evaluate_model()
+        except Exception as e:
+            ml_log(f"[eval] validation failed: {e}", force=True)
+            self.val_metrics = {}
+        if self.val_metrics:
+            parts = []
+            if "det_loss" in self.val_metrics:
+                parts.append(
+                    f"det loss={self.val_metrics['det_loss']:.4f}")
+            if "seg_loss" in self.val_metrics:
+                parts.append(
+                    f"seg loss={self.val_metrics['seg_loss']:.4f}")
+            if "seg_miou" in self.val_metrics:
+                parts.append(
+                    f"mIoU={self.val_metrics['seg_miou']:.3f}")
+            log("VAL: " + (" | ".join(parts) if parts else "n/a"))
+        else:
+            log("VAL: skipped (need ≥5 annotated images for a val split)")
 
     # ------------------------------------------------------------------
     # Training — public entry point (shows modal progress dialog)
@@ -1020,11 +1196,33 @@ class MLPredictor(Core):
 
     def _on_training_finished(self):
         self._progress_dialog.close()
+        # training loaded every image to build the dataset: release those
+        # ImageItems so the pixel tools stay light right after
+        try:
+            dropped = self.controller.ml_unload_image_items()
+            if dropped:
+                ml_log(f"[MLPredictor] released {dropped} image item(s)")
+        except Exception:
+            pass
+        val_txt = ""
+        try:
+            vm = getattr(self, "val_metrics", {}) or {}
+            bits = []
+            if "det_loss" in vm:
+                bits.append(f"Val det loss: {vm['det_loss']:.4f}")
+            if "seg_loss" in vm:
+                bits.append(f"Val seg loss: {vm['seg_loss']:.4f}")
+            if "seg_miou" in vm:
+                bits.append(f"Val mIoU: {vm['seg_miou']:.3f}")
+            if bits:
+                val_txt = "\n" + "\n".join(bits)
+        except Exception:
+            pass
         QMessageBox.information(
             None, "Training Complete",
             f"Model trained successfully!\n"
             f"Mode: {self.training_mode}\n"
-            f"Classes: {self.model.num_classes}")
+            f"Classes: {self.model.num_classes}{val_txt}")
 
     def _on_training_error(self, error_msg):
         self._progress_dialog.close()
@@ -1137,7 +1335,7 @@ class MLPredictor(Core):
                 binary = np.zeros((original_h, original_w), dtype=np.uint8)
                 binary[class_mask] = 255
                 predictions_by_label[orig_lid] = binary
-                print(f"  Predicted label {orig_lid} "
+                ml_log(f"  Predicted label {orig_lid} "
                       f"('{self._get_label_name(orig_lid)}'): "
                       f"{pixel_count} pixels above {confidence_threshold:.2f}")
 
@@ -1188,7 +1386,7 @@ class MLPredictor(Core):
 
     def ml_visualize_segmentation(self, predictions_by_label):
         if not predictions_by_label:
-            print("No segmentation predictions to visualize")
+            ml_log("No segmentation predictions to visualize")
             return
 
         self.ml_segmentation_predictions = predictions_by_label
@@ -1209,8 +1407,8 @@ class MLPredictor(Core):
                 label_name = f"label_{label_id}"
 
             rgba[mask > 0] = color
-            print(f"  Label {label_id} ('{label_name}'): "
-                  f"{np.count_nonzero(mask > 0)} pixels (preview)")
+            ml_log(f"  Label {label_id} ('{label_name}'): "
+                   f"{np.count_nonzero(mask > 0)} pixels (preview)")
 
             qimg    = QImage(rgba.data, w, h, w*4,
                              QImage.Format.Format_RGBA8888).copy()
@@ -1255,7 +1453,7 @@ class MLPredictor(Core):
 
             predicted_label_id, predicted_color = self._get_label_by_name(label_name)
             if predicted_label_id is None or predicted_color is None:
-                print(f"Warning: label '{label_name}' not found, skipping")
+                ml_log(f"Warning: label '{label_name}' not found, skipping")
                 skipped += 1
                 continue
 
@@ -1276,8 +1474,8 @@ class MLPredictor(Core):
             self.zoomable_graphics_view.scene.addItem(rect_item)
             count += 1
 
-        print(f"Accepted {count} predictions"
-              + (f", skipped {skipped}" if skipped else ""))
+        ml_log(f"Accepted {count} predictions"
+               + (f", skipped {skipped}" if skipped else ""))
 
         current_image.update_labeling_overlay()
         self.controller.ml_update_stats()
@@ -1290,28 +1488,28 @@ class MLPredictor(Core):
         """Paint segmentation predictions into their respective overlays."""
         preds = getattr(self, 'ml_segmentation_predictions', None)
         if not preds:
-            print("No segmentation predictions to accept")
+            ml_log("No segmentation predictions to accept")
             return False
 
         current_image = self.current_image_item
         if current_image is None:
-            print("No current image")
+            ml_log("No current image", force=True)
             return False
 
-        print(f"Accepting segmentation for {len(preds)} label(s)…")
+        ml_log(f"Accepting segmentation for {len(preds)} label(s)")
 
         for label_id, mask in preds.items():
             if label_id not in current_image.labeling_overlays:
-                print(f"ERROR: No overlay for label {label_id}")
+                ml_log(f"ERROR: No overlay for label {label_id}", force=True)
                 continue
 
             overlay = current_image.labeling_overlays[label_id]
             if overlay.labeling_overlay_pixmap is None:
-                print(f"ERROR: No pixmap for label {label_id}")
+                ml_log(f"ERROR: No pixmap for label {label_id}", force=True)
                 continue
 
             if label_id not in self.label_items:
-                print(f"ERROR: Label {label_id} not in label_items")
+                ml_log(f"ERROR: Label {label_id} not in label_items", force=True)
                 continue
 
             c     = self.label_items[label_id].get_color()
@@ -1332,13 +1530,99 @@ class MLPredictor(Core):
 
             painter = overlay.get_painter()
             painter.drawPixmap(0, 0, pixmap)
-            print(f"  Painted {pix_count} pixels → label {label_id} "
+            ml_log(f"  Painted {pix_count} pixels → label {label_id} "
                   f"('{self._get_label_name(label_id)}')")
 
         current_image.update_labeling_overlay()
         self.ml_segmentation_predictions = None
         self.ml_clear_predictions_visual()
         return True
+
+    # ------------------------------------------------------------------
+    # Active learning — uncertainty sampling
+    # ------------------------------------------------------------------
+
+    def _al_preprocess(self, image_path):
+        """Shared preprocessing (same as predict_*). Returns tensor or None."""
+        image = cv2.imread(image_path)
+        if image is None:
+            return None
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        img_r = cv2.resize(image_rgb, (self.image_size, self.image_size))
+        img_n = (img_r.astype(np.float32)/255.0
+                 - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
+        return (torch.from_numpy(img_n)
+                .permute(2, 0, 1).float().unsqueeze(0).to(self.device))
+
+    @staticmethod
+    def _binary_entropy(p):
+        eps = 1e-6
+        p = torch.clamp(p, eps, 1.0 - eps)
+        return -(p * torch.log(p) + (1.0 - p) * torch.log(1.0 - p))
+
+    @torch.no_grad()
+    def al_uncertainty(self, image_path):
+        """Uncertainty score in [0, 1] (higher = label me first).
+
+        Mean of normalized entropies of the trained heads:
+        detection objectness map and/or segmentation softmax.
+        Returns 0.0 when nothing can be scored.
+        """
+        if not self.trained or self.model is None:
+            return 0.0
+        tensor = self._al_preprocess(image_path)
+        if tensor is None:
+            return 0.0
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            import math
+            objectness, _, _, seg_pred = self.model(tensor)
+            scores = []
+            if self.training_mode in ("detection", "both"):
+                ent = self._binary_entropy(objectness).mean().item()
+                scores.append(ent / math.log(2))
+            if (self.training_mode in ("segmentation", "both")
+                    and seg_pred is not None):
+                probs = torch.softmax(seg_pred, dim=1)
+                ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean()
+                n_cls = max(seg_pred.shape[1], 2)
+                scores.append(ent.item() / math.log(n_cls))
+            if not scores:
+                return 0.0
+            return float(max(0.0, min(1.0, sum(scores) / len(scores))))
+        finally:
+            if was_training:
+                self.model.train()
+
+    def al_rank_unlabeled(self, progress_cb=None, cancel_cb=None):
+        """Rank unlabeled images by uncertainty, descending.
+
+        Returns [(file_path, score)]. progress_cb(done, total) is called
+        per image; cancel_cb() returning True aborts (partial ranking).
+        """
+        paths = self.ml_get_unlabeled_images()
+        ranked = []
+        for i, path in enumerate(paths):
+            if cancel_cb is not None:
+                try:
+                    if cancel_cb():
+                        break
+                except Exception:
+                    pass
+            try:
+                score = self.al_uncertainty(path)
+            except Exception as e:
+                ml_log(f"[active-learning] {path}: {e}", force=True)
+                score = 0.0
+            ranked.append((path, score))
+            if progress_cb is not None:
+                try:
+                    progress_cb(i + 1, len(paths))
+                except Exception:
+                    pass
+        ranked.sort(key=lambda t: -t[1])
+        return ranked
 
     # ------------------------------------------------------------------
     # Save / load
@@ -1367,6 +1651,7 @@ class MLPredictor(Core):
             'confidence_threshold': self.confidence_threshold,
             'nms_threshold': self.nms_threshold,
             'segmentation_threshold': self.segmentation_threshold,
+            'val_metrics': getattr(self, "val_metrics", {}),
 
         }, path)
 
@@ -1386,12 +1671,12 @@ class MLPredictor(Core):
             enable_seg = ck.get('enable_segmentation', True)
             enable_det = ck.get('enable_detection', True)
 
-            print("=== LOADING MODEL ===")
-            print("Path:", file_path)
-            print("Backbone:", backbone)
-            print("Num classes:", num_classes)
-            print("Segmentation:", enable_seg)
-            print("Detection:", enable_det)
+            ml_log("=== LOADING MODEL ===")
+            ml_log(f"Path: {file_path}")
+            ml_log(f"Backbone: {backbone}")
+            ml_log(f"Num classes: {num_classes}")
+            ml_log(f"Segmentation: {enable_seg}")
+            ml_log(f"Detection: {enable_det}")
 
             # 🔥 Reconstruire le modèle EXACTEMENT comme à l'entraînement
             self.model = FastObjectDetectorWithSegmentation(
@@ -1418,6 +1703,9 @@ class MLPredictor(Core):
             self.nms_threshold = ck.get('nms_threshold', 0.4)
             self.segmentation_threshold = ck.get('segmentation_threshold', 0.5)
             self.training_mode = ck.get('training_mode', None)
+            self.val_metrics = ck.get('val_metrics', {})
+            self._det_val_loader = None
+            self._seg_val_loader = None
 
             self.trained = True
 
@@ -1455,7 +1743,7 @@ class MLPredictor(Core):
                 self.label_items,
                 self.current_label_item.get_label_id())
 
-        print(f"[load_image_for_training] Loaded {base}")
+        ml_log(f"[load_image_for_training] Loaded {base}")
 
     def is_trained(self):
         return self.trained

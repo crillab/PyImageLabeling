@@ -9,7 +9,14 @@ HANDLE_DETECTION_DISTANCE = 15  # Distance for auto-showing handles
 class EllipseItem(QGraphicsEllipseItem):
     def __init__(self, x, y, width, height, color=Qt.GlobalColor.red, rotation=0):
         super().__init__(x, y, width, height)
-        self.thickness = Utils.load_parameters()["geometric_shape"]["thickness"]
+        try:
+            self.thickness = float(Utils.load_parameters()["geometric_shape"]["thickness"])
+        except Exception:
+            self.thickness = 5.0
+        # degenerate handles kill the process when the rects are built
+        # (this aborts natively); clamp to something sane
+        if not (self.thickness > 0) or self.thickness > 1000:
+            self.thickness = 5.0
         self.pen = QPen(color, self.thickness)
         self.pen.setStyle(Qt.PenStyle.SolidLine)
         self.setPen(self.pen)
@@ -89,7 +96,14 @@ class EllipseItem(QGraphicsEllipseItem):
     def update_handles(self):
         """Update handle positions on the ellipse perimeter"""
         rect = self.rect()
-        
+        # a degenerate rect (0x0 on a click without drag) must not reach the
+        # QRectF construction below -- fall back to an empty handle set
+        w, h = rect.width(), rect.height()
+        if not (w > 0 and h > 0) or not (
+                abs(w) < 1e6 and abs(h) < 1e6):
+            self.handles = {}
+            return
+
         # Place handles at 0°, 90°, 180°, 270° on the ellipse perimeter
         right_point = self.get_ellipse_point(0)      # Right (0°)
         bottom_point = self.get_ellipse_point(90)    # Bottom (90°) 

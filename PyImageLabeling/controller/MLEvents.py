@@ -8,7 +8,7 @@ import cv2
 from PyQt6.QtGui import QImage
 
 from PyImageLabeling.controller.Events import Events
-from PyImageLabeling.model.ML.MLPredictor import MLPredictor
+from PyImageLabeling.model.ML.MLPredictor import MLPredictor, ml_log
 from PyImageLabeling.controller.settings.MLSetting import MLSetting
 
 class MLEvents(Events):
@@ -28,6 +28,12 @@ class MLEvents(Events):
     def ml_train_model(self):
         """Train the ML model on current annotations (detection + segmentation)"""
         print("STARTING ML TRAINING")
+        # uncertainties depend on weights: drop cached active-learning ranking
+        try:
+            self._al_ranking = None
+            self._al_pos = -1
+        except Exception:
+            pass
 
         self.ml_predictions_current = []
         if hasattr(self.model, 'ml_segmentation_pixmap'):
@@ -155,9 +161,9 @@ class MLEvents(Events):
                     self.model.ml_visualize_predictions(predictions)
                     print(f"Detection: {len(predictions)} boxes")
                 else:
-                    print("No predictions after thresholding")
+                    ml_log("No predictions after thresholding")
             except Exception as e:
-                print(f"Detection prediction failed: {e}")
+                ml_log(f"Detection prediction failed: {e}")
                 import traceback; traceback.print_exc()
         
         # Try segmentation prediction
@@ -170,7 +176,7 @@ class MLEvents(Events):
                     self.model.ml_visualize_segmentation(segmentation)
                     print("Segmentation: displayed on screen")
             except Exception as e:
-                print(f"Segmentation prediction failed: {e}")
+                ml_log(f"Segmentation prediction failed: {e}")
                 import traceback; traceback.print_exc()
         
         # Update status bar
@@ -217,8 +223,8 @@ class MLEvents(Events):
                 "No predictions to accept. Generate predictions first.")
             return
         
-        self.ml_update_stats()
-        
+        self.ml_update_stats(immediate=True)
+
         message_parts = []
         if accepted_boxes > 0:
             message_parts.append(f"{accepted_boxes} boxes")
@@ -256,7 +262,7 @@ class MLEvents(Events):
                     self.model.ml_segmentation_predictions):
                 should_refresh = True
             if should_refresh:
-                print(f"Refreshing predictions with new confidence: {confidence:.2f}")
+                ml_log(f"Refreshing predictions with new confidence: {confidence:.2f}")
                 self.ml_predict_current()
     
     def ml_update_status(self):
@@ -268,8 +274,125 @@ class MLEvents(Events):
             self.view.ml_status_label.setText("ML: Not trained")
             self.view.ml_status_label.setStyleSheet("color: gray;")
     
-    def ml_update_stats(self):
-        """Update the ML stats label with current annotation counts"""
+    def _ml_count_paint_instances(self, image_item):
+        """Connected components of the painted pixels of one image.
+
+        Costly (a full-image pass per overlay), so the result is cached and
+        only recomputed when that image's overlays actually changed.
+        """
+        cache = getattr(self, "_ml_paint_cache", None)
+        if cache is None:
+            cache = {}
+            self._ml_paint_cache = cache
+
+        key = image_item.path_image
+        stamp = tuple(
+            (label_id, id(overlay.labeling_overlay_pixmap),
+             overlay.get_is_edited())
+            for label_id, overlay in image_item.labeling_overlays.items())
+        hit = cache.get(key)
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+
+        paint_instances = 0
+        for overlay in image_item.labeling_overlays.values():
+            pixmap = overlay.labeling_overlay_pixmap
+            if pixmap is None or pixmap.isNull():
+                continue
+            qimg = pixmap.toImage().convertToFormat(
+                QImage.Format.Format_Grayscale8)
+            h, w, bpl = qimg.height(), qimg.width(), qimg.bytesPerLine()
+            ptr = qimg.bits()
+            ptr.setsize(h * bpl)
+            arr  = np.frombuffer(ptr, np.uint8).reshape((h, bpl))
+            mask = arr[:, :w]
+            if np.count_nonzero(mask) == 0:
+                continue
+            binary = (mask > 0).astype(np.uint8)
+            num_labels, _ = cv2.connectedComponents(binary)
+            paint_instances += max(0, num_labels - 1)
+
+        cache[key] = (stamp, paint_instances)
+        return paint_instances
+
+    def ml_update_stats(self, immediate=False):
+        """Update the ML stats label with current annotation counts.
+
+        Called after every brush stroke / shape, so it must stay cheap: a
+        full recount of every loaded image cost ~135 ms with 20 images in
+        RAM, which made the pixel tools feel laggy. Two changes:
+        - per-image paint counts are cached (see _ml_count_paint_instances)
+        - the label refresh is coalesced on a short timer, so a burst of
+          strokes triggers one recount instead of one per stroke
+        """
+        timer = getattr(self, "_ml_stats_timer", None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = QTimer(self.view)
+            timer.setSingleShot(True)
+            timer.setInterval(250)
+            timer.timeout.connect(self._ml_refresh_stats)
+            self._ml_stats_timer = timer
+        if immediate:
+            timer.stop()
+            self._ml_refresh_stats()
+        else:
+            # never refresh synchronously here: this is called from the
+            # middle of brush strokes / shape commits
+            timer.start()
+
+    def ml_invalidate_stats_cache(self, path_image=None):
+        """Drop cached paint counts (all images, or one)."""
+        cache = getattr(self, "_ml_paint_cache", None)
+        if not cache:
+            return
+        if path_image is None:
+            cache.clear()
+        else:
+            cache.pop(path_image, None)
+
+    def ml_unload_image_items(self, keep=()):
+        """Drop cached ImageItems (and their full-size pixmaps) from RAM.
+
+        Propagation and training load every image to paint/predict, which
+        leaves hundreds of full-resolution overlay pixmaps resident. That is
+        what made the pixel tools feel heavy afterwards.
+        """
+        keep = set(keep)
+        model = self.model
+        current = getattr(model, "current_image_item", None)
+        dropped = 0
+        for path in list(model.image_items.keys()):
+            if path in keep:
+                continue
+            item = model.image_items.get(path)
+            if item is None or item is current:
+                continue
+            # Remember whether this image was annotated before dropping it:
+            # an unloaded image is not an unlabeled one, and active learning
+            # (ml_suggest_next) would otherwise offer it again.
+            try:
+                model.ml_note_annotated_state(
+                    path, model._image_is_annotated(item))
+            except Exception:
+                pass
+            # Drop the dict reference only. Do NOT call into the Qt scene
+            # here: these background ImageItems share the live scene, and
+            # touching their graphics items from this state kills the
+            # process natively (0xC0000409). Their overlays were never added
+            # to the scene, so simply forgetting them is enough.
+            model.image_items[path] = None
+            dropped += 1
+        if dropped:
+            self.ml_invalidate_stats_cache()
+            # those images left RAM: their cached paint scan is meaningless
+            try:
+                model.ml_invalidate_painted_cache()
+            except Exception:
+                pass
+        return dropped
+
+    def _ml_refresh_stats(self):
         annotated_images  = 0
         total_annotations = 0
 
@@ -281,25 +404,7 @@ class MLEvents(Events):
             rect_count    = len(image_item.image_rectangles)
             ellipse_count = len(image_item.image_ellipses)
             polygon_count = len(image_item.image_polygons)
-            paint_instances = 0
-
-            if hasattr(image_item, "labeling_overlays"):
-                for overlay in image_item.labeling_overlays.values():
-                    pixmap = overlay.labeling_overlay_pixmap
-                    if pixmap is None or pixmap.isNull():
-                        continue
-                    qimg = pixmap.toImage().convertToFormat(
-                        QImage.Format.Format_Grayscale8)
-                    h, w, bpl = qimg.height(), qimg.width(), qimg.bytesPerLine()
-                    ptr = qimg.bits()
-                    ptr.setsize(h * bpl)
-                    arr  = np.frombuffer(ptr, np.uint8).reshape((h, bpl))
-                    mask = arr[:, :w]
-                    if np.count_nonzero(mask) == 0:
-                        continue
-                    binary     = (mask > 0).astype(np.uint8)
-                    num_labels, _ = cv2.connectedComponents(binary)
-                    paint_instances += max(0, num_labels - 1)
+            paint_instances = self._ml_count_paint_instances(image_item)
 
             image_total = (rect_count + ellipse_count +
                            polygon_count + paint_instances)
@@ -317,6 +422,98 @@ class MLEvents(Events):
         )
         self.view.ml_status_label.setText(f"ML: {model_status}")
         self.view.ml_status_label.setStyleSheet(f"color: {color};")
+
+    # ------------------------------------------------------------------
+    # Active learning
+    # ------------------------------------------------------------------
+
+    def _ml_goto_file(self, path):
+        """Select a file-bar row by path. Returns True if found."""
+        try:
+            bar = self.view.file_bar_list
+            for row in range(bar.count()):
+                item = bar.item(row)
+                if getattr(item, "file_path", None) == path:
+                    # a no-op setCurrentRow still fires selection machinery
+                    # on the way through (this is what used to stack-buffer-
+                    # overflow the process), so switch directly instead
+                    if bar.currentItem() is not item:
+                        bar.setCurrentRow(row)
+                    else:
+                        # already current, but the model may disagree with the
+                        # bar (same-row setCurrentRow emits nothing) -- call
+                        # the slot directly, it is re-entry safe
+                        try:
+                            self.select_image(item)
+                        except AttributeError:
+                            pass
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def ml_suggest_next(self):
+        """Jump to the most uncertain unlabeled image (active learning).
+
+        First call ranks all unlabeled images (cancelable); next calls
+        cycle through the ranking. Annotate it, retrain, repeat.
+        """
+        from PyQt6.QtWidgets import QMessageBox, QProgressDialog
+        from PyQt6.QtCore import Qt
+        import os as _os
+
+        if not self.model.is_trained():
+            QMessageBox.information(
+                self.view, "Suggest next",
+                "Train the model first — suggestions need uncertainties.")
+            return
+
+        ranking = getattr(self, "_al_ranking", None)
+        if not ranking:
+            progress = QProgressDialog(
+                "Scoring unlabeled images…", "Cancel",
+                0, 1, self.view)
+            progress.setWindowTitle("Active learning")
+            progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+            progress.setMinimumDuration(0)
+            progress.show()
+
+            holder = {}
+
+            def _prog(done, total):
+                progress.setMaximum(max(total, 1))
+                progress.setLabelText(
+                    f"Scoring unlabeled images… ({done} / {total})")
+                progress.setValue(done)
+
+            ranking = self.model.al_rank_unlabeled(
+                progress_cb=_prog, cancel_cb=progress.wasCanceled)
+            try:
+                progress.close()
+            except Exception:
+                pass
+            if not ranking:
+                QMessageBox.information(
+                    self.view, "Suggest next",
+                    "Everything is annotated — nice work!")
+                return
+            self._al_ranking = ranking
+            self._al_pos = -1
+            top3 = ", ".join(
+                f"{_os.path.basename(p)}:{s:.2f}"
+                for p, s in ranking[:3])
+            ml_log(f"[active-learning] top: {top3}")
+
+        self._al_pos = (getattr(self, "_al_pos", -1) + 1) % len(ranking)
+        path, score = ranking[self._al_pos]
+        found = self._ml_goto_file(path)
+        try:
+            self.view.statusBar().showMessage(
+                f"Label next ({self._al_pos + 1}/{len(ranking)}, "
+                f"uncertainty {score:.2f}): {_os.path.basename(path)}"
+                + ("" if found else " (not in file bar)"))
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Settings

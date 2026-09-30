@@ -9,9 +9,13 @@ from PyImageLabeling.model.Utils import Utils
 
 class PaintBrushItem(QGraphicsItem):
 
+    # Extra texture room (px) reserved when the stroke outgrows the current
+    # texture, so a drag does not reallocate on every single mouse-move.
+    _GROW_PAD = 64
+
     def __init__(self, core, x, y, color, size, brush_type="circle"):
         super().__init__()
-        
+
         # Initialize the variable of the first point
         self.core = core
         self.x = x
@@ -19,8 +23,11 @@ class PaintBrushItem(QGraphicsItem):
         self.color = color
         self.size = size
         self.brush_type = brush_type
-        self.labeling_overlay_painter = self.core.get_current_image_item().get_labeling_overlay().get_painter()
-        
+        # Cache the overlay: it is asked for on every paint/move, and
+        # get_current_image_item() walks the model each time.
+        self.overlay = self.core.get_current_image_item().get_labeling_overlay()
+        self.labeling_overlay_painter = self.overlay.get_painter()
+
         self.position_x = int(self.x-(self.size/2))
         self.position_y = int(self.y-(self.size/2))
         self.bounding_rect = QRectF(self.position_x, self.position_y, self.size, self.size)
@@ -29,7 +36,14 @@ class PaintBrushItem(QGraphicsItem):
         # Create the image of the first point
         self.texture = QPixmap(self.size, self.size) 
         self.texture.fill(Qt.GlobalColor.transparent)
-        
+        # top-left of `texture` in image coordinates: the UN-intersected
+        # position, i.e. the texture always starts at the raw brush corner
+        # (this is what the first-dab drawing below assumes).
+        self.tex_x = self.position_x
+        self.tex_y = self.position_y
+        self._seed_x = self.x
+        self._seed_y = self.y
+
         painter = QPainter(self.texture)
         
         # Draw based on brush type
@@ -37,13 +51,18 @@ class PaintBrushItem(QGraphicsItem):
 
         # Remove the existing pixel label already colored 
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.bounding_rect.toRect())
+        painter.drawPixmap(QRect(0, 0, self.size, self.size), self.overlay.labeling_overlay_pixmap, self.bounding_rect.toRect())
         
         painter.end()
     
     def _draw_brush_shape(self, painter, center_x, center_y):
-        """Draw different brush shapes based on brush_type"""
-        
+        """Draw different brush shapes based on brush_type.
+
+        `self._seed_x/_seed_y` must hold the dab center in image coordinates
+        (see the spray branch).
+        """
+        self._seed_x = center_x
+        self._seed_y = center_y
         if self.brush_type == "circle":
             # Original circular brush
             self.pen = QPen(self.color, self.size)
@@ -142,7 +161,11 @@ class PaintBrushItem(QGraphicsItem):
             # Spray/scatter brush (random dots)
             painter.setBrush(QBrush(self.color))
             painter.setPen(Qt.PenStyle.NoPen)
-            np.random.seed(int(center_x + center_y))  # Consistent randomness
+            # Seed from the dab's position in IMAGE coordinates, not in
+            # texture-local ones: the texture origin moves as the stroke
+            # grows, so a local seed made the same dab change pattern
+            # depending on how large the stroke already was.
+            np.random.seed(int(self._seed_x + self._seed_y))
             num_dots = max(10, self.size // 2)
             radius = self.size // 2
             for _ in range(num_dots):
@@ -171,52 +194,105 @@ class PaintBrushItem(QGraphicsItem):
             painter.setPen(self.pen)
             painter.drawPoint(center_x, center_y)
         
+    def _grow_texture(self, need_rect):
+        """Reallocate the texture so it covers need_rect, keeping what is drawn.
+
+        Only called when the stroke leaves the current texture, and the new
+        texture is padded so the next few moves do not reallocate again.
+        The texture is clamped to the image rect: that keeps the dab clipping
+        at the image border identical to re-allocating the exact union.
+        """
+        image_rect = self.core.get_current_image_item().image_qrectf
+        pad = self._GROW_PAD
+        x0 = min(self.tex_x, int(need_rect.x())) - pad
+        y0 = min(self.tex_y, int(need_rect.y())) - pad
+        x1 = max(self.tex_x + self.texture.width(),
+                 int(need_rect.right())) + pad
+        y1 = max(self.tex_y + self.texture.height(),
+                 int(need_rect.bottom())) + pad
+        # The texture is anchored on the raw brush corner, which can sit
+        # outside the image (a dab clipped by the image border), so it must
+        # not be clamped to the image rect.
+        new_texture = QPixmap(max(1, x1 - x0), max(1, y1 - y0))
+        new_texture.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(new_texture)
+        painter.drawPixmap(self.tex_x - x0, self.tex_y - y0, self.texture)
+        painter.end()
+        self.texture = new_texture
+        self.tex_x = x0
+        self.tex_y = y0
+
     def add_point(self, new_x, new_y):
-        # Compute the bounding rect of the new point 
+        # Compute the bounding rect of the new point
         new_position_x = int(new_x-(self.size/2))
         new_position_y = int(new_y-(self.size/2))
         new_bounding_rect = QRectF(new_position_x, new_position_y, self.size, self.size)
-        new_bounding_rect = new_bounding_rect.intersected(self.core.get_current_image_item().image_qrectf)
+        new_bounding_rect = new_bounding_rect.intersected(
+            self.core.get_current_image_item().image_qrectf)
+        if new_bounding_rect.isEmpty():
+            return
 
-        # Do the union of the two bounding rects 
+        # Do the union of the two bounding rects
         self.united_bounding_rect = self.bounding_rect.united(new_bounding_rect)
 
-        # Create a new texture 
-        new_texture = QPixmap(int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height()))
-        new_texture.fill(Qt.GlobalColor.transparent)
-        
-        # Add the new point in the texture  
-        painter = QPainter(new_texture)
-        
-        # Draw the new brush shape
-        local_x = int(new_position_x - self.united_bounding_rect.x() + (self.size/2))
-        local_y = int(new_position_y - self.united_bounding_rect.y() + (self.size/2))
+        # Grow the texture only when the stroke actually outgrows it.
+        if not (self.tex_x <= self.united_bounding_rect.x()
+                and self.tex_y <= self.united_bounding_rect.y()
+                and self.tex_x + self.texture.width()
+                >= self.united_bounding_rect.right()
+                and self.tex_y + self.texture.height()
+                >= self.united_bounding_rect.bottom()):
+            self._grow_texture(self.united_bounding_rect)
+
+        painter = QPainter(self.texture)
+        # Clip to the union so a dab at the image border is cut exactly
+        # where the previous implementation cut it.
+        painter.setClipRect(QRect(
+            int(self.united_bounding_rect.x() - self.tex_x),
+            int(self.united_bounding_rect.y() - self.tex_y),
+            int(self.united_bounding_rect.width()),
+            int(self.united_bounding_rect.height())))
+        local_x = int(new_position_x - self.tex_x + (self.size/2))
+        local_y = int(new_position_y - self.tex_y + (self.size/2))
+        # image-space center of this dab (for the spray brush's RNG seed)
+        self._seed_x = int(new_position_x + self.size / 2)
+        self._seed_y = int(new_position_y + self.size / 2)
         self._draw_brush_shape(painter, local_x, local_y)
-        
-        # Copy the old texture in the new texture 
-        painter.drawPixmap(int(self.bounding_rect.x()-self.united_bounding_rect.x()), int(self.bounding_rect.y()-self.united_bounding_rect.y()), self.texture)
-        
-        # Remove the existing pixel label already colored 
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOut)
-        painter.drawPixmap(QRect(0, 0, int(self.united_bounding_rect.width()), int(self.united_bounding_rect.height())), self.core.get_current_image_item().get_labeling_overlay().labeling_overlay_pixmap, self.united_bounding_rect.toRect())
-        
+
+        # Erase the already-colored pixels. The old implementation drew the
+        # new dab first, then the previous texture on top of it; with
+        # SourceOver and the same color the result is identical to drawing
+        # the dab on top, which is what happens here without a rebuild.
+        painter.setCompositionMode(
+            QPainter.CompositionMode.CompositionMode_DestinationOut)
+        painter.setClipRect(QRect(
+            int(self.united_bounding_rect.x() - self.tex_x),
+            int(self.united_bounding_rect.y() - self.tex_y),
+            int(self.united_bounding_rect.width()),
+            int(self.united_bounding_rect.height())))
+        painter.drawPixmap(
+            QRect(0, 0, self.texture.width(), self.texture.height()),
+            self.overlay.labeling_overlay_pixmap,
+            QRect(self.tex_x, self.tex_y,
+                  self.texture.width(), self.texture.height()))
         painter.end()
 
-        # Update the good variable for the painter 
-        self.texture = new_texture
+        # Update the good variable for the painter
         self.bounding_rect = self.united_bounding_rect
         self.position_x = int(self.bounding_rect.x())
         self.position_y = int(self.bounding_rect.y())
-        
+
     def boundingRect(self):
-        return self.bounding_rect
+        return QRectF(self.tex_x, self.tex_y,
+                      self.texture.width(), self.texture.height())
 
     def paint(self, painter, option, widget):
-        painter.setOpacity(self.core.get_current_image_item().get_labeling_overlay().get_opacity())
-        painter.drawPixmap(self.position_x, self.position_y, self.texture) 
-        
+        painter.setOpacity(self.overlay.get_opacity())
+        painter.drawPixmap(self.tex_x, self.tex_y, self.texture)
+
     def labeling_overlay_paint(self):
-        self.labeling_overlay_painter.drawPixmap(self.position_x, self.position_y, self.texture) 
+        self.labeling_overlay_painter.drawPixmap(
+            self.tex_x, self.tex_y, self.texture)
 
 
 class PaintBrush(Core):
@@ -250,19 +326,51 @@ class PaintBrush(Core):
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
         self.drawn_points = [(self.current_position_x, self.current_position_y)]
 
+    def _dab_step(self):
+        """Spacing between dabs when interpolating along a fast drag.
+
+        Dabs only need to overlap, so this scales with the brush: a quarter
+        of the diameter gives 75% overlap, which looks solid, instead of the
+        fixed 2 px spacing that used to emit hundreds of dabs for a single
+        long fast stroke.
+        """
+        return max(self.point_spacing,
+                   max(1.0, self.size_paint_brush * self._DAB_OVERLAP_RATIO))
+
+    # fraction of the brush diameter between two interpolated dabs
+    _DAB_OVERLAP_RATIO = 1.0 / 6.0
+
     def move_paint_brush(self, current_position):
         self.current_position_x = int(current_position.x())
         self.current_position_y = int(current_position.y())
 
-        if Utils.compute_diagonal(self.current_position_x, self.current_position_y, 
-                                   self.last_position_x, self.last_position_y) < self.point_spacing:
-            return 
-        
-        self.drawn_points.append((self.current_position_x, self.current_position_y))
-        self.paint_brush_item.add_point(self.current_position_x, self.current_position_y)
+        dx = self.current_position_x - self.last_position_x
+        dy = self.current_position_y - self.last_position_y
+        distance = (dx * dx + dy * dy) ** 0.5
+        step = self._dab_step()
+        if distance < step:
+            return
+
+        # A fast drag makes Qt report positions far apart: one dab per event
+        # then leaves gaps (the brush is only `size` px wide, so any step
+        # above that breaks the line into beads). Walk the segment and drop
+        # overlapping dabs so the whole passage is covered.
+        steps = int(distance // step)
+        for i in range(1, steps + 1):
+            t = i * step / distance
+            x = int(round(self.last_position_x + dx * t))
+            y = int(round(self.last_position_y + dy * t))
+            self.paint_brush_item.add_point(x, y)
+            self.drawn_points.append((x, y))
+        # the real event position, in case the last step overshot it
+        self.paint_brush_item.add_point(self.current_position_x,
+                                        self.current_position_y)
+        self.drawn_points.append((self.current_position_x,
+                                  self.current_position_y))
         self.paint_brush_item.update()
-        
-        self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
+
+        self.last_position_x, self.last_position_y = (self.current_position_x,
+                                                      self.current_position_y)
 
     def _is_shape_closed(self, points, tolerance=10):
         """Return True if the drawn path forms a closed loop."""
@@ -293,7 +401,23 @@ class PaintBrush(Core):
         
         self.get_current_image_item().update_labeling_overlay()
 
-    def end_paint_brush(self):  
+    def end_paint_brush(self, release_position=None):
+        # A fast stroke ends between two mouse-move events, so the release
+        # point can be well past the last one we saw: interpolate that last
+        # segment too, otherwise the stroke is cut short.
+        if release_position is not None:
+            class _P:
+                def __init__(self, x, y):
+                    self._x, self._y = x, y
+
+                def x(self):
+                    return self._x
+
+                def y(self):
+                    return self._y
+            self.move_paint_brush(
+                _P(release_position.x(), release_position.y()))
+
         # Paint the good pixmap 
         self.paint_brush_item.labeling_overlay_paint()
 

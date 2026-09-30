@@ -21,57 +21,132 @@ KEYWORD_SAVE_LABEL = ".label."
 
 class CompactUndoEntry:
     """
-    Stores pixmap in a memory-efficient way:
-    1. Only stores non-transparent pixels
-    2. Stores positions + colors instead of full grid
+    Stores a pixmap for the undo stack, in whichever of three forms is
+    cheapest for the moment:
+
+    - pending: a plain copy of the pixmap. Taken in one memcpy on every
+      commit, because it is the only form cheap enough to run inside a
+      brush stroke.
+    - sparse: only the non-transparent pixels, as (y, x, ARGB), 8 B per
+      painted pixel. Wins on lightly annotated images.
+    - dense: the ARGB32 image, 4 B per pixel. Cheaper AND smaller than the
+      sparse form once the image is more than half painted.
+
+    A pending entry is compacted later (see LabelingOverlay.compact_undo),
+    when the user is idle, so the expensive full-image scan never sits in
+    the middle of a stroke. Without that, the scan made every stroke slower
+    as the annotation grew: ~4 ms on a fresh image, ~20 ms once full.
     """
-    
-    def __init__(self, pixmap):
-        """Convert pixmap to compact representation"""
+
+    # sparse costs 8 B/painted px, dense costs 4 B/px: break even at 50 %
+    _SPARSE_MAX_DENSITY = 0.5
+
+    def __init__(self, pixmap, compact=True):
+        """Store pixmap. With compact=False, keep a cheap copy to compact later."""
+        self.sparse = False
+        self.y_coords = None
+        self.x_coords = None
+        self.colors = None
+        self._image = None
+        self._pending_pixmap = None
+        self.width = pixmap.width()
+        self.height = pixmap.height()
+
+        if not compact:
+            self._pending_pixmap = pixmap.copy()
+            return
+
+        self._compact_from(pixmap)
+
+    def _compact_from(self, pixmap):
         image = pixmap.toImage()
 
         if image.isNull():
             # fallback: create an empty 1x1 transparent image
             image = QImage(1, 1, QImage.Format.Format_ARGB32)
             image.fill(Qt.GlobalColor.transparent)
-            
+
         image = image.convertToFormat(QImage.Format.Format_ARGB32)
-        
+
         width = image.width()
         height = image.height()
-        
+        self.width = width
+        self.height = height
+
         # Extract pixel data
         ptr = image.bits()
         ptr.setsize(image.sizeInBytes())
-        
+
         # Convert to numpy for efficient processing
         arr = np.frombuffer(ptr.asarray(), dtype=np.uint8).reshape((height, width, 4))
-        
+
         # Find non-transparent pixels (alpha > 0)
         alpha_channel = arr[:, :, 3]
-        non_transparent = np.where(alpha_channel > 0)
-        
-        if len(non_transparent[0]) > 0:
-            # Store only non-transparent pixel positions and colors
-            self.y_coords = non_transparent[0].astype(np.uint16)  # Use uint16 to save memory
-            self.x_coords = non_transparent[1].astype(np.uint16)
-            self.colors = arr[non_transparent].astype(np.uint8)  # ARGB values
-            self.width = width
-            self.height = height
-        else:
+        n_painted = int(np.count_nonzero(alpha_channel))
+
+        if n_painted == 0:
             # Empty image
-            self.y_coords = None
-            self.x_coords = None
-            self.colors = None
-            self.width = width
-            self.height = height
-    
+            self._image = image.copy()
+            return
+
+        if n_painted <= self._SPARSE_MAX_DENSITY * width * height:
+            self.sparse = True
+            ys, xs = np.nonzero(alpha_channel > 0)
+            # Store only non-transparent pixel positions and colors
+            self.y_coords = ys.astype(np.uint16)  # Use uint16 to save memory
+            self.x_coords = xs.astype(np.uint16)
+            self.colors = arr[ys, xs].astype(np.uint8)  # ARGB values
+        else:
+            # Dense: cheaper to keep the image than the coordinate list
+            self._image = image.copy()
+
+    def is_pending(self):
+        return self._pending_pixmap is not None
+
+    def compact(self):
+        """Turn a pending entry into its compact form. Safe to call twice."""
+        if self._pending_pixmap is not None:
+            pixmap = self._pending_pixmap
+            self._pending_pixmap = None
+            self._compact_from(pixmap)
+
+    def has_painted_pixels(self):
+        """True if this entry holds at least one non-transparent pixel."""
+        if self._pending_pixmap is not None:
+            image = self._pending_pixmap.toImage()
+            alpha = image.convertToFormat(
+                image.Format.Format_ARGB32)
+            ptr = alpha.bits()
+            ptr.setsize(alpha.sizeInBytes())
+            arr = np.frombuffer(ptr, np.uint8).reshape(
+                (alpha.height(), alpha.width(), 4))
+            return bool(np.count_nonzero(arr[:, :, 3]))
+        if not self.sparse:
+            if self._image is None:
+                return False
+            ptr = self._image.bits()
+            ptr.setsize(self._image.sizeInBytes())
+            arr = np.frombuffer(ptr, np.uint8).reshape(
+                (self.height, self.width, 4))
+            return bool(np.count_nonzero(arr[:, :, 3]))
+        return self.y_coords is not None and len(self.y_coords) > 0
+
     def to_pixmap(self):
-        """Reconstruct pixmap from compact representation"""
+        """Reconstruct pixmap from its stored representation"""
+        if self._pending_pixmap is not None:
+            return self._pending_pixmap.copy()
+
+        if not self.sparse:
+            if self._image is None:
+                pixmap = QPixmap(self.width, self.height)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                return pixmap
+            return QPixmap.fromImage(self._image)
+
         # Create empty pixmap
         pixmap = QPixmap(self.width, self.height)
         pixmap.fill(Qt.GlobalColor.transparent)
-        
+
         if self.y_coords is None:
             return pixmap
         
@@ -130,24 +205,33 @@ class LabelingOverlay():
                 color_list = info.get("color")
                 color = QColor(*color_list[:3]) if isinstance(color_list, list) else QColor(255, 0, 0)
 
-                print("color:", color)
                 label_pixmap = QPixmap(from_file)
-                image = label_pixmap.toImage()
-                image = image.convertToFormat(QImage.Format.Format_ARGB32)
-                
-                # Create a mask for non-black pixels and fill with color
-                mask = image.createMaskFromColor(QColor(0, 0, 0).rgb(), Qt.MaskMode.MaskOutColor)
-                image.fill(color)
-                image.setAlphaChannel(mask)
-                
-                label_pixmap = QPixmap.fromImage(image)
-                self.labeling_overlay_pixmap = label_pixmap
+                if label_pixmap.isNull():
+                    # The registered label file no longer exists (deleted
+                    # while the folder was open, then reloaded). QPixmap()
+                    # returns a null pixmap, which used to REPLACE the
+                    # working overlay: every stroke drawn on that image was
+                    # then silently dropped.
+                    self.labeling_overlay_pixmap.fill(
+                        Qt.GlobalColor.transparent)
+                else:
+                    image = label_pixmap.toImage()
+                    image = image.convertToFormat(QImage.Format.Format_ARGB32)
+
+                    # Create a mask for non-black pixels and fill with color
+                    mask = image.createMaskFromColor(
+                        QColor(0, 0, 0).rgb(), Qt.MaskMode.MaskOutColor)
+                    image.fill(color)
+                    image.setAlphaChannel(mask)
+
+                    self.labeling_overlay_pixmap = QPixmap.fromImage(image)
 
         self.labeling_overlay_item = None
 
         # Initialize the deque for the `undo` feature
+        self._undo_compact_timer = None
         self.undo_deque = deque(maxlen=self.memory_depth)
-        self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap)) 
+        self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
         
         # Initialize the associated QPainter
         self.labeling_overlay_painter = QPainter(self.labeling_overlay_pixmap)      
@@ -194,7 +278,9 @@ class LabelingOverlay():
     def reset(self):
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         if self.is_displayed_in_scene is True:
-            self.labeling_overlay_item.setPixmap(self.labeling_overlay_pixmap)
+            if self.labeling_overlay_item is not None:
+                self.labeling_overlay_item.setPixmap(
+                    self.labeling_overlay_pixmap)
         
         # CHANGED: Store CompactUndoEntry of first pixmap
         first_labeling_overlay_pixmap = self.undo_deque[0].to_pixmap() if len(self.undo_deque) > 0 else self.labeling_overlay_pixmap
@@ -249,12 +335,15 @@ class LabelingOverlay():
 
         if len(self.undo_deque) == 0:
             # Store CompactUndoEntry
-            self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
+            self.undo_deque.append(
+                CompactUndoEntry(self.labeling_overlay_pixmap, compact=False))
             self.set_is_undo_none(True)
             self.image_item.update_icon_file()
 
-        # Update display
-        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
+        # Update display (skip when never displayed, e.g. background batch)
+        if self.labeling_overlay_item is not None:
+            self.labeling_overlay_item.setPixmap(
+                self.generate_opacity_pixmap())
         self.labeling_overlay_painter.begin(self.labeling_overlay_pixmap)
         self.reset_pen()
     
@@ -333,18 +422,82 @@ class LabelingOverlay():
         if self.get_is_undo_none() is True:
             self.set_is_undo_none(False)
         
-        # Change and update the QPixmap 
-        self.labeling_overlay_item.setPixmap(self.generate_opacity_pixmap())
+        # Change and update the QPixmap
+        # (item is None when the image was loaded in background and never
+        # displayed — e.g. batch propagation: data update still applies,
+        # only the scene refresh is skipped)
+        if self.labeling_overlay_item is not None:
+            self.labeling_overlay_item.setPixmap(
+                self.generate_opacity_pixmap())
         
-        # For the `undo` feature, if we have a previous, add it in the deque 
+        # For the `undo` feature, if we have a previous, add it in the deque.
+        # The entry is stored as a plain copy here (one memcpy) and compacted
+        # later by compact_undo(): encoding it now costs 4-20 ms depending on
+        # how much is painted, which is what used to make a long painting
+        # session stutter more and more.
         if self.previous_labeling_overlay_pixmap is not None:
-            self.undo_deque.append(CompactUndoEntry(self.previous_labeling_overlay_pixmap))
+            self.undo_deque.append(
+                CompactUndoEntry(self.previous_labeling_overlay_pixmap,
+                                 compact=False))
 
         # Create a copy to keep it in the previous pixmap variable
         self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
 
+        self._schedule_undo_compaction()
+
         if self.image_item is not None:
             self.image_item.update_icon_file()
+
+    def pending_undo_entries(self):
+        """Number of undo entries still stored as plain copies."""
+        return sum(1 for e in self.undo_deque if e.is_pending())
+
+    def compact_undo(self, max_entries=1):
+        """Compact up to max_entries pending undo entries (oldest first).
+
+        Called from an idle timer so the memory win happens without costing
+        the user a stutter mid-stroke. Returns the number left pending.
+        """
+        done = 0
+        for entry in self.undo_deque:
+            if done >= max_entries:
+                break
+            if entry.is_pending():
+                entry.compact()
+                done += 1
+        return self.pending_undo_entries()
+
+    def _schedule_undo_compaction(self):
+        """Compact pending undo entries once the user stops painting."""
+        if self._undo_compact_timer is not None:
+            return
+        try:
+            from PyQt6.QtCore import QTimer
+            timer = QTimer()
+            timer.setSingleShot(True)
+            timer.setInterval(400)
+            timer.timeout.connect(self._on_compact_undo_timeout)
+            self._undo_compact_timer = timer
+            timer.start()
+        except Exception:
+            self._undo_compact_timer = None
+
+    def _on_compact_undo_timeout(self):
+        """Compact one pending entry per idle tick, newest ones last."""
+        try:
+            remaining = self.compact_undo(max_entries=1)
+            if remaining:
+                self._undo_compact_timer.start()
+        except Exception:
+            pass
+        finally:
+            if getattr(self, "_undo_compact_timer", None) is None:
+                return
+            if self.pending_undo_entries() == 0:
+                try:
+                    self._undo_compact_timer.stop()
+                except Exception:
+                    pass
 
     #def get_color(self):
     #     return self.color
@@ -372,7 +525,6 @@ class LabelingOverlay():
 
     def set_zvalue(self, zvalue):
         self.zvalue = zvalue
-        print("esss:", zvalue)
         self.labeling_overlay_item.setZValue(self.zvalue)
 
     def reset_pen(self):
@@ -514,8 +666,6 @@ class ImageItem():
         # Update the labeling overlays
         for label_id in self.labeling_overlays:
             self.labeling_overlays[label_id].update_scene()
-        
-        print("update scene")
 
     def clear_scene(self):
         self.is_displayed_in_scene = False
@@ -539,12 +689,9 @@ class ImageItem():
     def update_labeling_overlays(self, label_items, selected_label_id):
         # Ensure all existing labels have an overlay
         for label_id in label_items:
-            print("label_id:", label_id)
             if label_id not in self.labeling_overlays:
                 basename_key = ".".join(os.path.basename(self.path_image).split(".")[:-1])+KEYWORD_SAVE_LABEL+str(label_id)+".png"
-                print("basename_key:", basename_key)
                 if basename_key in self.labeling_overview_was_loaded and self.labeling_overview_was_loaded[basename_key] is False:
-                    print("We have to load this labeling overlay")
                     self.labeling_overlays[label_id] = LabelingOverlay(
                         label_items[label_id],
                         self.view.zoomable_graphics_view.scene,
@@ -555,7 +702,6 @@ class ImageItem():
                     )
                     self.labeling_overview_was_loaded[basename_key] = True
                 else:
-                    print("We have not to load this labeling overlay")
                     self.labeling_overlays[label_id] = LabelingOverlay(
                         label_items[label_id],
                         self.view.zoomable_graphics_view.scene,
@@ -575,7 +721,6 @@ class ImageItem():
                 self.labeling_overlays[label_id].set_zvalue(2)
         # Force the visibility 
         # self.current_labeling_overlay.labeling_overlay_item.setVisible(True)
-        # print("update_labeling_overlays end")
         
        
 
@@ -612,7 +757,7 @@ class ImageItem():
             return True
         # Fallback: check if the single deque entry has pixels (e.g. loaded from file)
         if len(overlay.undo_deque) == 1:
-            return overlay.undo_deque[0].y_coords is not None and len(overlay.undo_deque[0].y_coords) > 0
+            return overlay.undo_deque[0].has_painted_pixels()
         return False
 
     def update_icon_file(self):
@@ -640,6 +785,13 @@ class ImageItem():
     def update_labeling_overlay(self):
         self.current_labeling_overlay.update()
         self.update_icon_file()
+        # paint mask changed: the cached counts and the "is it painted?"
+        # scan for this image are now stale
+        try:
+            self.view.controller.ml_invalidate_stats_cache(self.path_image)
+            self.view.controller.ml_invalidate_painted_cache(self.path_image)
+        except AttributeError:
+            pass
     
     # # Put at the foreground the current labeling overlay 
     # def foreground_current_labeling_overlay(self):        
@@ -813,16 +965,17 @@ class Core():
     def reset(self):
         
         for file in self.file_paths:
-            if self.image_items[file] is not None:
+            image_item = self.image_items.get(file)
+            if image_item is not None:
                 to_delete = []
-                for labeling_overlay_key in self.image_items[file].labeling_overlays:
-                    self.image_items[file].labeling_overlays[labeling_overlay_key].reset()
-                    self.image_items[file].labeling_overlays[labeling_overlay_key].remove()
+                for labeling_overlay_key in image_item.labeling_overlays:
+                    image_item.labeling_overlays[labeling_overlay_key].reset()
+                    image_item.labeling_overlays[labeling_overlay_key].remove()
                     to_delete.append(labeling_overlay_key)
                     self.update_icon_file()
                 
                 for labeling_overlay_key in to_delete:
-                    del self.image_items[file].labeling_overlays[labeling_overlay_key]
+                    del image_item.labeling_overlays[labeling_overlay_key]
                     self.update_icon_file()
 
         if hasattr(self, 'autosave_timer'):
@@ -833,7 +986,8 @@ class Core():
         
     def get_edited(self):
         for file in self.file_paths:
-            if self.image_items[file] is not None and self.image_items[file].get_edited() is True:
+            image_item = self.image_items.get(file)
+            if image_item is not None and image_item.get_edited() is True:
                 return True
         return False
     
@@ -873,12 +1027,13 @@ class Core():
 
     def set_opacity(self, opacity):
         for file in self.file_paths:
-            if self.image_items[file] is not None:
-                self.image_items[file].set_opacity(opacity)
+            image_item = self.image_items.get(file)
+            if image_item is not None:
+                image_item.set_opacity(opacity)
 
     def update_icon_file(self):
         for file in self.file_paths:
-            image_item = self.image_items[file] 
+            image_item = self.image_items.get(file) 
             icons = self.icon_button_files.get(file)
             if icons is None:
                 continue
@@ -892,7 +1047,7 @@ class Core():
     def update_thickness(self, new_thickness):
         # Update thickness in stored data for all images
         for file in self.file_paths:
-            image_item = self.image_items[file]
+            image_item = self.image_items.get(file)
             if image_item is not None:
                 # Update thickness in stored data
                 for rect_data in image_item.image_rectangles:
@@ -921,7 +1076,7 @@ class Core():
 
     def update_color(self, label_id):
         for file in self.file_paths:
-            image_item = self.image_items[file] 
+            image_item = self.image_items.get(file) 
             if image_item is not None:
                 image_item.update_color(label_id)
                 self.update_geometric_colors_in_scene(label_id)
@@ -960,7 +1115,6 @@ class Core():
     def save_labels(self, current_file_path):
         # Get the dictionnary of labels
         labels_dict = {}
-        print("current_file_path:",current_file_path)
         for label_id, label_item in self.label_items.items():
             labels_dict[label_id] = label_item.to_dict()
 
@@ -971,7 +1125,7 @@ class Core():
 
     def save_overlays(self, current_file_path, reset_edited=True):
         for file in self.file_paths:
-            image_item = self.image_items[file] 
+            image_item = self.image_items.get(file) 
             if image_item is not None:
                 if image_item.get_edited():
                     image_item.save_overlays(current_file_path, reset_edited)
@@ -1224,7 +1378,6 @@ class Core():
 
     def load_labels_images(self, label_file_path):
         basename = os.path.basename(label_file_path)
-        print("basename:", basename)
         if label_file_path not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
@@ -1244,30 +1397,27 @@ class Core():
         return label
 
     def update_labeling_overlays(self, selected_label_id):
-        print("update_labeling_overlays")
         for file in self.file_paths:
-            if self.image_items[file] is not None:
-                print("for file:", file)
-                self.image_items[file].update_labeling_overlays(self.label_items, selected_label_id)
-        
+            image_item = self.image_items.get(file)
+            if image_item is not None:
+                image_item.update_labeling_overlays(self.label_items, selected_label_id)
         self.current_label_item = self.label_items[selected_label_id]
         if self.current_image_item is not None:
             self.current_image_item.update_scene()
             self.current_image_item.foreground_current_labeling_overlay()
 
     def select_image(self, path_image):
-        print("select_image")
         if self.checked_button == "contour_filling":
             self.remove_contour()
 
         self.zoomable_graphics_view.scene.clear()
         self.zoomable_graphics_view.resetTransform()
         for file in self.file_paths:
-            if self.image_items[file] is not None:
-                self.image_items[file].clear_scene()
+            image_item = self.image_items.get(file)
+            if image_item is not None:
+                image_item.clear_scene()
 
-        if self.image_items[path_image] is None:
-            print("select_image new")
+        if self.image_items.get(path_image) is None:
             # We have to load image and theses labels
             self.image_items[path_image] = ImageItem(self.view, 
                                                      self.controller, 
@@ -1286,7 +1436,6 @@ class Core():
                     self.current_label_item.get_label_id())
             
         else:
-            print("select_image already exists")
             # Image and these labels are already loaded, display it 
             self.image_items[path_image].update_scene()
             self.current_image_item = self.image_items[path_image]

@@ -82,44 +82,83 @@ class Utils:
 
     
     @staticmethod
+    def _write_json_atomic(path, data):
+        """Write JSON without ever leaving a truncated file behind.
+
+        Opening the target with 'w' empties it first, so a crash (or a
+        json.dump error) between that and the flush left a 0-byte
+        parameters.json, which then made the app fail to start.
+        """
+        tmp_path = path + ".tmp"
+        with open(tmp_path, 'w', encoding='utf-8') as fp:
+            json.dump(data, fp, indent=4)
+            fp.flush()
+            os.fsync(fp.fileno())
+        os.replace(tmp_path, path)
+
+    @staticmethod
     def save_parameters(data):
         param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
-        with open(param_path, 'w', encoding='utf-8') as fp:
-            json.dump(data, fp, indent=4)
-            
+        Utils._write_json_atomic(param_path, data)
+
     @staticmethod
     def load_parameters():
         default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
         param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
 
+        if not os.path.exists(default_param_path):
+            raise FileNotFoundError(f"Default parameters not found at {default_param_path}")
+
         # If parameters.json does not exist, copy from default
         if not os.path.exists(param_path):
-            if not os.path.exists(default_param_path):
-                raise FileNotFoundError(f"Default parameters not found at {default_param_path}")
             shutil.copyfile(default_param_path, param_path)
 
         # Load both files
         with open(default_param_path, 'r', encoding='utf-8') as default_file:
             default_data = json.load(default_file)
-        with open(param_path, 'r', encoding='utf-8') as param_file:
-            user_data = json.load(param_file)
 
-        # Recursively update missing keys in user_data from default_data
+        user_data = None
+        try:
+            with open(param_path, 'r', encoding='utf-8') as param_file:
+                user_data = json.load(param_file)
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
+            # A corrupt/truncated parameters.json must not make the app
+            # unbootable: keep it aside and start from the defaults.
+            print(f"[Utils] parameters.json unreadable ({e}); "
+                  f"falling back to defaults")
+            try:
+                os.replace(param_path, param_path + ".corrupt")
+            except OSError:
+                pass
+            user_data = {}
+
+        if not isinstance(user_data, dict):
+            user_data = {}
+
+        # Recursively update missing keys in user_data from default_data.
+        # The user's values must win: default_data is only the fallback.
         def update_missing_keys(default, user):
+            changed = False
             for key, value in default.items():
                 if key not in user:
                     user[key] = value
+                    changed = True
                 elif isinstance(value, dict) and isinstance(user[key], dict):
-                    update_missing_keys(value, user[key])
-            return user
+                    changed = update_missing_keys(value, user[key]) or changed
+            return changed
 
-        updated_data = update_missing_keys(default_data, user_data)
+        changed = update_missing_keys(default_data, user_data)
 
-        # Save the updated data back to parameters.json
-        with open(param_path, 'w', encoding='utf-8') as fp:
-            json.dump(updated_data, fp, indent=4)
+        # Only write when the merge really added something: load_parameters()
+        # is called on every brush stroke, and rewriting the file each time
+        # both wore the disk and widened the corruption window.
+        if changed:
+            try:
+                Utils._write_json_atomic(param_path, user_data)
+            except OSError as e:
+                print(f"[Utils] could not save parameters.json: {e}")
 
-        return updated_data
+        return user_data
 
     @staticmethod
     def color_to_stylesheet(color):

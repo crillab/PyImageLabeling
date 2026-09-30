@@ -12,6 +12,12 @@ __version__ = Utils.get_version()
 __python_version__ = str(sys.version).split(os.linesep)[0].split(' ')[0]
 __location__ = os.sep.join(PyImageLabeling.__file__.split(os.sep)[:-1])
 
+try:
+    from PyImageLabeling.model.SAM.debug_log import install_excepthook
+    install_excepthook()
+except Exception:
+    pass
+
 def __main__():
     config = Utils.get_config()
     app = QApplication(sys.argv)

@@ -393,9 +393,9 @@ class LabelSetting(QDialog):
         Pixels whose value is in *index_values* become white (255); all others black (0).
         Handles trimaps (e.g. [1]) and multi-value selections (e.g. [1, 2]).
         """
-        arr = np.array(Image.open(file_path).convert("L"))
-        mask = np.isin(arr, index_values).astype(np.uint8) * 255
-        return Image.fromarray(mask, mode="L")
+        from PyImageLabeling.model.File.MaskImport import (
+            indexed_to_binary)
+        return indexed_to_binary(file_path, index_values)
 
     @staticmethod
     def _rgb_to_binary(file_path, color):
@@ -403,10 +403,8 @@ class LabelSetting(QDialog):
         RGB colour mask → binary mask.
         Pixels whose colour matches *color* (a QColor) become white (255); rest black (0).
         """
-        arr  = np.array(Image.open(file_path).convert("RGB"))
-        target = np.array([color.red(), color.green(), color.blue()], dtype=np.uint8)
-        mask = (np.all(arr == target, axis=2).astype(np.uint8)) * 255
-        return Image.fromarray(mask, mode="L")
+        from PyImageLabeling.model.File.MaskImport import rgb_to_binary
+        return rgb_to_binary(file_path, color)
 
     # ------------------------------------------------------------------
 
@@ -478,8 +476,14 @@ class LabelSetting(QDialog):
                     mask.save(dest_file_path)
 
                 else:
-                    print(f"[import] Binary mask '{filename}': copied as-is")
-                    shutil.copy2(source_file_path, dest_file_path)
+                    from PyImageLabeling.model.File.MaskImport import (
+                        normalize_binary_mask)
+                    mask = normalize_binary_mask(source_file_path)
+                    if not np.any(np.array(mask)):
+                        continue
+                    print(f"[import] Binary mask '{filename}': "
+                          f"non-zero → white")
+                    mask.save(dest_file_path)
 
                 self.importdata = True
 

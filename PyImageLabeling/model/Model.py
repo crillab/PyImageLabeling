@@ -23,9 +23,11 @@ from PyImageLabeling.model.Image.ResetMoveZoomImage import ResetMoveZoomImage
 
 from PyImageLabeling.model.ML.MLPredictor import MLPredictor
 from PyImageLabeling.model.ML.DataManager import DataManager
+from PyImageLabeling.model.SAM.SAM2Assistant import SAM2Assistant
+from PyImageLabeling.model.SAM.SamTextAssist import SamTextAssist
 
 
-class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ChangeLabel, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, MLPredictor, DataManager):
+class Model(Files, NextImage, PreviousImage, ClearAll, Eraser, Undo, ChangeLabel, ContourFilling, MagicPen, PaintBrush, Polygon, Rectangle, Ellipse, MoveImage, ZoomMinus, ZoomPlus, ResetMoveZoomImage, MLPredictor, DataManager, SAM2Assistant, SamTextAssist):
     def __init__(self, view, controller, config):
         super().__init__()
         self.config = config

@@ -52,6 +52,8 @@ class eventEater(QObject):
                 self.model.start_polygon_tool(event.scenePos())
             elif self.model.checked_button == "ellipse":
                 self.model.start_ellipse_tool(event.scenePos())
+            elif self.model.checked_button == "sam_assist":
+                self.model.sam_start_box(event.scenePos())
 
         elif event.type() == QEvent.Type.GraphicsSceneMouseMove and event.buttons() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
@@ -66,10 +68,12 @@ class eventEater(QObject):
                 self.model.move_polygon_tool(event.scenePos())
             elif self.model.checked_button == "ellipse":
                 self.model.move_ellipse_tool(event.scenePos())
+            elif self.model.checked_button == "sam_assist":
+                self.model.sam_move_box(event.scenePos())
                 
         elif event.type() == QEvent.Type.GraphicsSceneMouseRelease and event.button() == Qt.MouseButton.LeftButton: 
             if self.model.checked_button == "paint_brush":
-                self.model.end_paint_brush()
+                self.model.end_paint_brush(event.scenePos())
             elif self.model.checked_button == "move_image":
                 self.model.end_move_tool()
             elif self.model.checked_button == "contour_filling":
@@ -83,10 +87,24 @@ class eventEater(QObject):
                 self.model.end_rectangle_tool()
             elif self.model.checked_button == "ellipse":
                 self.model.end_ellipse_tool()
+            elif self.model.checked_button == "sam_assist":
+                was_box = self.model.sam_end_box(event.scenePos())
+                if not was_box:
+                    mods = event.modifiers() if hasattr(event, "modifiers") else None
+                    neg = False
+                    try:
+                        neg = bool(mods & (Qt.KeyboardModifier.ShiftModifier
+                                           | Qt.KeyboardModifier.ControlModifier))
+                    except Exception:
+                        pass
+                    self.model.start_sam_assist(event.scenePos(), is_negative=neg)
 
         elif event.type() == QEvent.Type.GraphicsSceneMousePress and event.button() == Qt.MouseButton.RightButton:
         #elif event.type() == QEvent.Type.KeyPress:
             #if event.key() == Qt.Key.Key_Delete:
+            if self.model.checked_button == "sam_assist":
+                self.model.start_sam_assist(event.scenePos(), is_negative=True)
+                return True
             if self.model.checked_button == "rectangle":
                 self.model.clear_rectangle()
             if self.model.checked_button == "polygon":

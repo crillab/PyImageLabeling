@@ -26,7 +26,6 @@ class FileEvents(Events):
         
         self.move_image() # we active the move button :) 
         self.model.update_icon_file()
-        print("load")
 
 
     def save(self):
@@ -38,34 +37,20 @@ class FileEvents(Events):
 
 
     def select_image(self, item):
-        print("item:", item)
-        
-        #filename = item.filename
         self.model.select_image(item.file_path)
-        
+
         if self.model.get_current_label_item() is not None:
             self.model.update_labeling_overlays(self.model.get_current_label_item().get_label_id())
 
-        self.view.file_bar_list.setCurrentItem(item)
+        # avoid re-entrant selection signals (we may already be inside an
+        # itemSelectionChanged emission from the file bar)
+        try:
+            if self.view.file_bar_list.currentItem() is not item:
+                self.view.file_bar_list.setCurrentItem(item)
+        except Exception:
+            pass
         self.model.update_icon_file()
-        
-        # item_widget = self.view.file_bar_list.itemWidget(item)
-        # if item_widget:
-        #     file_label = item_widget.findChild(QLabel)
-        #     if file_label:
-        #         filename = file_label.text()
-        #         matching_path = None
-        #         for path in self.model.loaded_image_paths:
-        #             if os.path.basename(path) == filename:
-        #                 matching_path = path
-        #                 break
-        #         if matching_path:
-        #             self.model.load_image(matching_path)
-        #             self.view.file_bar_list.setCurrentItem(item)
-        #             print(f"Loaded image: {filename}")
-        #         else:
-        #             print(f"Error: Could not find path for {filename}")
-    
+
     def next_image(self):
         self.all_events(self.next_image.__name__)
         self.model.next_image()
