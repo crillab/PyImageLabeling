@@ -230,6 +230,9 @@ class LabelingOverlay():
 
         # Initialize the deque for the `undo` feature
         self._undo_compact_timer = None
+        # Set by reset(): the bottom entry is the pre-clear snapshot, to be
+        # dropped on the first refresh after the clear (see update()).
+        self._clear_barrier = False
         self.undo_deque = deque(maxlen=self.memory_depth)
         self.undo_deque.append(CompactUndoEntry(self.labeling_overlay_pixmap))
         
@@ -276,25 +279,39 @@ class LabelingOverlay():
     #        self.labeling_overlay_item.setVisible(True)
 
     def reset(self):
+        # Snapshot BEFORE clearing: an undo right after Clear All must
+        # restore exactly what was just cleared (not deque[0], which can be
+        # arbitrarily older content).
+        try:
+            pre_clear = CompactUndoEntry(self.labeling_overlay_pixmap,
+                                         compact=False)
+        except Exception:
+            pre_clear = None
+
         self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         if self.is_displayed_in_scene is True:
             if self.labeling_overlay_item is not None:
                 self.labeling_overlay_item.setPixmap(
                     self.labeling_overlay_pixmap)
-        
-        # CHANGED: Store CompactUndoEntry of first pixmap
-        first_labeling_overlay_pixmap = self.undo_deque[0].to_pixmap() if len(self.undo_deque) > 0 else self.labeling_overlay_pixmap
-        self.undo_deque.clear()
-        self.undo_deque.append(CompactUndoEntry(first_labeling_overlay_pixmap))
 
-        self.previous_labeling_overlay_pixmap = None
-        
+        self.undo_deque.clear()
+        if pre_clear is not None:
+            self.undo_deque.append(pre_clear)
+
+        # Baseline for what comes next is the empty mask. The pre-clear
+        # snapshot above stays reachable ONLY until the first refresh: once
+        # the user paints something new, undos must stop at empty instead
+        # of walking back past the clear (see update()).
+        self.previous_labeling_overlay_pixmap = \
+            self.labeling_overlay_pixmap.copy()
+        self._clear_barrier = True
+
         if self.get_is_edited() is False:
             self.set_is_edited(True)
-        
+
         if self.get_is_undo_none() is False:
             self.set_is_undo_none(True)
-        
+
         self.image_item.update_icon_file()
         
     def recreate_painter(self):
@@ -327,11 +344,14 @@ class LabelingOverlay():
     def undo(self):
         if len(self.undo_deque) > 0:
             self.labeling_overlay_painter.end()
-            
+
             # Reconstruct from CompactUndoEntry
             compact_entry = self.undo_deque.pop()
             self.labeling_overlay_pixmap = compact_entry.to_pixmap()
             self.previous_labeling_overlay_pixmap = self.labeling_overlay_pixmap.copy()
+            # If this consumed the pre-clear snapshot, the barrier is lifted:
+            # history continues from the restored content.
+            self._clear_barrier = False
 
         if len(self.undo_deque) == 0:
             # Store CompactUndoEntry
@@ -435,6 +455,17 @@ class LabelingOverlay():
         # later by compact_undo(): encoding it now costs 4-20 ms depending on
         # how much is painted, which is what used to make a long painting
         # session stutter more and more.
+        if getattr(self, "_clear_barrier", False):
+            # First refresh after a Clear All: the pre-clear snapshot has
+            # served its purpose (an immediate undo still restores it, see
+            # undo()). Drop it now, so later undos stop at the empty mask
+            # instead of walking back past the clear.
+            self._clear_barrier = False
+            if len(self.undo_deque) > 0:
+                try:
+                    self.undo_deque.popleft()
+                except IndexError:
+                    pass
         if self.previous_labeling_overlay_pixmap is not None:
             self.undo_deque.append(
                 CompactUndoEntry(self.previous_labeling_overlay_pixmap,
@@ -990,6 +1021,34 @@ class Core():
             if image_item is not None and image_item.get_edited() is True:
                 return True
         return False
+
+    def resize_all_undo_deques(self, new_depth):
+        """Apply a new undo depth to every overlay of every loaded image.
+
+        New overlays already read parameters["undo"]["depth"] at creation;
+        without this, changing the depth in the settings only ever reached
+        the current overlay of the current image.
+        Returns the number of overlays resized.
+        """
+        try:
+            new_depth = int(new_depth)
+        except Exception:
+            return 0
+        if new_depth < 0:
+            new_depth = 0
+        count = 0
+        for file in self.file_paths:
+            image_item = self.image_items.get(file)
+            if image_item is None:
+                continue
+            for overlay in image_item.labeling_overlays.values():
+                try:
+                    overlay.memory_depth = new_depth
+                    overlay.resize_undo_deque(new_depth)
+                    count += 1
+                except Exception:
+                    pass
+        return count
     
     def get_undo_none(self):
         for label_id in self.labeling_overlays:

@@ -68,6 +68,17 @@ class UndoSetting(QDialog):
         data = Utils.load_parameters()
         data["undo"]["depth"] = self.depth
         Utils.save_parameters(data)
-        self.model.get_current_image_item().get_labeling_overlay().resize_undo_deque(self.depth)
+        # apply to every overlay, not just the current one: new overlays
+        # pick the saved value up at creation, existing ones need resizing
+        try:
+            resized = self.model.resize_all_undo_deques(self.depth)
+        except Exception:
+            resized = 0
+        try:
+            self.model.view.statusBar().showMessage(
+                f"Undo depth set to {self.depth} "
+                f"({resized} overlay(s) resized)")
+        except Exception:
+            pass
 
         return super().accept()
