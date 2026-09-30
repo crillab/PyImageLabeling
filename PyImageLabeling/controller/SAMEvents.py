@@ -148,6 +148,8 @@ class SAMEvents(Events):
     def sam_propagate(self):
         """One-shot: current image+label mask -> all other images."""
         import os
+        from PyImageLabeling.model.SAM.debug_log import log_state
+        log_state("sam_propagate: start")
         from PyQt6.QtWidgets import QProgressDialog, QMessageBox
         from PyQt6.QtCore import Qt
         from PyQt6.QtGui import QImage
@@ -464,6 +466,13 @@ class SAMEvents(Events):
         from PyImageLabeling.model.SAM import debug_log
         model = self.model
         run = getattr(self, "_prop_run", None) or {}
+        try:
+            debug_log.log_state(
+                f"sam_propagate: {'canceled' if canceled else 'done'} "
+                f"painted={run.get('painted')} errors={run.get('errors')} "
+                f"oom={run.get('oom')}")
+        except Exception:
+            pass
         try:
             # painted masks are already on disk; release the ImageItems the
             # batch loaded so painting stays light afterwards

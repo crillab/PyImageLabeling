@@ -28,6 +28,11 @@ class MLEvents(Events):
     def ml_train_model(self):
         """Train the ML model on current annotations (detection + segmentation)"""
         print("STARTING ML TRAINING")
+        try:
+            from PyImageLabeling.model.SAM.debug_log import log_state
+            log_state("ml_train_model: start")
+        except Exception:
+            pass
         # uncertainties depend on weights: drop cached active-learning ranking
         try:
             self._al_ranking = None
@@ -110,7 +115,17 @@ class MLEvents(Events):
         try:
             self.model.train_model(selected_paths)
             self.ml_update_status()
+            try:
+                from PyImageLabeling.model.SAM.debug_log import log_state
+                log_state("ml_train_model: done")
+            except Exception:
+                pass
         except Exception as e:
+            try:
+                from PyImageLabeling.model.SAM.debug_log import log_state
+                log_state(f"ml_train_model: FAILED {type(e).__name__}: {e}")
+            except Exception:
+                pass
             QMessageBox.critical(
                 self.view, "Training Failed",
                 f"Failed to train model:\n{str(e)}\n\nCheck console for details."

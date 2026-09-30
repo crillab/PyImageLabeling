@@ -325,6 +325,12 @@ class PaintBrush(Core):
         
         self.last_position_x, self.last_position_y = self.current_position_x, self.current_position_y
         self.drawn_points = [(self.current_position_x, self.current_position_y)]
+        try:
+            from PyImageLabeling.model.SAM.debug_log import log_state
+            log_state(f"start_paint_brush: size={self.size_paint_brush} "
+                      f"type={self.brush_type}")
+        except Exception:
+            pass
 
     def _dab_step(self):
         """Spacing between dabs when interpolating along a fast drag.
@@ -436,6 +442,11 @@ class PaintBrush(Core):
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self._fill_closed_shape(self.drawn_points)
-        
-        
+
+        try:
+            from PyImageLabeling.model.SAM.debug_log import log_state
+            n = len(getattr(self, "drawn_points", []) or [])
+            log_state(f"end_paint_brush: {n} points")
+        except Exception:
+            pass
         self.controller.ml_update_stats() 

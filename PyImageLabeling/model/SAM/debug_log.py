@@ -10,6 +10,9 @@ import time
 from pathlib import Path
 
 LOG_NAME = "sam_debug.log"
+STATE_NAME = "sam_state.log"
+FAULT_NAME = "sam_fault.log"
+STATE_KEEP = 400
 
 
 def log_dir():
@@ -47,6 +50,69 @@ def _rotate(name=LOG_NAME, max_bytes=5 * 1024 * 1024):
             p.rename(bak)
     except Exception:
         pass
+
+
+def log_state(msg, name=STATE_NAME):
+    """Breadcrumb of what the app was doing. Native crashes leave no Python
+    frame, so this ring of recent actions is the only attribution signal."""
+    try:
+        _rotate(name, 512 * 1024)
+        line = str(msg).replace("\n", " ")[:300]
+        with open(log_path(name), "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {line}\n")
+        _trim_state(name)
+    except Exception:
+        pass
+
+
+def _trim_state(name=STATE_NAME, keep=None):
+    keep = STATE_KEEP if keep is None else keep
+    try:
+        p = Path(log_path(name))
+        if not p.is_file():
+            return
+        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        if len(lines) <= keep:
+            return
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text("\n".join(lines[-keep:]) + "\n", encoding="utf-8")
+        tmp.replace(p)
+    except Exception:
+        pass
+
+
+def session_header(name=FAULT_NAME):
+    """Tag the fault log with the session environment, so each faulthandler
+    dump can be attributed to a run (version, python, Qt, device)."""
+    try:
+        parts = [f"v{_app_version()}", f"py{sys.version.split()[0]}",
+                 f"qt{_qt_version()}"]
+        try:
+            import torch
+            parts.append("cuda" if torch.cuda.is_available() else "cpu")
+        except Exception:
+            parts.append("torch=n/a")
+        with open(log_path(name), "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] session start "
+                    f"| {' | '.join(parts)}\n")
+    except Exception:
+        pass
+
+
+def _app_version():
+    try:
+        from PyImageLabeling.model.Utils import Utils
+        return Utils.get_version()
+    except Exception:
+        return "?"
+
+
+def _qt_version():
+    try:
+        from PyQt6.QtCore import QT_VERSION_STR
+        return QT_VERSION_STR
+    except Exception:
+        return "?"
 
 
 def total_ram_mb():
@@ -147,7 +213,8 @@ def install_excepthook():
     """
     try:
         import faulthandler
-        fh = open(log_path("sam_fault.log"), "a", encoding="utf-8")
+        session_header()
+        fh = open(log_path(FAULT_NAME), "a", encoding="utf-8")
         faulthandler.enable(file=fh)
     except Exception:
         pass

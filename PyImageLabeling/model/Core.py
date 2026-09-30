@@ -1466,6 +1466,11 @@ class Core():
             self.current_image_item.foreground_current_labeling_overlay()
 
     def select_image(self, path_image):
+        try:
+            from PyImageLabeling.model.SAM.debug_log import log_state
+            log_state(f"select_image: {os.path.basename(path_image)}")
+        except Exception:
+            pass
         if self.checked_button == "contour_filling":
             self.remove_contour()
 

@@ -149,6 +149,14 @@ class Builder:
         global_option_action = options_menu.addAction("Global Option")
         global_option_action.triggered.connect(self.view.controller.global_option)
 
+        # Help menu: diagnostics for native crashes
+        help_menu = menu_bar.addMenu("&Help")
+        crash_action = help_menu.addAction("Crash Report & Logs…")
+        crash_action.setToolTip(
+            "Summarise the crash logs: native faults, recent actions, "
+            "environment. Copy the text into a bug report.")
+        crash_action.triggered.connect(self.view.controller.crash_report)
+
     def _create_action_handler(self, action_name, source):
         def handler():
             # Get the corresponding button
