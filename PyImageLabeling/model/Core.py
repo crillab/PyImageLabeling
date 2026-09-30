@@ -817,10 +817,10 @@ class ImageItem():
         self.current_labeling_overlay.update()
         self.update_icon_file()
         # paint mask changed: the cached counts and the "is it painted?"
-        # scan for this image are now stale
+        # scan for this image are now stale. Both live on the model
+        # (ml_invalidate_stats_cache is relayed from the controller).
         try:
-            self.view.controller.ml_invalidate_stats_cache(self.path_image)
-            self.view.controller.ml_invalidate_painted_cache(self.path_image)
+            self.view.controller.model.ml_invalidate_caches(self.path_image)
         except AttributeError:
             pass
     

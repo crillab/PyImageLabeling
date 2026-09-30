@@ -492,8 +492,6 @@ class MLEvents(Events):
             progress.setMinimumDuration(0)
             progress.show()
 
-            holder = {}
-
             def _prog(done, total):
                 progress.setMaximum(max(total, 1))
                 progress.setLabelText(

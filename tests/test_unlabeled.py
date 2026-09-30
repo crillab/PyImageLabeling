@@ -78,3 +78,41 @@ def test_clearing_puts_the_image_back(project):
 
     reset_overlay(model)
     assert paths[0] in model.ml_get_unlabeled_images()
+
+
+def test_fully_erased_with_eraser_is_unlabeled(project, fake_params):
+    """Paint, then erase everything with the real eraser tool (not reset):
+    the image must come back as unlabeled.
+
+    Regression: the painted-cache invalidation called a method that did
+    not exist on the controller, so the AttributeError was swallowed and
+    the second and later strokes of an already-painted image kept the
+    stale "annotated" answer.
+    """
+    _, _, model, paths = project
+    model.select_image(paths[0])
+    model.start_paint_brush(QPointF(20.0, 20.0))
+    model.move_paint_brush(QPointF(60.0, 50.0))
+    model.end_paint_brush()
+    assert paths[0] not in model.ml_get_unlabeled_images()
+
+    fake_params(**{"eraser": {"mode": "original", "size": 120,
+                              "absolute_mode": 0}})
+    model.eraser()
+    model.start_eraser(QPointF(40.0, 35.0))
+    model.move_eraser(QPointF(45.0, 40.0))
+    # original-mode erasing happens inside QGraphicsItem.paint(), which Qt
+    # only calls on repaint: drive it manually headless
+    from PyQt6.QtGui import QPixmap, QPainter
+    from PyQt6.QtCore import Qt as _Qt
+    dummy = QPixmap(8, 8)
+    dummy.fill(_Qt.GlobalColor.transparent)
+    qp = QPainter(dummy)
+    for it in list(model.eraser_brush_items):
+        it.paint(qp, None, None)
+    qp.end()
+    model.end_eraser()
+
+    from tests.conftest import overlay_alpha
+    assert int((overlay_alpha(model) > 0).sum()) == 0
+    assert paths[0] in model.ml_get_unlabeled_images()
