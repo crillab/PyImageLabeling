@@ -376,6 +376,20 @@ class MLEvents(Events):
                     path, model._image_is_annotated(item))
             except Exception:
                 pass
+            # End the overlay painters first. Each overlay holds an ACTIVE
+            # QPainter bound to its pixmap; dropping the ImageItem lets the
+            # GC destroy pixmap and painter in any order, and a painter that
+            # outlives its device corrupts the heap -- the process then
+            # aborts natively in the next innocent Qt call (seen inside
+            # QListWidgetItem(), setIcon() and QRectF() alike).
+            try:
+                for overlay in item.get_labeling_overlays():
+                    painter = getattr(overlay, "labeling_overlay_painter",
+                                      None)
+                    if painter is not None and painter.isActive():
+                        painter.end()
+            except Exception:
+                pass
             # Drop the dict reference only. Do NOT call into the Qt scene
             # here: these background ImageItems share the live scene, and
             # touching their graphics items from this state kills the
