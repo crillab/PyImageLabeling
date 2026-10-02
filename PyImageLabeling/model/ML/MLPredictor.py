@@ -641,6 +641,8 @@ class MLPredictor(Core):
 
         self.model   = None
         self.trained = False
+        self.probe   = None
+        self._probe_val_items = None
 
         self.image_size            = 416
         self.confidence_threshold  = 0.3
@@ -655,6 +657,7 @@ class MLPredictor(Core):
         self.learning_rate       = 0.001
         self.backbone_name       = DEFAULT_BACKBONE
         self.use_pretrained      = True
+        self.seg_backbone        = "resnet"
 
         self.ml_predictions_current    = []
         self.ml_prediction_items       = []
@@ -753,6 +756,14 @@ class MLPredictor(Core):
         when the corresponding val set is empty).
         """
         out = {}
+        probe = getattr(self, "probe", None)
+        if probe is not None and getattr(self, "model", None) is None:
+            try:
+                return probe.evaluate(
+                    list(getattr(self, "_probe_val_items", None) or []))
+            except Exception as e:
+                ml_log(f"[eval] probe validation failed: {e}", force=True)
+                return {}
         if self.model is None:
             return out
         was_training = self.model.training
@@ -985,6 +996,46 @@ class MLPredictor(Core):
         log(f"Train: {len(det_train)} det + {len(seg_train)} seg | "
             f"Val: {len(det_val)} det + {len(seg_val)} seg")
 
+        seg_backbone = getattr(self, "seg_backbone", "resnet")
+        use_probe = (seg_backbone == "dinov2" and has_segmentation
+                     and not has_detection)
+        if seg_backbone == "dinov2" and has_detection:
+            log("DINOv2 probe is segmentation-only: geometric shapes "
+                "present, falling back to the ResNet head")
+        if use_probe:
+            from PyImageLabeling.model.ML.DinoProbe import DinoLinearProbe
+            log("Segmentation backbone: DINOv2-linear "
+                "(frozen encoder, 1x1 head)")
+            self.probe = DinoLinearProbe(
+                num_classes, self.label_id_to_class, device=self.device)
+            self._probe_val_items = list(seg_val)
+            best, _ = self.probe.fit(
+                list(seg_train), self.num_epochs,
+                getattr(self, "learning_rate", 0.001),
+                log=log, epoch_callback=epoch_callback)
+            self.model = None
+            self.trained = True
+            log(f"TRAINING COMPLETE! Best loss: {best:.4f}")
+
+            # ---- held-out evaluation ----------------------------------
+            try:
+                self.val_metrics = self.evaluate_model()
+            except Exception as e:
+                ml_log(f"[eval] validation failed: {e}", force=True)
+                self.val_metrics = {}
+            if self.val_metrics:
+                parts = []
+                if "seg_loss" in self.val_metrics:
+                    parts.append(
+                        f"seg loss={self.val_metrics['seg_loss']:.4f}")
+                if "seg_miou" in self.val_metrics:
+                    parts.append(
+                        f"mIoU={self.val_metrics['seg_miou']:.3f}")
+                log("VAL: " + (" | ".join(parts) if parts else "n/a"))
+            else:
+                log("VAL: skipped (need ≥5 annotated images for a val split)")
+            return
+
         detection_loader = None
         if det_train:
             ds = ObjectDetectionDataset(
@@ -1155,12 +1206,15 @@ class MLPredictor(Core):
         self.confidence_threshold = ml.get("confidence_threshold", self.confidence_threshold)
         self.nms_threshold        = ml.get("nms_threshold",        self.nms_threshold)
         self.use_pretrained       = ml.get("pretrained",           True)
+        seg = ml.get("seg_backbone", "resnet")
+        self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
         if backbone not in BACKBONE_NAMES:
             print(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
             backbone = DEFAULT_BACKBONE
         self.backbone_name = backbone
         print(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
+              f"seg_backbone={self.seg_backbone}, "
               f"epochs={self.num_epochs}, lr={self.learning_rate}, "
               f"img_size={self.image_size}, pretrained={self.use_pretrained}")
 
@@ -1222,7 +1276,15 @@ class MLPredictor(Core):
             None, "Training Complete",
             f"Model trained successfully!\n"
             f"Mode: {self.training_mode}\n"
-            f"Classes: {self.model.num_classes}{val_txt}")
+            f"Classes: {self._display_num_classes()}{val_txt}")
+
+    def _display_num_classes(self):
+        if getattr(self, "model", None) is not None:
+            return self.model.num_classes
+        probe = getattr(self, "probe", None)
+        if probe is not None:
+            return probe.num_classes
+        return "?"
 
     def _on_training_error(self, error_msg):
         self._progress_dialog.close()
@@ -1287,6 +1349,10 @@ class MLPredictor(Core):
 
     @torch.no_grad()
     def predict_segmentation(self, image_path, confidence_threshold=None):
+        probe = getattr(self, "probe", None)
+        if probe is not None and self.trained:
+            return self._predict_segmentation_probe(
+                image_path, confidence_threshold)
         if not self.trained or self.model is None:
             return None
         # Only run if model was trained on segmentation data
@@ -1339,6 +1405,33 @@ class MLPredictor(Core):
                       f"('{self._get_label_name(orig_lid)}'): "
                       f"{pixel_count} pixels above {confidence_threshold:.2f}")
 
+        return predictions_by_label
+
+    @torch.no_grad()
+    def _predict_segmentation_probe(self, image_path,
+                                    confidence_threshold=None):
+        """Same {orig_label_id: binary mask} contract, via the DINO probe."""
+        if confidence_threshold is None:
+            confidence_threshold = self.segmentation_threshold
+        try:
+            seg_cls, seg_conf = self.probe.predict(image_path)
+        except Exception:
+            return None
+        high_conf = seg_conf >= confidence_threshold
+        predictions_by_label = {}
+        for class_id, orig_lid in self.probe.class_to_label_id.items():
+            class_id = int(class_id)
+            orig_lid = int(orig_lid)
+            class_mask = (seg_cls == class_id) & high_conf
+            pixel_count = int(np.count_nonzero(class_mask))
+            if pixel_count > 0:
+                binary = np.zeros_like(seg_cls, dtype=np.uint8)
+                binary[class_mask] = 255
+                predictions_by_label[orig_lid] = binary
+                ml_log(f"  Predicted label {orig_lid} "
+                       f"('{self._get_label_name(orig_lid)}'): "
+                       f"{pixel_count} pixels above "
+                       f"{confidence_threshold:.2f}")
         return predictions_by_label
 
     # ------------------------------------------------------------------
@@ -1629,19 +1722,37 @@ class MLPredictor(Core):
     # ------------------------------------------------------------------
 
     def save_model_file(self, directory, model_name="ml_model"):
-    
+
         model_name = re.sub(r'[<>:"/\\|?*]', '_', model_name)
 
         filename = f"{model_name}.pth"
         path = os.path.join(directory, filename)
+        probe = getattr(self, "probe", None)
+
+        if self.model is not None:
+            num_classes = self.model.num_classes
+            backbone_name = getattr(self.model, "backbone_name", "resnet18")
+            enable_seg = self.model.enable_segmentation
+            enable_det = getattr(self.model, "enable_detection", True)
+            state = self.model.state_dict()
+        elif probe is not None:
+            num_classes = probe.num_classes
+            backbone_name = "dinov2-linear"
+            enable_seg = True
+            enable_det = False
+            state = None
+        else:
+            raise RuntimeError("nothing trained to save")
 
         torch.save({
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': state,
 
-            'num_classes': self.model.num_classes,
-            'backbone_name': getattr(self.model, "backbone_name", "resnet18"),
-            'enable_segmentation': self.model.enable_segmentation,
-            'enable_detection': getattr(self.model, "enable_detection", True),
+            'num_classes': num_classes,
+            'backbone_name': backbone_name,
+            'enable_segmentation': enable_seg,
+            'enable_detection': enable_det,
+            'seg_backbone': getattr(self, "seg_backbone", "resnet"),
+            'probe': probe.save_dict() if probe is not None else None,
 
             'label_id_to_class': self.label_id_to_class,
             'class_to_label_id': self.class_to_label_id,
@@ -1678,21 +1789,30 @@ class MLPredictor(Core):
             ml_log(f"Segmentation: {enable_seg}")
             ml_log(f"Detection: {enable_det}")
 
-            # 🔥 Reconstruire le modèle EXACTEMENT comme à l'entraînement
-            self.model = FastObjectDetectorWithSegmentation(
-                num_classes=num_classes,
-                pretrained=False,  
-                enable_segmentation=enable_seg,
-                enable_detection=enable_det,
-                backbone_name=backbone
-            )
+            if ck.get("probe") is not None:
+                from PyImageLabeling.model.ML.DinoProbe import DinoLinearProbe
+                self.probe = DinoLinearProbe.from_dict(
+                    ck["probe"], device=self.device)
+                self.model = None
+                self._probe_val_items = None
+            else:
+                self.probe = None
+                self._probe_val_items = None
+                # 🔥 Reconstruire le modèle EXACTEMENT comme à l'entraînement
+                self.model = FastObjectDetectorWithSegmentation(
+                    num_classes=num_classes,
+                    pretrained=False,
+                    enable_segmentation=enable_seg,
+                    enable_detection=enable_det,
+                    backbone_name=backbone
+                )
 
-            # Charger les poids
-            self.model.load_state_dict(ck['model_state_dict'])
+                # Charger les poids
+                self.model.load_state_dict(ck['model_state_dict'])
 
-            # Device + eval
-            self.model = self.model.to(self.device)
-            self.model.eval()
+                # Device + eval
+                self.model = self.model.to(self.device)
+                self.model.eval()
 
             # Restaurer les métadonnées
             self.label_id_to_class = ck.get('label_id_to_class', {})
@@ -1704,6 +1824,7 @@ class MLPredictor(Core):
             self.segmentation_threshold = ck.get('segmentation_threshold', 0.5)
             self.training_mode = ck.get('training_mode', None)
             self.val_metrics = ck.get('val_metrics', {})
+            self.seg_backbone = ck.get('seg_backbone', 'resnet')
             self._det_val_loader = None
             self._seg_val_loader = None
 

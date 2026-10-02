@@ -154,3 +154,52 @@ def test_help_menu_exposes_crash_report(app_stack):
             labels.append(action.menu().title())
             labels.extend(sub.text() for sub in action.menu().actions())
     assert any("Crash Report" in x for x in labels)
+
+
+def _use_tmp_logs(tmp_path, monkeypatch):
+    monkeypatch.setattr(debug_log, "log_dir", lambda: tmp_path)
+    monkeypatch.setattr(cr, "log_dir", lambda: tmp_path)
+
+
+def test_first_run_baselines_silently(tmp_path, monkeypatch):
+    _use_tmp_logs(tmp_path, monkeypatch)
+    (tmp_path / "sam_fault.log").write_text(FAULT_LOG, encoding="utf-8")
+    has_new, n_new = cr.check_new_crashes()
+    assert (has_new, n_new) == (False, 0)
+    assert (tmp_path / ".fault_seen").is_file()
+
+
+def test_appended_crash_is_detected_then_acknowledged(
+        tmp_path, monkeypatch):
+    _use_tmp_logs(tmp_path, monkeypatch)
+    (tmp_path / "sam_fault.log").write_text(FAULT_LOG, encoding="utf-8")
+    assert cr.check_new_crashes() == (False, 0)
+    with open(tmp_path / "sam_fault.log", "a", encoding="utf-8") as f:
+        f.write("Windows fatal exception: code 0x8001010e\n"
+                "\n"
+                "Thread 0x0000127c (most recent call first):\n"
+                "  <no Python frame>\n")
+    assert cr.check_new_crashes() == (True, 1)
+    cr.save_seen()
+    assert cr.check_new_crashes() == (False, 0)
+
+
+def test_cleared_log_rebaselines_without_nagging(tmp_path, monkeypatch):
+    _use_tmp_logs(tmp_path, monkeypatch)
+    (tmp_path / "sam_fault.log").write_text(FAULT_LOG, encoding="utf-8")
+    assert cr.check_new_crashes() == (False, 0)
+    (tmp_path / "sam_fault.log").write_text("", encoding="utf-8")
+    assert cr.check_new_crashes() == (False, 0)
+
+
+def test_missing_fault_log_is_quiet(tmp_path, monkeypatch):
+    _use_tmp_logs(tmp_path, monkeypatch)
+    assert cr.check_new_crashes() == (False, 0)
+
+
+def test_all_events_writes_breadcrumb(tmp_path, monkeypatch, app_stack):
+    _use_tmp_logs(tmp_path, monkeypatch)
+    controller, view, model = app_stack
+    controller.all_events("zoom_plus")
+    crumbs = cr.parse_state_log()
+    assert any("zoom_plus" in c for c in crumbs)

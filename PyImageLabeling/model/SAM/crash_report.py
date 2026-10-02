@@ -21,6 +21,7 @@ THREAD_RE = re.compile(r"Thread (0x[0-9a-fA-F]{4,16})\b")
 STAMP_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*(.*)$")
 NO_FRAME_RE = re.compile(r"no Python frame")
 TORN_RE = re.compile(r"Windows fatal exception:")
+SEEN_NAME = ".fault_seen"
 
 
 def _read(path):
@@ -28,6 +29,64 @@ def _read(path):
         return Path(path).read_text(encoding="utf-8", errors="replace")
     except Exception:
         return ""
+
+
+def fault_signature():
+    """Size, mtime and native-crash count of the fault log (or None)."""
+    try:
+        st = Path(log_path(FAULT_NAME)).stat()
+        n = sum(1 for c in parse_fault_log() if c["kind"] == "native")
+        return f"{st.st_size}:{int(st.st_mtime)}:{n}"
+    except Exception:
+        return None
+
+
+def save_seen(sig=None):
+    """Remember the fault log state so the next launch can spot new crashes."""
+    try:
+        if sig is None:
+            sig = fault_signature()
+        if sig is not None:
+            (log_dir() / SEEN_NAME).write_text(sig, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def check_new_crashes():
+    """(has_new, n_new): crashes recorded since the last acknowledged launch.
+
+    First run with this feature baselines silently instead of nagging about
+    years of history; a cleared/rotated log re-baselines too.
+    """
+    try:
+        sig = fault_signature()
+        if sig is None:
+            return False, 0
+        try:
+            old = (log_dir() / SEEN_NAME).read_text(
+                encoding="utf-8").strip()
+        except Exception:
+            old = None
+        if not old:
+            save_seen(sig)
+            return False, 0
+        try:
+            old_size, _, old_n = old.split(":")
+            size, _, n = sig.split(":")
+            old_size, old_n, size, n = (
+                int(old_size), int(old_n), int(size), int(n))
+        except Exception:
+            save_seen(sig)
+            return False, 0
+        if size < old_size:
+            save_seen(sig)
+            return False, 0
+        new = n - old_n
+        if size == old_size or new <= 0:
+            return False, 0
+        return True, new
+    except Exception:
+        return False, 0
 
 
 def _unsplice(text):

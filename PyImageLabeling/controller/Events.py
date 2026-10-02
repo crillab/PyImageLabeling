@@ -135,6 +135,11 @@ class Events:
 
     def all_events(self, event_name):
         """Single hook every action funnels through (extension point)."""
+        try:
+            from PyImageLabeling.model.SAM.debug_log import log_state
+            log_state(f"action: {event_name}")
+        except Exception:
+            pass
 
     def desactivate_buttons_labeling_image_bar(self, event_name):
         self.view.desactivate_buttons(event_name, [self.view.buttons_labeling_bar, self.view.buttons_image_bar])

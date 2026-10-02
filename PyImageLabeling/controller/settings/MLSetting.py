@@ -235,6 +235,30 @@ class MLSetting(QDialog):
         backbone_row.addStretch()
         model_layout.addLayout(backbone_row)
 
+        # Segmentation head: ResNet (default) or frozen DINOv2 + linear probe
+        seg_row = QHBoxLayout()
+        seg_lbl = QLabel("Segmentation Head:")
+        seg_lbl.setToolTip(
+            "Head used for painted pixel annotations.\n\n"
+            "• ResNet head — the default, trains detection + "
+            "segmentation jointly.\n"
+            "• DINOv2-linear — frozen DINOv2 features + a 1x1 head: "
+            "much faster to train and stronger on photos, "
+            "but segmentation-only (falls back to ResNet when "
+            "geometric shapes are present)."
+        )
+        self.seg_combo = QComboBox()
+        self.seg_combo.addItem("ResNet head", "resnet")
+        self.seg_combo.addItem("DINOv2-linear (fast, seg-only)", "dinov2")
+        current_seg = ml_params.get("seg_backbone", "resnet")
+        idx = self.seg_combo.findData(current_seg)
+        if idx >= 0:
+            self.seg_combo.setCurrentIndex(idx)
+        seg_row.addWidget(seg_lbl)
+        seg_row.addWidget(self.seg_combo)
+        seg_row.addStretch()
+        model_layout.addLayout(seg_row)
+
         model_group.setLayout(model_layout)
         main_layout.addWidget(model_group)
 
@@ -508,6 +532,7 @@ class MLSetting(QDialog):
         data["ml"]["enable_detection"] = self.enable_det_checkbox.isChecked()
         data["ml"]["pretrained"] = self.pretrained_checkbox.isChecked()
         data["ml"]["backbone_name"] = self.backbone_combo.currentText()
+        data["ml"]["seg_backbone"] = self.seg_combo.currentData()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
 

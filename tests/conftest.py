@@ -99,6 +99,9 @@ def reset_app(controller, view, model):
     # (Suggest next refuses to run "untrained", val loaders hold datasets)
     model.trained = False
     model.model = None
+    model.probe = None
+    model._probe_val_items = None
+    model.seg_backbone = "resnet"
     model.training_mode = None
     model.val_metrics = {}
     model._det_val_loader = None

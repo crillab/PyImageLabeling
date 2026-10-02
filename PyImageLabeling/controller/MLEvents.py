@@ -43,6 +43,8 @@ class MLEvents(Events):
             self.model.predictor.label_id_to_class = {}
             self.model.predictor.class_to_label_id = {}
             self.model.predictor.model = None
+            self.model.predictor.probe = None
+            self.model.predictor._probe_val_items = None
 
         # Use paths chosen in settings, fallback to all paths
         selected_paths = getattr(self, '_ml_selected_image_paths', None)
