@@ -37,6 +37,11 @@ include-package-data = true
 [tool.setuptools.packages]
 find = {} 
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: trains a real model end to end (needs a GPU, ~20s)",
+] 
+
 # Now, the version is in the setup.py file. 
 #[tool.setuptools.dynamic]
 #version = { attr = "PyImageLabeling.__version__" }

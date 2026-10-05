@@ -644,6 +644,13 @@ class MLPredictor(Core):
         self.probe   = None
         self._probe_val_items = None
 
+        # Where the live model comes from. Without this there is no way to
+        # tell a model loaded from disk from one trained in this session
+        # (which only exists in memory until it is saved).
+        self._model_origin = None   # "trained" | "loaded"
+        self._model_saved  = False
+        self._model_path   = None
+
         self.image_size            = 416
         self.confidence_threshold  = 0.3
         self.nms_threshold         = 0.4
@@ -1015,6 +1022,10 @@ class MLPredictor(Core):
                 log=log, epoch_callback=epoch_callback)
             self.model = None
             self.trained = True
+            # trained in this session, so it exists in memory only
+            self._model_origin = "trained"
+            self._model_saved  = False
+            self._model_path   = None
             log(f"TRAINING COMPLETE! Best loss: {best:.4f}")
 
             # ---- held-out evaluation ----------------------------------
@@ -1161,6 +1172,10 @@ class MLPredictor(Core):
                     f"BBox: {avg_bbox:.4f} | Cls: {avg_cls:.4f}")
 
         self.trained = True
+        # trained in this session, so it exists in memory only
+        self._model_origin = "trained"
+        self._model_saved  = False
+        self._model_path   = None
         log(f"TRAINING COMPLETE! Best loss: {best_loss:.4f}")
 
         # ---- held-out evaluation --------------------------------------
@@ -1250,6 +1265,16 @@ class MLPredictor(Core):
 
     def _on_training_finished(self):
         self._progress_dialog.close()
+        # The model just replaced whatever was loaded/trained before, and it
+        # only exists in memory: say so, so nobody mistakes it for the file
+        # they loaded at startup.
+        self._model_origin = "trained"
+        self._model_saved  = False
+        self._model_path   = None
+        try:
+            self.controller.ml_update_status()
+        except Exception:
+            pass
         # training loaded every image to build the dataset: release those
         # ImageItems so the pixel tools stay light right after
         try:
@@ -1288,6 +1313,11 @@ class MLPredictor(Core):
 
     def _on_training_error(self, error_msg):
         self._progress_dialog.close()
+        # the previous model was already dropped when training started
+        try:
+            self.controller.ml_update_status()
+        except Exception:
+            pass
         QMessageBox.critical(
             None, "Training Failed",
             f"Error during training:\n{error_msg}")
@@ -1767,6 +1797,7 @@ class MLPredictor(Core):
         }, path)
 
         print(f"ML model saved to {path}")
+        self.ml_mark_model_saved(path)
 
     def load_model_file(self, file_path):
         if not os.path.exists(file_path):
@@ -1829,6 +1860,9 @@ class MLPredictor(Core):
             self._seg_val_loader = None
 
             self.trained = True
+            self._model_origin = "loaded"
+            self._model_saved  = True
+            self._model_path   = file_path
 
             print(f"✅ Model loaded successfully from {file_path}")
             return True
@@ -1868,3 +1902,77 @@ class MLPredictor(Core):
 
     def is_trained(self):
         return self.trained
+
+    # ------------------------------------------------------------------
+    # Which model is live, and what can it actually do?
+    #
+    # Single source of truth for the UI. The status bar used to ask
+    # hasattr(model, "enable_segmentation") on the *predictor*, where that
+    # attribute never existed, and the prediction path asked
+    # hasattr(model.model, ...) on the *net* — which is None for a DINO
+    # probe. So a DINO model reported no segmentation and the UI silently
+    # drew nothing, while a ResNet model worked.
+    # ------------------------------------------------------------------
+
+    def ml_model_info(self):
+        """Describe the model that would predict right now."""
+        probe = getattr(self, "probe", None)
+        net   = getattr(self, "model", None)
+        mode  = getattr(self, "training_mode", None)
+
+        trained = bool(self.trained) and (net is not None or probe is not None)
+
+        kind        = None
+        can_detect  = False
+        can_segment = False
+
+        if probe is not None:
+            kind        = "DINOv2 linear probe"
+            can_segment = True
+        elif net is not None:
+            backbone = getattr(net, "backbone_name", DEFAULT_BACKBONE)
+            kind     = f"ResNet head ({backbone})"
+            can_segment = (bool(getattr(net, "enable_segmentation", False))
+                           and mode in ("segmentation", "both"))
+            can_detect  = (bool(getattr(net, "enable_detection", False))
+                           and mode in ("detection", "both"))
+
+        origin = self._model_origin if trained else None
+        return {
+            "trained":     trained,
+            "kind":        kind,
+            "origin":      origin,            # "loaded" | "trained" | None
+            "saved":       bool(self._model_saved),
+            "path":        self._model_path,
+            "can_detect":  can_detect,
+            "can_segment": can_segment,
+        }
+
+    def ml_mark_model_saved(self, path):
+        """The in-memory model now has a file behind it."""
+        self._model_saved = True
+        self._model_path  = path
+
+    def ml_clear_trained_state(self):
+        """Drop the current model and free the GPU memory it held.
+
+        Called before a new training so that a failed or aborted run cannot
+        leave the previous model active and quietly answering predictions.
+        """
+        self.trained           = False
+        self.model             = None
+        self.probe             = None
+        self._probe_val_items  = None
+        self._model_origin     = None
+        self._model_saved      = False
+        self._model_path       = None
+        self.label_id_to_class = {}
+        self.class_to_label_id = {}
+        self.val_metrics       = {}
+        try:
+            import gc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass

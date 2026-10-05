@@ -38,13 +38,11 @@ class MLEvents(Events):
         if hasattr(self.model, 'ml_clear_predictions_visual'):
             self.model.ml_clear_predictions_visual()
 
-        if hasattr(self.model, 'predictor'):
-            self.model.predictor.trained = False
-            self.model.predictor.label_id_to_class = {}
-            self.model.predictor.class_to_label_id = {}
-            self.model.predictor.model = None
-            self.model.predictor.probe = None
-            self.model.predictor._probe_val_items = None
+        if hasattr(self.model, 'ml_clear_trained_state'):
+            self.model.ml_clear_trained_state()
+        # reflect "training, no model yet" immediately instead of leaving a
+        # stale green badge from the model that was there before
+        self.ml_update_status()
 
         # Use paths chosen in settings, fallback to all paths
         selected_paths = getattr(self, '_ml_selected_image_paths', None)
@@ -129,10 +127,13 @@ class MLEvents(Events):
         """
         Generate predictions for current image
         """
-        if not self.model.is_trained():
+        info = self.model.ml_model_info()
+        if not info["trained"]:
             QMessageBox.information(
                 self.view, "Model Not Trained",
-                "Please train the model first by clicking 'Train Model'."
+                "No model available.\n\n"
+                "Either train one (ML > Train Model) or load one you saved "
+                "earlier (ML > Load Model)."
             )
             return
         
@@ -154,15 +155,18 @@ class MLEvents(Events):
         self.view.statusBar().showMessage(
             f"Generating predictions (confidence: {confidence:.2f})...")
         
-        # Check capabilities
-        has_segmentation = (hasattr(self.model.model, 'enable_segmentation') and 
-                            self.model.model.enable_segmentation)
+        # Check capabilities. This has to come from the predictor: asking the
+        # net ("model.model") said False for a DINO probe, which trains no
+        # net at all, and asking the predictor for "enable_segmentation" was
+        # always False because the attribute lives on the net.
+        has_segmentation = info["can_segment"]
+        has_detection    = info["can_detect"]
         
         predictions  = []
         segmentation = None
         
         # Try detection prediction
-        if hasattr(self.model, 'enable_detection') and self.model.enable_detection:
+        if has_detection:
             try:
                 predictions = self.ml_predictor_start(current_image_path, confidence)
                 if predictions:
@@ -197,11 +201,14 @@ class MLEvents(Events):
             parts.append("segmentation")
         
         if parts:
+            where = self._ml_model_badge(info, short=True)
             self.view.statusBar().showMessage(
-                f"Generated {' + '.join(parts)} (confidence: {confidence:.2f})")
+                f"Generated {' + '.join(parts)} "
+                f"[{where}] (confidence: {confidence:.2f})")
         else:
             self.view.statusBar().showMessage(
-                f"No predictions found (confidence: {confidence:.2f})")
+                f"No predictions found from {self._ml_model_badge(info, short=True)} "
+                f"(confidence: {confidence:.2f})")
     
     def ml_accept_predictions(self):
         """
@@ -274,14 +281,74 @@ class MLEvents(Events):
                 ml_log(f"Refreshing predictions with new confidence: {confidence:.2f}")
                 self.ml_predict_current()
     
-    def ml_update_status(self):
-        """Update ML status in status bar"""
-        if self.model.is_trained():
-            self.view.ml_status_label.setText("ML: Trained ✓")
-            self.view.ml_status_label.setStyleSheet("color: green;")
+    def _ml_model_badge(self, info, short=False):
+        """One line saying which model is predicting and where it came from."""
+        if not info["trained"]:
+            return "no model"
+        kind = info["kind"] or "model"
+        if short:
+            kind = kind.replace("DINOv2 linear probe", "DINOv2")
+            kind = kind.replace(" head ", " ")
+        if info["origin"] == "loaded":
+            where = "loaded"
+        elif info["saved"]:
+            where = "trained + saved"
         else:
-            self.view.ml_status_label.setText("ML: Not trained")
-            self.view.ml_status_label.setStyleSheet("color: gray;")
+            where = "trained (not saved)"
+        return f"{kind}, {where}"
+
+    def ml_update_status(self):
+        """Say which model is live, and whether it is only in memory.
+
+        "ML: Trained" was ambiguous: after loading a model at startup and
+        training another one, both existed and nothing on screen said which
+        one answers a prediction.
+        """
+        info = self.model.ml_model_info()
+        label = self.view.ml_status_label
+
+        if not info["trained"]:
+            label.setText("ML: no model")
+            label.setStyleSheet("color: gray;")
+            label.setToolTip(
+                "No model available.\n\n"
+                "Train one with ML > Train Model, or load one you saved "
+                "earlier with ML > Load Model."
+            )
+            return
+
+        if info["origin"] == "loaded":
+            text = f"ML: loaded ✓ {info['kind']}"
+            tooltip = (
+                "Predictions come from the model you loaded:\n"
+                f"{info['path']}\n\n"
+                "A new training replaces it, and is NOT written back to that "
+                "file unless you save it explicitly."
+            )
+        elif info["saved"]:
+            text = f"ML: trained ✓ {info['kind']} · saved"
+            tooltip = (
+                "Predictions come from the model you trained in this session, "
+                "which you then saved.\n\n"
+                f"{info['kind']}\n"
+                f"Saved to: {info['path']}\n\n"
+                "A new training replaces it. That new model is NOT written "
+                "back to this file unless you save it again."
+            )
+        else:
+            text = (f"ML: trained ✓ {info['kind']} · "
+                    "not saved — in memory only")
+            tooltip = (
+                "Predictions come from the model you just trained.\n\n"
+                f"{info['kind']}\n\n"
+                "This model is not on disk: closing PyImageLabeling loses it, "
+                "and starting another training discards it.\n"
+                "Use ML > Save Trained Model to keep it."
+            )
+
+        label.setText(text)
+        label.setStyleSheet("color: green;")
+        label.setToolTip(tooltip)
     
     def _ml_count_paint_instances(self, image_item):
         """Connected components of the painted pixels of one image.
@@ -435,16 +502,16 @@ class MLEvents(Events):
                 annotated_images  += 1
                 total_annotations += image_total
 
-        model_status = "Trained ✓" if self.model.is_trained() else "Not trained"
-        color        = "green"     if self.model.is_trained() else "gray"
+        model_status = self._ml_model_badge(self.model.ml_model_info())
 
         self.view.ml_stats_label.setText(
             f"Annotated Images: {annotated_images}\n"
             f"Total Annotations: {total_annotations}\n"
             f"Model Status: {model_status}"
         )
-        self.view.ml_status_label.setText(f"ML: {model_status}")
-        self.view.ml_status_label.setStyleSheet(f"color: {color};")
+        # this ran on every file change and overwrote the status label with a
+        # bare "ML: Trained", dropping the loaded/trained distinction
+        self.ml_update_status()
 
     # ------------------------------------------------------------------
     # Active learning

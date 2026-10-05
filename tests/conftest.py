@@ -133,6 +133,12 @@ def reset_app(controller, view, model):
     model.model = None
     model.probe = None
     model._probe_val_items = None
+    # which model is live (loaded file vs trained-in-this-session)
+    for attr, value in (("_model_origin", None),
+                        ("_model_saved", False),
+                        ("_model_path", None)):
+        if hasattr(model, attr):
+            setattr(model, attr, value)
     model.seg_backbone = "resnet"
     model.training_mode = None
     model.val_metrics = {}

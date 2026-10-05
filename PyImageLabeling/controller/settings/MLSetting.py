@@ -305,6 +305,15 @@ class MLSetting(QDialog):
         btn_model_row.addStretch()
         main_layout.addLayout(btn_model_row)
 
+        # Which model is actually going to predict. Both a loaded file and a
+        # model trained in this session can be alive at once, so say it here
+        # instead of letting the user guess from the history.
+        self.active_model_label = QLabel()
+        self.active_model_label.setWordWrap(True)
+        self.active_model_label.setStyleSheet("padding: 4px;")
+        main_layout.addWidget(self.active_model_label)
+        self._refresh_active_model_label()
+
         # Buttons OK/Cancel
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -441,6 +450,43 @@ class MLSetting(QDialog):
 
         return False
     
+    def _refresh_active_model_label(self):
+        """Describe the model that would predict right now."""
+        if not hasattr(self, "active_model_label"):
+            return
+        info = (self.model.ml_model_info()
+                if hasattr(self.model, "ml_model_info") else None)
+        if not info or not info["trained"]:
+            self.active_model_label.setText(
+                "<b>Active model:</b> none — train or load one first.")
+            self.active_model_label.setToolTip("")
+            return
+
+        if info["origin"] == "loaded":
+            state = "loaded from file"
+            detail = info["path"] or ""
+        elif info["saved"]:
+            state = "trained, then saved"
+            detail = info["path"] or ""
+        else:
+            state = ("<b>trained in this session, not saved — in memory "
+                     "only</b>")
+            detail = "Close the app or start another training and it is lost."
+
+        can = []
+        if info["can_detect"]:
+            can.append("boxes")
+        if info["can_segment"]:
+            can.append("segmentation")
+
+        self.active_model_label.setText(
+            f"<b>Active model:</b> {info['kind']}<br>"
+            f"Source: {state}<br>"
+            f"Predicts: {', '.join(can) if can else 'nothing'}"
+            + (f"<br>{detail}" if detail else "")
+        )
+        self.active_model_label.setToolTip(detail)
+
     def _save_model(self):
         if not self.model.trained:
             QMessageBox.warning(self, "No Model", "Train a model first.")
@@ -467,6 +513,13 @@ class MLSetting(QDialog):
             # Pass the model name to the save function
             # You may need to modify save_model_file to accept the name parameter
             self.model.save_model_file(directory, model_name)
+            # the active model now has a file behind it: refresh both the
+            # dialog and the status bar so it stops saying "not saved"
+            self._refresh_active_model_label()
+            try:
+                self.model.controller.ml_update_status()
+            except Exception:
+                pass
             QMessageBox.information(self, "Saved", f"Model '{model_name}' saved successfully.")
 
 
@@ -483,6 +536,13 @@ class MLSetting(QDialog):
             if success:
                 self.loaded_model_name = os.path.splitext(os.path.basename(file_path))[0]
                 self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+                # loading replaces whatever was live, and predictions now come
+                # from this file: say so on screen right away
+                self._refresh_active_model_label()
+                try:
+                    self.model.controller.ml_update_status()
+                except Exception:
+                    pass
                 
                 # Save to parameters
                 data = Utils.load_parameters()
