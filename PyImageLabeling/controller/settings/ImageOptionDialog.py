@@ -23,6 +23,8 @@ import numpy as np
 import json
 import os
 
+from PyImageLabeling.model.Utils import Utils
+
 class ImageOptionDialog(QDialog):
     def __init__(self, parent, image_item):
         super().__init__(parent)
@@ -132,8 +134,7 @@ class ImageOptionDialog(QDialog):
         os.makedirs("presets", exist_ok=True)
         path = os.path.join("presets", f"{name}.json")
 
-        with open(path, "w") as f:
-            json.dump(self.get_current_settings(), f, indent=4)
+        Utils.write_json_atomic_indent4(path, self.get_current_settings())
 
         self.parent.statusBar().showMessage(f"Preset '{name}' saved")
 

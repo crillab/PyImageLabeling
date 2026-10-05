@@ -232,8 +232,7 @@ class Files(Core):
                 "labeling_mode": pixel_mode,
                 "color": [color.red(), color.green(), color.blue()],
             }
-        with open(labels_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        Utils.write_json_atomic(labels_path, data)
         try:
             self.view.statusBar().showMessage(
                 f"Imported {len(mask_candidates)} mask(s) → "
@@ -487,8 +486,18 @@ class Files(Core):
         if labels_json is not None:
             progress.setLabelText("Loading label definitions…")
             self.load_labels_json(labels_json)
-            first_id = list(self.get_label_items().keys())[0]
-            self.controller.select_label(first_id)
+            if self.get_label_items():
+                first_id = list(self.get_label_items().keys())[0]
+                self.controller.select_label(first_id)
+            else:
+                # labels.json was missing or unreadable: load_labels_json
+                # already reported it. Selecting label 0 of an empty dict
+                # used to raise IndexError here and kill the whole open.
+                self.controller.error_message(
+                    "Load Error",
+                    "No label definition could be read from this project.\n\n"
+                    "Create the labels you need, or use File > Recover "
+                    "Unsaved Annotations if auto-save was enabled.")
             step += 1
             progress.setValue(step)
 

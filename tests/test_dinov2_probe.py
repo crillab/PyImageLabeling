@@ -69,14 +69,27 @@ def test_probe_trains_and_validates(app_stack, workspace):
 def test_probe_predicts_label_masks(app_stack, workspace):
     _, _, model, paths = _probe_project(app_stack, workspace)
     _train_probe(model)
-    out = model.predict_segmentation(paths[0])
+    # threshold 0.0 so the assertion does not depend on how confident a
+    # 5-epoch probe happens to be on random noise images
+    out = model.predict_segmentation(paths[0], confidence_threshold=0.0)
     assert isinstance(out, dict) and len(out) > 0
     h, w = np.array(PILImage.open(paths[0])).shape[:2]
+    covered = 0
     for lid, mask in out.items():
         assert lid in (0, 1, 255)
         assert mask.shape == (h, w)
         assert mask.dtype == np.uint8
         assert set(np.unique(mask).tolist()) <= {0, 255}
+        covered += int(np.count_nonzero(mask))
+    assert covered == h * w
+
+
+def test_probe_predict_respects_confidence(app_stack, workspace):
+    _, _, model, paths = _probe_project(app_stack, workspace)
+    _train_probe(model)
+    # the default threshold may legitimately filter everything out on a
+    # barely-trained probe: the contract is the dict, not its size
+    assert isinstance(model.predict_segmentation(paths[0]), dict)
 
 
 def test_probe_save_load_roundtrip(app_stack, workspace, tmp_path):

@@ -9,10 +9,10 @@
         "logic": "Pen logic"
     },
     "save": {
-        "path": "/home/nicolas/Bureau/ProjetsMAIA/Picels/raw_data"
+        "path": ""
     },
     "load": {
-        "path": "/home/nicolas/Bureau/ProjetsMAIA/Picels/raw_data",
+        "path": "",
         "alpha_color": [
             255,
             255,
@@ -58,6 +58,7 @@
         "pretrained": true,
         "confidence_threshold": 0.3,
         "nms_threshold": 0.4,
+        "seg_backbone": "resnet",
         "verbose": false
     },
     "labeling_opacity": 32,

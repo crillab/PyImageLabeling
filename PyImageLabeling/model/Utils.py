@@ -43,19 +43,57 @@ class Utils:
 
     
     @staticmethod
-    def _write_json_atomic(path, data):
-        """Write JSON without ever leaving a truncated file behind.
+    def tmp_path(path):
+        """Sibling scratch path used by the atomic write helpers."""
+        return path + ".tmp"
 
-        Opening the target with 'w' empties it first, so a crash (or a
-        json.dump error) between that and the flush left a 0-byte
-        parameters.json, which then made the app fail to start.
+    @staticmethod
+    def commit_tmp(tmp_path, path):
+        """Rename a fully written scratch file over its target.
+
+        os.replace() is atomic on Windows and POSIX, so a reader either sees
+        the previous file or the new one, never a half-written one.
         """
-        tmp_path = path + ".tmp"
-        with open(tmp_path, 'w', encoding='utf-8') as fp:
-            json.dump(data, fp, indent=4)
-            fp.flush()
-            os.fsync(fp.fileno())
         os.replace(tmp_path, path)
+
+    @staticmethod
+    def discard_tmp(tmp_path):
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    @staticmethod
+    def write_json_atomic(path, data, indent=None):
+        """Serialise data to path without ever exposing a partial file.
+
+        Writing straight to the target with 'w' truncates it first: a crash
+        (this app dies natively on COM faults) or a json.dump error between
+        the truncate and the flush left a 0-byte file, i.e. every annotation
+        gone. Same reasoning as _write_json_atomic, reused by the project
+        files.
+        """
+        tmp_path = Utils.tmp_path(path)
+        try:
+            with open(tmp_path, 'w', encoding='utf-8') as fp:
+                json.dump(data, fp, indent=indent)
+                fp.flush()
+                os.fsync(fp.fileno())
+            Utils.commit_tmp(tmp_path, path)
+        except BaseException:
+            # never leave the scratch file behind: a stale *.tmp next to the
+            # annotations is noise at best, a false "recover me" at worst
+            Utils.discard_tmp(tmp_path)
+            raise
+
+    @staticmethod
+    def write_json_atomic_indent4(path, data):
+        Utils.write_json_atomic(path, data, indent=4)
+
+    @staticmethod
+    def _write_json_atomic(path, data):
+        """Deprecated alias kept for the existing parameters.json callers."""
+        Utils.write_json_atomic_indent4(path, data)
 
     @staticmethod
     def save_parameters(data):

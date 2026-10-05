@@ -16,6 +16,7 @@ import numpy
 from collections import deque
 
 from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model import Autosave
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
@@ -572,9 +573,18 @@ class LabelingOverlay():
 
         # In a packed 1-bit image: 0x00 = eight black pixels, 0xFF = eight white pixels.
         if all(b == 0xFF for b in packed):
-            return 
+            return
         else:
-            mask.save(save_file, format.upper())
+            # Write to a scratch file and rename: mask.save() used to target
+            # the final name directly and its False return was ignored, so a
+            # failed write (disk full, file locked by a viewer) looked like a
+            # successful save and the mask was simply lost.
+            tmp_file = Utils.tmp_path(save_file)
+            if mask.save(tmp_file, format.upper()):
+                Utils.commit_tmp(tmp_file, save_file)
+            else:
+                Utils.discard_tmp(tmp_file)
+                print(f"[Core] could not write mask {os.path.basename(save_file)}")
 
 class ImageItem():
 
@@ -895,7 +905,7 @@ class Core():
         if not self.save_directory:
             return
 
-        auto_save_path = os.path.join(self.save_directory, "auto_save")
+        auto_save_path = Autosave.autosave_dir(self.save_directory)
 
         if not os.path.exists(auto_save_path):
             os.makedirs(auto_save_path)
@@ -1095,8 +1105,8 @@ class Core():
 
         # Save it
         if current_file_path != "":
-            with open(current_file_path+os.sep+"labels.json", 'w') as fp:
-                json.dump(labels_dict, fp)
+            Utils.write_json_atomic(
+                os.path.join(current_file_path, "labels.json"), labels_dict)
 
     def save_overlays(self, current_file_path, reset_edited=True):
         for file in self.file_paths:
@@ -1148,8 +1158,7 @@ class Core():
     
     def _save_or_delete_json(self, data, path):
         if data:
-            with open(path, "w") as fp:
-                json.dump(data, fp)
+            Utils.write_json_atomic(path, data)
         else:
             if os.path.isfile(path):
                 try:
@@ -1165,7 +1174,17 @@ class Core():
         self.save_labels(path)
         self.save_overlays(path, reset_edited=reset_edited)
         self.save_labels_geometric_shape(path)
-        self.save_complete_state()
+        self.save_complete_state(path)
+
+        if reset_edited and self.save_directory:
+            # A real save supersedes the snapshot: leaving it behind would
+            # make the next startup offer to "recover" work that is already
+            # on disk. Autosave itself passes reset_edited=False, so it keeps
+            # its own copy.
+            try:
+                Autosave.close(self.save_directory)
+            except Exception as e:
+                print(f"[autosave] could not clear snapshot: {e}")
 
     def save_copy(self, copy_directory):
         if not self.save_directory or not os.path.exists(self.save_directory):
@@ -1205,9 +1224,49 @@ class Core():
         
         print("Save Copy done :", copy_directory)
 
+    def _read_annotation_json(self, file, what):
+        """Read a project JSON, tolerating a truncated/corrupt file.
+
+        Every project file used to be read with a bare json.load, so a file
+        left half-written by a crash took the whole project down with a
+        traceback at open time. Now the readable part is loaded, the file is
+        set aside as *.corrupt (nothing is destroyed) and the user is told
+        which annotations are missing.
+        """
+        try:
+            with open(file, "r", encoding="utf-8") as fp:
+                data = json.load(fp)
+        except FileNotFoundError:
+            return None
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError, ValueError) as e:
+            try:
+                os.replace(file, file + ".corrupt")
+                where = os.path.basename(file) + ".corrupt"
+            except OSError:
+                where = os.path.basename(file)
+            print(f"[Core] {what} file unreadable ({e}); moved aside as {where}")
+            self._warn_corrupt_project_file(what, os.path.basename(file))
+            return None
+        if not isinstance(data, dict):
+            print(f"[Core] {what} file has an unexpected shape; ignored")
+            return None
+        return data
+
+    def _warn_corrupt_project_file(self, what, name):
+        try:
+            self.controller.error_message(
+                "Load Error",
+                f"{name} is corrupted ({what} annotations).\n"
+                f"It was moved aside as {name}.corrupt and the rest of the "
+                f"project was loaded.\n\nIf auto-save was enabled, File > "
+                f"Recover Unsaved Annotations may bring the lost work back.")
+        except Exception:
+            pass
+
     def load_labels_json(self, file):
-        with open(file, "r") as fp:
-            labels_dict = json.load(fp)
+        labels_dict = self._read_annotation_json(file, "label")
+        if labels_dict is None:
+            return
 
         basename = os.path.basename(file)
         if file not in self.labeling_overview_was_loaded:
@@ -1239,8 +1298,9 @@ class Core():
             )
             
     def load_rectangles_json(self, file):
-        with open(file, "r") as fp:
-            rectangles_dict = json.load(fp)
+        rectangles_dict = self._read_annotation_json(file, "rectangle")
+        if rectangles_dict is None:
+            return
         for image_name, rectangles in rectangles_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -1277,8 +1337,9 @@ class Core():
                 pass
 
     def load_ellipses_json(self, file):
-        with open(file, "r") as fp:
-            ellipses_dict = json.load(fp)
+        ellipses_dict = self._read_annotation_json(file, "ellipse")
+        if ellipses_dict is None:
+            return
         for image_name, ellipses in ellipses_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -1314,8 +1375,9 @@ class Core():
                 pass
 
     def load_polygons_json(self, file):
-        with open(file, "r") as fp:
-            polygons_dict = json.load(fp)
+        polygons_dict = self._read_annotation_json(file, "polygon")
+        if polygons_dict is None:
+            return
         for image_name, polygons in polygons_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -1429,16 +1491,21 @@ class Core():
         if self.checked_button == "contour_filling":
             self.controller.model.apply_contour()
 
-    def save_complete_state(self):
-        if not self.save_directory:
+    def save_complete_state(self, directory=None):
+        # directory defaults to the project itself, but the auto-save
+        # snapshot must get its own copy: writing the real project's file
+        # every 5 min both corrupted the "last real save" timestamp and left
+        # the snapshot unable to restore the tick state.
+        target = directory if directory else self.save_directory
+        if not target:
             return
         complete_state = {}
         for file_path in self.file_paths:
             icons = self.icon_button_files.get(file_path)
             if icons is not None:
                 complete_state[os.path.basename(file_path)] = icons["complete"].isChecked()
-        with open(os.path.join(self.save_directory, "complete_state.json"), 'w') as fp:
-            json.dump(complete_state, fp)
+        Utils.write_json_atomic(
+            os.path.join(target, "complete_state.json"), complete_state)
 
     def load_complete_state(self):
         if not self.save_directory:
@@ -1446,8 +1513,10 @@ class Core():
         complete_state_path = os.path.join(self.save_directory, "complete_state.json")
         if not os.path.isfile(complete_state_path):
             return
-        with open(complete_state_path, "r") as fp:
-            complete_state = json.load(fp)
+        complete_state = self._read_annotation_json(
+            complete_state_path, "completion state")
+        if complete_state is None:
+            return
         for file_path in self.file_paths:
             basename = os.path.basename(file_path)
             icons = self.icon_button_files.get(file_path)

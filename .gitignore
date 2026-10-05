@@ -19,6 +19,12 @@
 *.so
 build
 dist
+# virtual environments: 'env/' alone was 1.1 GB / 30k files and untracked,
+# so a single `git add -A` would have tried to commit the whole interpreter
+env/
+venv/
+.venv/
+ENV/
 requirements-download/
 wheelhouse
 PyImageLabeling.egg-info/

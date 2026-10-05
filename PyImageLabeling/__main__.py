@@ -36,6 +36,14 @@ def __main__():
     except Exception:
         pass
 
+    try:
+        from PyImageLabeling.model import Autosave
+        pending = Autosave.pending_recovery()
+        if pending is not None:
+            controller.recover_annotations(info=pending)
+    except Exception:
+        pass
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":

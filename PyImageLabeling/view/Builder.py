@@ -80,6 +80,15 @@ class Builder:
                     )
                 file_menu.addAction(action)
                 self.view.menu_actions[button["name"]] = action
+
+        file_menu.addSeparator()
+        recover_action = file_menu.addAction(
+            "Recover Unsaved Annotations…")
+        recover_action.setToolTip(
+            "Restore the auto-save snapshot when it holds work the project "
+            "files do not have (after a crash, for instance).")
+        recover_action.triggered.connect(
+            self.view.controller.recover_annotations)
         
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")

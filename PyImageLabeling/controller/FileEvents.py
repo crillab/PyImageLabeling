@@ -1,5 +1,9 @@
 
+from PyQt6.QtWidgets import QMessageBox
+
 from PyImageLabeling.controller.Events import Events
+from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.model import Autosave
 
 
 
@@ -31,6 +35,46 @@ class FileEvents(Events):
     def save_copy(self):
         self.model.save()
         self.model.save_copy()
+
+    def recover_annotations(self, info=None):
+        """Restore the auto-save snapshot when it is newer than the project.
+
+        File > Recover Unsaved Annotations. Without this the snapshot
+        written every few minutes was dead weight: after a native crash the
+        only way back was to copy <project>/auto_save/ by hand.
+        """
+        project_dir = ""
+        if info is None:
+            project_dir = getattr(self.model, "save_directory", "") or ""
+            if not project_dir:
+                data = Utils.load_parameters()
+                project_dir = (data.get("save", {}) or {}).get("path", "") or ""
+        else:
+            project_dir = info.get("project_dir", "")
+
+        if not project_dir or not Autosave.needs_recovery(project_dir):
+            QMessageBox.information(
+                self.view, "Nothing to recover",
+                "No auto-save snapshot newer than the project files was "
+                "found.\n\nAuto-save writes a snapshot every few minutes; "
+                "it is offered here and at startup only when it holds work "
+                "the project files do not have yet.")
+            return False
+
+        answer = QMessageBox.question(
+            self.view, "Recover unsaved annotations?",
+            Autosave.describe(project_dir) +
+            "\n\nRestore it over the project files?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+
+        restored = Autosave.restore(project_dir)
+        QMessageBox.information(
+            self.view, "Annotations recovered",
+            f"{len(restored)} file(s) restored from the auto-save "
+            f"snapshot.\n\nReopen your project (File > Load) to see them.")
+        return True
 
 
     def select_image(self, item):

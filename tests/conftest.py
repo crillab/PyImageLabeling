@@ -63,7 +63,12 @@ _live_stacks = []
 
 @pytest.fixture(scope="session")
 def app_stack(qapp):
-    """(controller, view, model): a single shared app instance."""
+    """(controller, view, model): a single shared app instance.
+
+    One stack per session: constructing a second View after a test has
+    painted/selected/unloaded aborts natively in setIcon(). State is reset
+    by the project fixture instead.
+    """
     config = Utils.get_config()
     controller = Controller(config)
     view = View(controller, config)
@@ -81,6 +86,7 @@ def reset_app(controller, view, model):
     model.image_items = {}
     model.icon_button_files = {}
     model.label_items = {}
+    model.save_directory = ""
     model.current_image_item = None
     model.current_label_item = None
     LabelItem.static_label_id = 0
