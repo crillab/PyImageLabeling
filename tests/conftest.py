@@ -39,6 +39,32 @@ def _no_modals(monkeypatch):
         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
 
 
+@pytest.fixture(autouse=True)
+def _cuda_cache_guard():
+    """Keep the shared GPU from fragmenting across the suite.
+
+    Several tests train real models on cuda. The caching allocator keeps the
+    freed blocks reserved for the *process*, so memory taken by an earlier
+    test was still unavailable to a later training and the run died with a
+    CUDA RuntimeError that had nothing to do with the test that reported it.
+    """
+    _empty_cuda_cache()
+    yield
+    _empty_cuda_cache()
+
+
+def _empty_cuda_cache():
+    try:
+        import torch
+    except Exception:
+        return
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 @pytest.fixture(scope="session")
 def qapp():
     app = QApplication.instance() or QApplication([])

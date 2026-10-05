@@ -410,6 +410,31 @@ class LabelSetting(QDialog):
     # ------------------------------------------------------------------
 
     def process_import_data(self):
+        # accept() calls this on every OK, not only when an import was
+        # actually started: closing the label dialog without going through
+        # the wizard used to raise
+        #   'LabelSetting' object has no attribute 'destination_directory'
+        # and print it in the console, which reads like a broken app.
+        # self.importdata is set to True only once a mask was written.
+        if not getattr(self, "importdata", False):
+            return
+        if not getattr(self, "source_directory", ""):
+            self.importdata = False
+            return
+
+        destination = (getattr(self, "destination_directory", "")
+                       or getattr(self.parent().view.controller.model,
+                                  "save_directory", ""))
+        if not destination:
+            self.importdata = False
+            self.parent().view.controller.error_message(
+                "Import Error",
+                "No destination folder for the imported labels.\n\n"
+                "Save your project first, or start the import again and "
+                "pick a destination folder.")
+            return
+        self.destination_directory = destination
+
         try:
             # Get label ID for renaming
             label_id = self.parent().view.controller.model.get_static_label_id()
@@ -497,6 +522,14 @@ class LabelSetting(QDialog):
             progress.setValue(n)
 
         except Exception as e:
+            # a failed import used to be invisible: the masks simply were
+            # not there and only the console knew why
             print(f"Error importing labels: {str(e)}")
+            try:
+                self.parent().view.controller.error_message(
+                    "Import Error",
+                    f"The labels could not be imported.\n\n{str(e)}")
+            except Exception:
+                pass
 
    
