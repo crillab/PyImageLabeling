@@ -230,6 +230,7 @@ class LabelSetting(QDialog):
         self.color = QColor(random.choice(QColor.colorNames())) if color is None else color
         self.labeling_mode = labeling_mode_pixel if labeling_mode is None else labeling_mode
         self.importdata = False
+        self.import_ready = False
         self.setWindowTitle("Label Setting")
         layout = QFormLayout()
         
@@ -380,6 +381,7 @@ class LabelSetting(QDialog):
         else :
             self.destination_directory = self.parent().view.controller.model.save_directory
 
+        self.import_ready = True
         self.import_button.setText("Import Ready")
 
 
@@ -415,8 +417,10 @@ class LabelSetting(QDialog):
         # the wizard used to raise
         #   'LabelSetting' object has no attribute 'destination_directory'
         # and print it in the console, which reads like a broken app.
-        # self.importdata is set to True only once a mask was written.
-        if not getattr(self, "importdata", False):
+        # self.import_ready is set to True only once the wizard completed
+        # (not self.importdata: that one is set below, after a mask was
+        # written, so guarding on it skipped every import).
+        if not getattr(self, "import_ready", False):
             return
         if not getattr(self, "source_directory", ""):
             self.importdata = False

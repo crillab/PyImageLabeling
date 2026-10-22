@@ -58,7 +58,7 @@ def test_accept_after_a_full_dry_run_does_not_raise(app_stack, monkeypatch,
 def test_missing_destination_is_reported(app_stack, monkeypatch, tmp_path):
     """An import that started without a destination must say so in the UI."""
     controller, view, model, d = _label_dialog(app_stack, monkeypatch)
-    d.importdata = True
+    d.import_ready = True
     d.source_directory = str(tmp_path)
     d.destination_directory = ""
     model.save_directory = ""
@@ -72,3 +72,36 @@ def test_missing_destination_is_reported(app_stack, monkeypatch, tmp_path):
 
     assert errors and errors[0][0] == "Import Error"
     assert d.importdata is False
+
+
+def test_completed_wizard_imports_the_masks(app_stack, monkeypatch, tmp_path):
+    """Regression: process_import_data() returned early on importdata, which
+    is only set after a mask was written, so no import ever happened."""
+    import numpy as np
+    from PIL import Image
+    from PyImageLabeling.controller.settings.LabelSetting import (
+        ImportFormatDialog)
+
+    controller, view, model, d = _label_dialog(app_stack, monkeypatch)
+    source = tmp_path / "trimaps"
+    destination = tmp_path / "save"
+    source.mkdir()
+    trimap = np.array([[0, 1], [2, 3]], dtype=np.uint8)
+    for name in ("Abyssinian_1.png", "Bengal_1.png"):
+        Image.fromarray(trimap).save(source / name)
+
+    # state left by import_data() once the wizard went through
+    d.source_directory = str(source)
+    d.destination_directory = str(destination)
+    d.import_format = ImportFormatDialog.FORMAT_INDEXED
+    d.import_index_values = [1, 2, 3]
+    d.import_filter = "Abyssinian*"
+    d.import_ready = True
+
+    d.process_import_data()
+
+    label_id = model.get_static_label_id()
+    written = destination / f"Abyssinian_1.label.{label_id}.png"
+    assert d.importdata is True
+    assert os.listdir(destination) == [written.name]
+    assert np.array(Image.open(written)).tolist() == [[0, 255], [255, 255]]
