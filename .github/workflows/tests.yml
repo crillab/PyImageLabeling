@@ -36,7 +36,7 @@ jobs:
         run: |
           python -m twine check --strict dist/*
           python .github/scripts/check_dist.py dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -62,7 +62,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: pyproject.toml
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
@@ -82,7 +82,7 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: python "$GITHUB_WORKSPACE/.github/scripts/smoke_installed.py"
       # facebook/dinov2-small (85 MB), downloaded once by test_dinov2_probe
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/huggingface
           key: hf-dinov2-small
