@@ -1,7 +1,8 @@
 name: Release
 
 # Manual only: Actions > Release > Run workflow, on master.
-# Publishes the version in PyImageLabeling/version.json: bump it first.
+# Publishes the version in PyImageLabeling/version.json: bump it first, and
+# add its "## <version>" section to CHANGELOG.md (the GitHub release text).
 #
 #   version -> build + tests (3 OS each) + Windows exe
 #           -> PyPI (the Linux-built wheel and sdist)
@@ -55,11 +56,14 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
             problems="$problems${problems:+; }tag v$version already exists"
           fi
+          if [ -z "$(.github/scripts/release_notes.sh "$version")" ]; then
+            problems="$problems${problems:+; }no \"## $version\" section in CHANGELOG.md"
+          fi
           if [ -n "$problems" ]; then
             if [ "$DRY_RUN" = "true" ]; then
-              echo "::warning::$problems (fine for a dry run; bump PyImageLabeling/version.json before releasing)"
+              echo "::warning::$problems (fine for a dry run; fix before releasing)"
             else
-              echo "::error::$problems: bump PyImageLabeling/version.json"
+              echo "::error::$problems (bump PyImageLabeling/version.json, describe it in CHANGELOG.md)"
               exit 1
             fi
           fi
@@ -112,6 +116,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v8
         with:
           name: exe
@@ -120,6 +125,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
+          .github/scripts/release_notes.sh "$VERSION" > notes.md
+          printf '\nInstall or upgrade: `pip install -U PyImageLabeling` (https://pypi.org/project/PyImageLabeling/%s/)\n' \
+            "$VERSION" >> notes.md
           gh release create "v$VERSION" exe/*.exe \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "PyImageLabeling $VERSION" --generate-notes
+            --title "PyImageLabeling $VERSION" --notes-file notes.md
