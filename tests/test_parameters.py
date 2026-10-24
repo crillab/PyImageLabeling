@@ -6,6 +6,9 @@ from PyImageLabeling.model.Utils import Utils
 
 
 def _paths():
+    # a fresh checkout has no parameters.json until the first load creates
+    # it from the defaults; without this the tests only passed after others
+    Utils.load_parameters()
     base = Utils.get_base_dir()
     return (os.path.join(base, "parameters.json"),
             os.path.join(base, "default_parameters.json"))
