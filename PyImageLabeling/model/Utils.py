@@ -96,14 +96,28 @@ class Utils:
         Utils.write_json_atomic_indent4(path, data)
 
     @staticmethod
+    def get_parameters_path():
+        """Where the per-user parameters.json lives.
+
+        Next to the package for a pip or source install. A PyInstaller exe
+        runs from _MEIPASS, a temporary folder deleted on exit: settings
+        saved there were lost at every launch, so frozen builds keep them in
+        ~/.pyimagelabeling/ with the logs.
+        """
+        if getattr(sys, "_MEIPASS", None):
+            user_dir = os.path.join(os.path.expanduser("~"), ".pyimagelabeling")
+            os.makedirs(user_dir, exist_ok=True)
+            return os.path.join(user_dir, "parameters.json")
+        return os.path.join(Utils.get_base_dir(), "parameters.json")
+
+    @staticmethod
     def save_parameters(data):
-        param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
-        Utils._write_json_atomic(param_path, data)
+        Utils._write_json_atomic(Utils.get_parameters_path(), data)
 
     @staticmethod
     def load_parameters():
         default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
-        param_path = os.path.join(Utils.get_base_dir(), "parameters.json")
+        param_path = Utils.get_parameters_path()
 
         if not os.path.exists(default_param_path):
             raise FileNotFoundError(f"Default parameters not found at {default_param_path}")

@@ -92,6 +92,31 @@ def test_no_tmp_left_behind():
     assert isinstance(json.load(open(pp, encoding="utf-8")), dict)
 
 
+def test_exe_settings_survive_a_relaunch(monkeypatch, tmp_path):
+    """A frozen exe unpacks into a new, empty _MEIPASS at every launch."""
+    import shutil
+    import sys
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))         # expanduser on POSIX
+    monkeypatch.setenv("USERPROFILE", str(home))  # expanduser on Windows
+    defaults = os.path.join(Utils.get_base_dir(), "default_parameters.json")
+
+    for launch in ("first", "second"):
+        meipass = tmp_path / launch
+        meipass.mkdir()
+        shutil.copyfile(defaults, meipass / "default_parameters.json")
+        monkeypatch.setattr(sys, "_MEIPASS", str(meipass), raising=False)
+        d = Utils.load_parameters()
+        if launch == "first":
+            assert d["zoom"]["max_zoom"] != 42
+            d["zoom"]["max_zoom"] = 42
+            Utils.save_parameters(d)
+
+    assert d["zoom"]["max_zoom"] == 42
+    assert (home / ".pyimagelabeling" / "parameters.json").is_file()
+    assert not (meipass / "parameters.json").exists()
+
+
 def test_ml_verbose_flag_exists_and_defaults_off():
     d = Utils.load_parameters()
     assert d.get("ml", {}).get("verbose") is False
