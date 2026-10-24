@@ -5,9 +5,9 @@
 <div align="center">
 
 [![PyPI downloads](https://img.shields.io/pypi/dm/pyimagelabeling?label=PyPI%20downloads&color=brightgreen)](https://pypistats.org/packages/pyimagelabeling)
+[![Exe downloads](https://img.shields.io/github/downloads/crillab/PyImageLabeling/total?label=exe%20downloads&color=brightgreen)](https://github.com/crillab/PyImageLabeling/releases/latest)
 [![PyPI version](https://img.shields.io/pypi/v/pyimagelabeling?label=pypi)](https://pypi.org/project/PyImageLabeling/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://pypi.org/project/PyImageLabeling/)
-[![Exe downloads](https://img.shields.io/github/downloads/crillab/PyImageLabeling/total?label=exe%20downloads&color=brightgreen)](https://github.com/crillab/PyImageLabeling/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](https://github.com/crillab/PyImageLabeling/tree/master?tab=MIT-1-ov-file#)
 
 [![Build Linux](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/build-linux.yml?branch=master&label=Build%20Linux&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/build-linux.yml)
