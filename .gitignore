@@ -28,6 +28,9 @@ ENV/
 requirements-download/
 wheelhouse
 PyImageLabeling.egg-info/
-PyImageLabeling/*.spec
+# PyInstaller writes <name>.spec at the repo root on every build; the
+# options live in build-exec/build_exe.py and .github/workflows/exe.yml
+*.spec
+nuitka-crash-report.xml
 PyImageLabeling/parameters.json
 CLAUDE.md
