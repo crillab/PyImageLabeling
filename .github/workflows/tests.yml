@@ -3,11 +3,17 @@ name: Tests
 # Manual only: Actions tab > Tests > Run workflow. Nothing runs on push.
 # Default: one Linux job. "full" adds Windows, macOS and Python 3.12.
 # GPU tests (marked slow) stay local: pytest -m slow
+# release.yml calls it with full: true and publishes its "dist" artifact.
 on:
   workflow_dispatch:
     inputs:
       full:
         description: "Also Windows, macOS and Python 3.12 (slower)"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      full:
         type: boolean
         default: false
 

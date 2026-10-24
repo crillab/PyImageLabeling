@@ -1,0 +1,76 @@
+name: Windows executable
+
+# Manual (Actions > Windows executable > Run workflow) to try a build, or
+# called by release.yml, which attaches the exe to the GitHub release.
+# Single-file PyInstaller exe, CPU-only torch (the PyPI Windows wheel).
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  exe:
+    name: Build and launch the Windows exe
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install the app and PyInstaller
+        run: python -m pip install . pyinstaller
+      - name: Build
+        # no UPX: it breaks torch DLLs and makes antivirus flag the exe
+        run: |
+          version=$(python -c "import json; print(json.load(open('PyImageLabeling/version.json'))['version'])")
+          name="PyImageLabeling_v$version"
+          echo "EXE_NAME=$name" >> "$GITHUB_ENV"
+          pyinstaller --noconfirm --clean --onefile --noconsole --optimize 2 \
+            --name "$name" \
+            --icon PyImageLabeling/icons/maia3.ico \
+            --add-data "PyImageLabeling/config.json;." \
+            --add-data "PyImageLabeling/default_parameters.json;." \
+            --add-data "PyImageLabeling/version.json;." \
+            --add-data "PyImageLabeling/style.css;." \
+            --add-data "PyImageLabeling/icons/*.png;icons" \
+            PyImageLabeling/__main__.py
+          ls -la dist
+      - name: Launch it until the main window shows
+        # the window title proves the app got past startup: a Python crash
+        # opens PyInstaller's "Unhandled exception" box instead
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist\$env:EXE_NAME.exe").Path
+          $proc = Start-Process -FilePath $exe -PassThru
+          $deadline = (Get-Date).AddMinutes(4)
+          $window = $null
+          while (-not $window -and -not $proc.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            $window = Get-Process -Name $env:EXE_NAME -ErrorAction SilentlyContinue |
+              Where-Object { $_.MainWindowTitle -like "PyImageLabeling - *" } |
+              Select-Object -First 1
+          }
+          $titles = Get-Process -Name $env:EXE_NAME -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.MainWindowTitle }
+          Get-Process -Name $env:EXE_NAME -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-ChildItem "$HOME\.pyimagelabeling" -Filter *.log -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName -Tail 40 }
+          if (-not $window) {
+            Write-Error "no main window (exited: $($proc.HasExited), window titles: '$($titles -join "', '")')"
+            exit 1
+          }
+          Write-Host "OK: '$($window.MainWindowTitle)'"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: exe
+          path: dist/*.exe
+          retention-days: 7

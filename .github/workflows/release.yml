@@ -1,0 +1,108 @@
+name: Release
+
+# Manual only: Actions > Release > Run workflow, on master.
+# Publishes the version in PyImageLabeling/version.json: bump it first.
+#
+#   version -> tests (3 OS) + Windows exe -> PyPI -> GitHub release vX.Y.Z
+#
+# PyPI cannot be undone (a version number can never be reused), so it only
+# runs once every test and the exe have passed. "dry_run" (on by default)
+# runs everything but the two publishing jobs.
+#
+# PyPI side, once: project > Settings > Publishing > add a GitHub publisher
+# (owner crillab, repository PyImageLabeling, workflow release.yml,
+# environment pypi). No token is stored anywhere.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: build and test, publish nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+
+jobs:
+  version:
+    name: Check the version is new
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: read
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/master" ]; then
+            echo "::error::release from master only, not $GITHUB_REF"
+            exit 1
+          fi
+          version=$(python3 -c "import json; print(json.load(open('PyImageLabeling/version.json'))['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version"
+          problems=""
+          if curl -sf -o /dev/null "https://pypi.org/pypi/PyImageLabeling/$version/json"; then
+            problems="$version is already on PyPI"
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            problems="$problems${problems:+; }tag v$version already exists"
+          fi
+          if [ -n "$problems" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "::warning::$problems (fine for a dry run; bump PyImageLabeling/version.json before releasing)"
+            else
+              echo "::error::$problems: bump PyImageLabeling/version.json"
+              exit 1
+            fi
+          fi
+
+  tests:
+    needs: version
+    uses: ./.github/workflows/tests.yml
+    with:
+      full: true
+
+  exe:
+    needs: version
+    uses: ./.github/workflows/exe.yml
+
+  pypi:
+    name: Publish to PyPI
+    if: ${{ !inputs.dry_run }}
+    needs: [version, tests, exe]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/PyImageLabeling/${{ needs.version.outputs.version }}/
+    permissions:
+      id-token: write  # Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: GitHub release
+    if: ${{ !inputs.dry_run }}
+    needs: [version, pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets  # one folder per artifact: assets/dist, assets/exe
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" assets/dist/* assets/exe/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "PyImageLabeling $VERSION" --generate-notes
