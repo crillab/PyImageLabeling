@@ -2,11 +2,26 @@
   <img src="https://raw.githubusercontent.com/crillab/PyImageLabeling/master/assets/logo.svg" alt="PyImageLabeling logo" width="300"/>
 </p>
 
-# PyImageLabeling
+<div align="center">
 
-[![PyPI version](https://img.shields.io/pypi/v/PyImageLabeling.svg?color=green)](https://pypi.org/project/PyImageLabeling/)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/crillab/PyImageLabeling/tree/master?tab=MIT-1-ov-file#)
+[![PyPI downloads](https://img.shields.io/pypi/dm/pyimagelabeling?label=PyPI%20downloads&color=brightgreen)](https://pypistats.org/packages/pyimagelabeling)
+[![PyPI version](https://img.shields.io/pypi/v/pyimagelabeling?label=pypi)](https://pypi.org/project/PyImageLabeling/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://pypi.org/project/PyImageLabeling/)
+[![Exe downloads](https://img.shields.io/github/downloads/crillab/PyImageLabeling/total?label=exe%20downloads&color=brightgreen)](https://github.com/crillab/PyImageLabeling/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](https://github.com/crillab/PyImageLabeling/tree/master?tab=MIT-1-ov-file#)
+
+[![Build Linux](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/build-linux.yml?branch=master&label=Build%20Linux&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/build-linux.yml)
+[![Build MacOS](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/build-macos.yml?branch=master&label=Build%20MacOS&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/build-macos.yml)
+[![Build Windows](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/build-windows.yml?branch=master&label=Build%20Windows&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/build-windows.yml)
+[![Windows exe](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/exe.yml?branch=master&label=Windows%20exe&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/exe.yml)
+
+[![Linux tests](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/tests-linux.yml?branch=master&label=Linux%20tests&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/tests-linux.yml)
+[![MacOS tests](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/tests-macos.yml?branch=master&label=MacOS%20tests&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/tests-macos.yml)
+[![Windows tests](https://img.shields.io/github/actions/workflow/status/crillab/PyImageLabeling/tests-windows.yml?branch=master&label=Windows%20tests&logo=github)](https://github.com/crillab/PyImageLabeling/actions/workflows/tests-windows.yml)
+
+</div>
+
+# PyImageLabeling
 
 - **Documentation**: [Read the documentation](https://www.cril.univ-artois.fr/pyimagelabeling/).
 - **GitHub Repository**: [View codesource](https://github.com/crillab/PyImageLabeling).
@@ -14,9 +29,30 @@
 
 PyImageLabeling is a powerful tool with a **user-friendly interface** based on PyQT6 for creating image masks. These **labeled images** are used in the creation of **machine learning models** dedicated to **computer vision tasks**. 
 
-Two types of labeling are available: 
-- **Pixel-by-Pixel**: allows to use the pixel-level precision (paintbrush, magic pen, contour filling).
-- **Geometric shapes**: allows to use different geometric shapes (polygon, rectangle, ellipse) for labeling.
+## Features
+
+**Labeling**
+- **Pixel-by-pixel**: paintbrush, magic pen (selects similar colors, RGB or HSV tolerance) and contour filling.
+- **Geometric shapes**: polygon, rectangle and ellipse.
+- **Several labels per image**, each with its own color, opacity and visibility.
+
+**Editing**
+- **Smart eraser**: erase freely, or only a color range with an adjustable tolerance.
+- **Change labeled area**: move an annotated region to another label.
+- **Undo** with a configurable depth, and **Clear All**.
+
+**AI assistance** (optional: models are downloaded from Hugging Face on first use, and the GPU is used when available)
+- **SAM Assist**: click to add (+) or remove (−) points, or drag a box, and Segment Anything draws the mask. Presets range from fast to precise, plus a medical model (MedSAM).
+- **Text-to-mask**: describe the object in English or French (colors, shapes, position); Grounding DINO finds it and SAM draws the mask.
+- **One-shot propagation**: annotate one image and propagate the label to all the others (DINOv2 + SAM, no training), then step through the batch to review and fix it.
+- **Train a model on your annotations**: segmentation (ResNet or DINOv2 backbone) and detection; predict the current image, then accept or clear the predictions.
+- **Active learning**: *Suggest next to label* jumps to the image the model is least sure about.
+
+**Images and workflow**
+- **Image options**: brightness, contrast, gamma, saturation, hue, sharpness, grayscale, color inversion and color replacement, saved as reusable presets.
+- **Import existing masks** as labels.
+- **Never lose your work**: auto-save, recovery after a crash, and saves that cannot be left half-written; *Help > Crash Report & Logs* shows what happened.
+- Menu bar and keyboard shortcuts.
 
 <figure>
   <img src="https://i.postimg.cc/VsxcS6Jg/screenshot1.png" alt="PyImageLabeling Interface" width="800"/>
