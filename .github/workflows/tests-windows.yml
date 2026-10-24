@@ -1,0 +1,15 @@
+name: Windows tests
+
+# Manual only: Actions > Windows tests > Run workflow ("Run all checks" starts the
+# six Build/Tests workflows at once). Its last run sets the README badge.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/reusable-tests.yml
+    with:
+      os: windows-latest

@@ -1,0 +1,47 @@
+name: Build (reusable)
+
+# Called by build-linux/macos/windows.yml (one README badge each) and by
+# release.yml. Builds the sdist and the wheel, checks their contents, then
+# installs the wheel and builds the app from it, outside the repo, so a
+# forgotten data file fails here. Uploads them as dist-<os>.
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-app
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+      - name: Check metadata and contents
+        run: |
+          python -m twine check --strict dist/*
+          python .github/scripts/check_dist.py dist
+      - name: Install the wheel
+        run: python -m pip install dist/*.whl
+      - name: Start the app from the installed wheel
+        working-directory: ${{ runner.temp }}
+        run: python "$GITHUB_WORKSPACE/.github/scripts/smoke_installed.py"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ inputs.os }}
+          path: dist/
+          retention-days: 7

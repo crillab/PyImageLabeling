@@ -1,0 +1,15 @@
+name: Build Windows
+
+# Manual only: Actions > Build Windows > Run workflow ("Run all checks" starts the
+# six Build/Tests workflows at once). Its last run sets the README badge.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      os: windows-latest

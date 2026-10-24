@@ -1,0 +1,31 @@
+name: Run all checks
+
+# One click starts the six Build/Tests workflows (one README badge each),
+# and the Windows exe if asked. They run side by side in the Actions tab.
+on:
+  workflow_dispatch:
+    inputs:
+      exe:
+        description: "Also build and launch the Windows exe (~8 min)"
+        type: boolean
+        default: false
+
+permissions:
+  actions: write  # to start the other workflows
+
+jobs:
+  dispatch:
+    name: Start the checks
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          WITH_EXE: ${{ inputs.exe }}
+        run: |
+          workflows="build-linux.yml build-macos.yml build-windows.yml"
+          workflows="$workflows tests-linux.yml tests-macos.yml tests-windows.yml"
+          if [ "$WITH_EXE" = "true" ]; then workflows="$workflows exe.yml"; fi
+          for workflow in $workflows; do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+            echo "started $workflow"
+          done

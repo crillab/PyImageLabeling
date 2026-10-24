@@ -1,0 +1,44 @@
+name: Tests (reusable)
+
+# Called by tests-linux/macos/windows.yml (one README badge each) and by
+# release.yml. pytest -m "not slow" on the sources, CPU only, Python 3.12
+# and 3.13. GPU tests (marked slow) stay local: pytest -m slow
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (${{ inputs.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-app
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the app and pytest
+        run: python -m pip install . pytest
+      # facebook/dinov2-small (85 MB), downloaded once by test_dinov2_probe
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/huggingface
+          key: hf-dinov2-small
+      - name: Run the test suite
+        run: python -m pytest tests -m "not slow" -q -p no:cacheprovider

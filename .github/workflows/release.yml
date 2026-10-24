@@ -3,11 +3,14 @@ name: Release
 # Manual only: Actions > Release > Run workflow, on master.
 # Publishes the version in PyImageLabeling/version.json: bump it first.
 #
-#   version -> tests (3 OS) + Windows exe -> PyPI -> GitHub release vX.Y.Z
+#   version -> build + tests (3 OS each) + Windows exe
+#           -> PyPI (the Linux-built wheel and sdist)
+#           -> GitHub release vX.Y.Z (the exe only, so the README's
+#              "exe downloads" badge counts exe downloads)
 #
 # PyPI cannot be undone (a version number can never be reused), so it only
-# runs once every test and the exe have passed. "dry_run" (on by default)
-# runs everything but the two publishing jobs.
+# runs once every build, test and the exe have passed. "dry_run" (on by
+# default) runs everything but the two publishing jobs.
 #
 # PyPI side, once: project > Settings > Publishing > add a GitHub publisher
 # (owner crillab, repository PyImageLabeling, workflow release.yml,
@@ -61,11 +64,24 @@ jobs:
             fi
           fi
 
+  build:
+    needs: version
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      os: ${{ matrix.os }}
+
   tests:
     needs: version
-    uses: ./.github/workflows/tests.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    uses: ./.github/workflows/reusable-tests.yml
     with:
-      full: true
+      os: ${{ matrix.os }}
 
   exe:
     needs: version
@@ -74,7 +90,7 @@ jobs:
   pypi:
     name: Publish to PyPI
     if: ${{ !inputs.dry_run }}
-    needs: [version, tests, exe]
+    needs: [version, build, tests, exe]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -84,7 +100,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: dist
+          name: dist-ubuntu-latest
           path: dist
       - uses: pypa/gh-action-pypi-publish@release/v1
 
@@ -98,11 +114,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          path: assets  # one folder per artifact: assets/dist, assets/exe
+          name: exe
+          path: exe
       - env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release create "v$VERSION" assets/dist/* assets/exe/* \
+          gh release create "v$VERSION" exe/*.exe \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "PyImageLabeling $VERSION" --generate-notes
