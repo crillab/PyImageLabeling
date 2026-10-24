@@ -46,12 +46,11 @@ def _ensure_dinov2(device="cuda", model_key=DEFAULT_DINO):
             _dino_model.to(want)  # loud: caller must see device failures
             _dino_device = want
         return _dino_processor, _dino_model, _dino_device
-    # switching (or first load): drop the old backbone first
-    try:
-        del _dino_model
-        del _dino_processor
-    except Exception:
-        pass
+    # switching (or first load): drop the old backbone first. Rebind rather
+    # than `del`: deleting the globals left them unbound when the reload
+    # below failed (offline), and every later call died with NameError.
+    _dino_model = None
+    _dino_processor = None
     try:
         import gc
         gc.collect()
