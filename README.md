@@ -50,13 +50,26 @@ python3 -m pip install -U PyImageLabeling
 To launch PyImageLabeling:
 
 ```bash
-python3 -m PyImageLabeling
+pyimagelabeling
 ```
+
+(`python3 -m PyImageLabeling` works too.)
+
+### Without installing Python yourself: uv (Windows, Mac and Linux)
+
+[uv](https://docs.astral.sh/uv/getting-started/installation/) downloads a suitable Python by itself and installs PyImageLabeling in its own environment:
+
+```bash
+uv tool install PyImageLabeling
+pyimagelabeling
+```
+
+Update later with `uv tool upgrade PyImageLabeling`.
 
 ### Executable ".exe" (Windows)
 
-You can download the [Windows executable](https://github.com/crillab/PyImageLabeling/releases/tag/exec). 
-Just double-click on the executable file to launch PyImageLabeling.   
+Download `PyImageLabeling_vX.Y.Z.exe` from the [latest release](https://github.com/crillab/PyImageLabeling/releases/latest).
+Just double-click on the executable file to launch PyImageLabeling (no Python needed; machine learning runs on the CPU).
 
 
 ### Github Installation (Windows, Mac and Linux)

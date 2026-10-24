@@ -8,6 +8,7 @@ forgot. Run it from a directory that does not contain PyImageLabeling/:
 """
 import os
 import sys
+from importlib.metadata import entry_points
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -31,5 +32,8 @@ view = View(controller, config)
 model = Model(view, controller, config)
 controller.set_model(model)
 Utils.load_parameters()
+
+# the `pyimagelabeling` command must point at a real function
+entry_points(group="gui_scripts")["pyimagelabeling"].load()
 
 print(f"PyImageLabeling {PyImageLabeling.__version__} builds from {base}")

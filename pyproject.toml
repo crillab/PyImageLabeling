@@ -25,6 +25,11 @@ description = "PyImageLabeling is a tool designed to help create image masks, i.
 readme = "README.md"
 license = { text = "MIT" }
 
+[project.gui-scripts]
+# `pyimagelabeling` command (no console window on Windows), e.g. after
+# `uv tool install PyImageLabeling`; `python -m PyImageLabeling` still works
+pyimagelabeling = "PyImageLabeling.__main__:__main__"
+
 [project.urls]
 #Documentation = "http://www.cril.univ-artois.fr/pyxai/"
 #Installation = "http://www.cril.univ-artois.fr/pyxai/documentation/installation/"
