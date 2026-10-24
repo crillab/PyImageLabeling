@@ -18,7 +18,8 @@ def test_user_values_win_over_defaults():
     shutil.copyfile(pp, backup)
     try:
         d = Utils.load_parameters()
-        d["sam"]["device"] = "cpu"
+        # "sam" is not in the defaults: SAMSetting creates it on first save
+        d.setdefault("sam", {})["device"] = "cpu"
         d["zoom"]["max_zoom"] = 42
         Utils.save_parameters(d)
         d2 = Utils.load_parameters()
