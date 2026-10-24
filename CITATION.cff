@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use PyImageLabeling in your work, please cite it as below."
+type: software
+title: PyImageLabeling
+abstract: >-
+  Desktop image annotation tool for creating segmentation masks used to
+  train computer vision models. It combines pixel-level and geometric
+  labeling tools with AI assistance: Segment Anything (SAM, MedSAM),
+  text-to-mask with Grounding DINO, one-shot propagation with DINOv2,
+  model training on the annotations and active learning. It runs offline,
+  so images never leave the user's computer.
+authors:
+  - family-names: Szczepanski
+    given-names: Nicolas
+    affiliation: "CRIL, Université d'Artois & CNRS"
+  - family-names: Fayette
+    given-names: Pierre-Marie
+    affiliation: "CRIL, Université d'Artois & CNRS"
+repository-code: "https://github.com/crillab/PyImageLabeling"
+url: "https://www.cril.univ-artois.fr/pyimagelabeling/"
+license: MIT
+keywords:
+  - image annotation
+  - segmentation
+  - segment anything
+  - active learning
+  - medical imaging
+  - digital pathology
+  - computer vision
