@@ -34,8 +34,12 @@ Git = "https://github.com/crillab/PyImageLabeling"
 package-dir = { PyImageLabeling = "PyImageLabeling" }
 include-package-data = true
 
-[tool.setuptools.packages]
-find = {} 
+[tool.setuptools.exclude-package-data]
+PyImageLabeling = ["parameters.json"]
+
+[tool.setuptools.packages.find]
+# without a filter, tests/ was installed as a top-level "tests" package
+include = ["PyImageLabeling*"]
 
 [tool.pytest.ini_options]
 markers = [

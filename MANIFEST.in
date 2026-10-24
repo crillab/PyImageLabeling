@@ -1,6 +1,8 @@
 recursive-include PyImageLabeling/icons/ *
 recursive-include PyImageLabeling/ *.css
 recursive-include PyImageLabeling/ *.json
+# per-user settings written at runtime, never shipped (default_parameters.json is)
+exclude PyImageLabeling/parameters.json
 
 global-exclude __pycache__
 global-exclude *.pyc
