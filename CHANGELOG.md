@@ -56,5 +56,6 @@ version: the Release workflow refuses to publish a version without one.
 - *Clear All* and undo: undo no longer goes back past a *Clear All*, and the undo depth setting applies everywhere.
 - The PyPI package shipped the maintainer's own `parameters.json` (local settings and folder paths) and the test files.
 
-### Windows executable
+- `SAMEvents` / `SAM2Assistant` UI guards (59 silent catches) now log at
+  `DEBUG` instead of swallowing failures quietly.
 - Now built and checked automatically for each release, without UPX compression, which caused antivirus false alarms. 284 MB instead of 347 MB.
