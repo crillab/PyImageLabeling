@@ -8,6 +8,8 @@ Much stronger than CLIPSeg for:
 Outputs boxes that SAM refines into pixel-perfect masks.
 """
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.grounding")
 
 GROUNDING_MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 
@@ -49,7 +51,7 @@ def ensure_grounding(device="cuda"):
     _grounding_model = AutoModelForZeroShotObjectDetection.from_pretrained(
         GROUNDING_MODEL_ID).to(dev).eval()
     _grounding_device = dev
-    print(f"[grounding] DINO on {dev}")
+    log.info(f"[grounding] DINO on {dev}")
     return _grounding_model, _grounding_processor, _grounding_device
 
 

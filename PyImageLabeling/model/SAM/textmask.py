@@ -10,6 +10,9 @@ lowercase name (do NOT add a TextMask.py sibling).
 
 import numpy as np
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.textmask")
+
 CLIPSEG_MODEL_ID = "CIDAS/clipseg-rd64-refined"
 
 # ----------------------------------------------------------------------
@@ -392,7 +395,7 @@ def ensure_clipseg(device="cuda"):
     _clip_model = CLIPSegForImageSegmentation.from_pretrained(
         CLIPSEG_MODEL_ID).to(dev).eval()
     _clip_device = dev
-    print(f"[textmask] CLIPSeg on {dev}")
+    log.info(f"[textmask] CLIPSeg on {dev}")
     return _clip_processor, _clip_model, _clip_device
 
 

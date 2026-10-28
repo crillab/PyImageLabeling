@@ -9,6 +9,9 @@ from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("labeling.change_label")
+
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
@@ -31,7 +34,7 @@ class ChangeLabel(Core):
             )
             return
 
-        print("ChangeLabel activated → target:", self.target_label_id)
+        log.debug("ChangeLabel activated → target: %s", self.target_label_id)
 
     def _load_settings(self):
         data = Utils.load_parameters()
@@ -65,7 +68,7 @@ class ChangeLabel(Core):
 
         if selected_shapes:
             for shape in selected_shapes:
-                print("Relabeling geometric shape:", shape)
+                log.debug("Relabeling geometric shape: %s", shape)
                 self._relabel_shape(shape, image_item)
         else:
             self.view.progressBar.reset()
@@ -76,20 +79,20 @@ class ChangeLabel(Core):
         """Move a selected shape to the target label, update color and model_ref."""
         old_label_id = getattr(shape, "label_id", None)
         if old_label_id == self.target_label_id:
-            print("Shape already in target label, skipping")
+            log.debug("Shape already in target label, skipping")
             return
 
         if old_label_id is not None:
             old_overlay = image_item.labeling_overlays.get(old_label_id)
             if old_overlay and hasattr(old_overlay, "shapes") and shape in old_overlay.shapes:
                 old_overlay.shapes.remove(shape)
-                print(f"Removed shape from old label: {old_label_id}")
+                log.debug(f"Removed shape from old label: {old_label_id}")
 
         target_overlay = image_item.labeling_overlays[self.target_label_id]
         if not hasattr(target_overlay, "shapes"):
             target_overlay.shapes = []
         target_overlay.shapes.append(shape)
-        print(f"Added shape to target label: {self.target_label_id}")
+        log.debug(f"Added shape to target label: {self.target_label_id}")
 
         pen_width = Utils.load_parameters()["geometric_shape"]["thickness"]
         new_color = target_overlay.label.get_color()
@@ -103,7 +106,7 @@ class ChangeLabel(Core):
         shape.label_id = self.target_label_id
         if hasattr(shape, "model_ref") and shape.model_ref is not None:
             shape.model_ref["label"] = self.target_label_id
-            print(f"Updated model_ref label to: {self.target_label_id}")
+            log.debug(f"Updated model_ref label to: {self.target_label_id}")
 
         shape.setSelected(False)
         shape.update()
@@ -119,12 +122,12 @@ class ChangeLabel(Core):
 
         source_overlay = self._find_source_overlay(x0, y0)
         if source_overlay is None:
-            print("No source overlay found at clicked position")
+            log.debug("No source overlay found at clicked position")
             return
 
         source_label_id = source_overlay.label.get_label_id()
         if source_label_id == self.target_label_id:
-            print("Source and target labels are the same, skipping")
+            log.debug("Source and target labels are the same, skipping")
             return
 
         target_overlay = image_item.labeling_overlays[self.target_label_id]
@@ -204,7 +207,8 @@ class ChangeLabel(Core):
         source_overlay.update()
         target_overlay.update()
 
-        print(f"ChangeLabel: moved {n_pixels} pixels from label {source_label_id} to {self.target_label_id}")
+        log.debug(f"ChangeLabel: moved {n_pixels} pixels from label "
+                  f"{source_label_id} to {self.target_label_id}")
 
     def _find_source_overlay(self, x, y):
         """Find which label overlay contains a pixel at the given position."""

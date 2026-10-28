@@ -25,6 +25,9 @@ import os
 import json
 import shutil
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("core")
+
 KEYWORD_SAVE_LABEL = ".label."
 
 class CompactUndoEntry:
@@ -584,7 +587,7 @@ class LabelingOverlay():
                 Utils.commit_tmp(tmp_file, save_file)
             else:
                 Utils.discard_tmp(tmp_file)
-                print(f"[Core] could not write mask {os.path.basename(save_file)}")
+                log.error(f"could not write mask {os.path.basename(save_file)}")
 
 class ImageItem():
 
@@ -912,7 +915,7 @@ class Core():
 
         self._save_all(auto_save_path, reset_edited=False)
 
-        print(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
+        log.debug(f"Auto-saved at {QDateTime.currentDateTime().toString('hh:mm:ss')}")
 
     def set_autosave_enabled(self, enabled):
         """Enable or disable auto-save"""
@@ -1163,9 +1166,9 @@ class Core():
             if os.path.isfile(path):
                 try:
                     os.remove(path)
-                    print(f"Removed empty file: {os.path.basename(path)}")
+                    log.debug(f"Removed empty file: {os.path.basename(path)}")
                 except Exception as e:
-                    print(f"Error removing {path}: {e}")
+                    log.error(f"Error removing {path}: {e}")
 
     def save(self):
         self._save_all(self.save_directory, reset_edited=True)
@@ -1184,7 +1187,7 @@ class Core():
             try:
                 Autosave.close(self.save_directory)
             except Exception as e:
-                print(f"[autosave] could not clear snapshot: {e}")
+                log.warning(f"could not clear snapshot: {e}")
 
     def save_copy(self, copy_directory):
         if not self.save_directory or not os.path.exists(self.save_directory):
@@ -1192,7 +1195,7 @@ class Core():
         
         if os.path.normpath(copy_directory) == os.path.normpath(self.save_directory):
             copy_directory = os.path.join(copy_directory, "copy")
-            print(f"file created: {copy_directory}")
+            log.info(f"file created: {copy_directory}")
         
         os.makedirs(copy_directory, exist_ok=True)
         
@@ -1211,7 +1214,7 @@ class Core():
                 try:
                     shutil.copy2(src, dst)
                 except PermissionError:
-                    print(f"copy impossible {filename} (file used)")
+                    log.warning(f"copy impossible {filename} (file used)")
         
         for file in os.listdir(self.save_directory):
             if KEYWORD_SAVE_LABEL in file and file.endswith('.png'):
@@ -1220,9 +1223,9 @@ class Core():
                 try:
                     shutil.copy2(src, dst)
                 except PermissionError:
-                    print(f"copy impossible {file} (file used)")
+                    log.warning(f"copy impossible {file} (file used)")
         
-        print("Save Copy done :", copy_directory)
+        log.info("Save Copy done : %s", copy_directory)
 
     def _read_annotation_json(self, file, what):
         """Read a project JSON, tolerating a truncated/corrupt file.
@@ -1244,11 +1247,11 @@ class Core():
                 where = os.path.basename(file) + ".corrupt"
             except OSError:
                 where = os.path.basename(file)
-            print(f"[Core] {what} file unreadable ({e}); moved aside as {where}")
+            log.warning(f"{what} file unreadable ({e}); moved aside as {where}")
             self._warn_corrupt_project_file(what, os.path.basename(file))
             return None
         if not isinstance(data, dict):
-            print(f"[Core] {what} file has an unexpected shape; ignored")
+            log.warning(f"{what} file has an unexpected shape; ignored")
             return None
         return data
 

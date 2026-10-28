@@ -15,6 +15,9 @@ Backbones (lazy download): dinov2-small (~90MB, default) or dinov2-base
 
 import numpy as np
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.oneshot")
+
 DINO_MODELS = {
     "small": "facebook/dinov2-small",
     "base": "facebook/dinov2-base",
@@ -64,7 +67,7 @@ def _ensure_dinov2(device="cuda", model_key=DEFAULT_DINO):
     _dino_model = Dinov2Model.from_pretrained(repo).to(want).eval()
     _dino_device = want
     _dino_key = model_key
-    print(f"[one-shot] DINOv2-{model_key} on {want}")
+    log.info(f"[one-shot] DINOv2-{model_key} on {want}")
     return _dino_processor, _dino_model, _dino_device
 
 

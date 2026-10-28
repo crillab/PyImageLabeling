@@ -22,6 +22,9 @@ from PyQt6.QtCore import Qt, QFileInfo
 import random
 
 from PyImageLabeling.model.Utils import Utils
+from PyImageLabeling.logging_setup import get_logger
+
+log = get_logger("label_setting")
 
 import os
 import fnmatch
@@ -495,14 +498,14 @@ class LabelSetting(QDialog):
                     mask = self._indexed_to_binary(source_file_path, idx_values)
                     if not np.any(np.array(mask)):
                         continue
-                    print(f"[import] Indexed mask '{filename}': values={idx_values} → white binary")
+                    log.debug(f"Indexed mask '{filename}': values={idx_values} → white binary")
                     mask.save(dest_file_path)
 
                 elif fmt == ImportFormatDialog.FORMAT_RGB and rgb_color is not None:
                     mask = self._rgb_to_binary(source_file_path, rgb_color)
                     if not np.any(np.array(mask)):
                         continue
-                    print(f"[import] RGB mask '{filename}': colour={rgb_color.name()} → white binary")
+                    log.debug(f"RGB mask '{filename}': colour={rgb_color.name()} → white binary")
                     mask.save(dest_file_path)
 
                 else:
@@ -511,8 +514,8 @@ class LabelSetting(QDialog):
                     mask = normalize_binary_mask(source_file_path)
                     if not np.any(np.array(mask)):
                         continue
-                    print(f"[import] Binary mask '{filename}': "
-                          f"non-zero → white")
+                    log.debug(f"Binary mask '{filename}': "
+                              f"non-zero → white")
                     mask.save(dest_file_path)
 
                 self.importdata = True
@@ -528,7 +531,7 @@ class LabelSetting(QDialog):
         except Exception as e:
             # a failed import used to be invisible: the masks simply were
             # not there and only the console knew why
-            print(f"Error importing labels: {str(e)}")
+            log.error(f"Error importing labels: {str(e)}")
             try:
                 self.parent().view.controller.error_message(
                     "Import Error",

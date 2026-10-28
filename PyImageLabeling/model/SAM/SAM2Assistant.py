@@ -22,6 +22,9 @@ from PyImageLabeling.model.SAM.assistants import (
     get_assistant, detect_arch, DEFAULT_ASSISTANT, SAM_ASSISTANTS,
 )
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.assistant")
+
 
 SAM_AVAILABLE_IMPORT_ERROR = None
 try:
@@ -84,12 +87,12 @@ class SAM2Assistant(Core):
     def sam_assist(self):
         self.checked_button = "sam_assist"
         self.sam_negative_next = False
-        print("sam_assist activated (SAM interactive)")
+        log.debug("sam_assist activated (SAM interactive)")
 
     def sam_toggle_negative(self):
         self.sam_negative_next = not self.sam_negative_next
         mode = "NEGATIVE (exclusion)" if self.sam_negative_next else "POSITIVE"
-        print(f"sam next click mode: {mode}")
+        log.debug(f"sam next click mode: {mode}")
         try:
             self.view.statusBar().showMessage(
                 f"SAM: next click = {mode} (right-click = negative)")
@@ -150,7 +153,7 @@ class SAM2Assistant(Core):
                 pass
         except Exception:
             pass
-        print("[SAM] GPU caches purged after OOM")
+        log.warning("[SAM] GPU caches purged after OOM")
 
     def _sam_emb_cache_key(self, image_path, rgb, repo):
         try:
@@ -251,7 +254,7 @@ class SAM2Assistant(Core):
             self._sam_model_id_loaded = cfg["repo"]
             self._sam_arch_loaded = cfg["arch"]
             self._sam_error = None
-            print(f"[SAM] loaded {cfg['repo']} (arch={cfg['arch']}) on {device}")
+            log.info(f"[SAM] loaded {cfg['repo']} (arch={cfg['arch']}) on {device}")
             return (True, "loaded")
         except Exception as e:
             import traceback
@@ -677,7 +680,7 @@ class SAM2Assistant(Core):
             except Exception as e:
                 if not self._sam_is_oom(e):
                     raise
-                print(f"[SAM] OOM on attempt {attempt}, purging caches")
+                log.warning(f"[SAM] OOM on attempt {attempt}, purging caches")
                 self._sam_oom_purge()
                 if attempt == 2:
                     self._sam_last_error = "gpu-oom"

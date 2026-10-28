@@ -40,29 +40,30 @@ def test_training_prints_no_per_image_noise(project):
     assert model.trained is True
 
 
-def test_verbose_brings_it_back(project):
+def test_verbose_brings_it_back(project, caplog):
     _, _, model, paths = project
     for p in paths[:3]:
         model.image_items[p] = None
     set_ml_verbose(True)
     try:
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
+        import logging
+        with caplog.at_level(logging.INFO,
+                             logger="pyimagelabeling.ml.predictor"):
             for p in paths[:3]:
                 model.load_image_for_training(p)
-        assert "load_image_for_training" in buf.getvalue()
+        assert any("load_image_for_training" in r.message
+                   for r in caplog.records)
     finally:
         set_ml_verbose(False)
 
 
-def test_errors_always_print():
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        ml_log("a failure that matters", force=True)
-        ml_log("just chatter")
-    out = buf.getvalue()
-    assert "a failure that matters" in out
-    assert "just chatter" not in out
+def test_errors_always_print(caplog):
+    ml_log("a failure that matters", force=True)
+    ml_log("just chatter")
+    logged = [r.message for r in caplog.records
+              if r.name.startswith("pyimagelabeling.ml")]
+    assert any("a failure that matters" in m for m in logged)
+    assert not any("just chatter" in m for m in logged)
 
 
 def test_flag_roundtrip_in_parameters():

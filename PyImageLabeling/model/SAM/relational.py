@@ -13,6 +13,9 @@ that CLIPSeg alone cannot resolve.
 
 import numpy as np
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.relational")
+
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 
 _clip_model = None
@@ -34,7 +37,7 @@ def ensure_clip(device="cuda"):
     _clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID)
     _clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID).to(dev).eval()
     _clip_device = dev
-    print(f"[relational] CLIP on {dev}")
+    log.info(f"[relational] CLIP on {dev}")
     return _clip_model, _clip_processor, _clip_device
 
 

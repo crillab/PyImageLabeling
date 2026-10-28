@@ -8,6 +8,9 @@ from PyQt6.QtGui import QImage
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.model.ML.MLPredictor import ml_log
 from PyImageLabeling.controller.settings.MLSetting import MLSetting
+from PyImageLabeling.logging_setup import get_logger
+
+log = get_logger("ml.events")
 
 class MLEvents(Events):
     def __init__(self):
@@ -19,7 +22,7 @@ class MLEvents(Events):
 
     def ml_train_model(self):
         """Train the ML model on current annotations (detection + segmentation)"""
-        print("STARTING ML TRAINING")
+        log.info("STARTING ML TRAINING")
         try:
             from PyImageLabeling.model.SAM.debug_log import log_state
             log_state("ml_train_model: start")
@@ -89,8 +92,8 @@ class MLEvents(Events):
             segmentation_data = self.model.collect_segmentation_data(selected_paths)
 
         total_data = len(detection_data) + len(segmentation_data)
-        print(f"Collected: {len(detection_data)} detection images, "
-              f"{len(segmentation_data)} segmentation images")
+        log.info(f"Collected: {len(detection_data)} detection images, "
+                 f"{len(segmentation_data)} segmentation images")
 
         if total_data < 1:
             QMessageBox.warning(
@@ -172,7 +175,7 @@ class MLEvents(Events):
                 if predictions:
                     self.ml_predictions_current = predictions
                     self.model.ml_visualize_predictions(predictions)
-                    print(f"Detection: {len(predictions)} boxes")
+                    log.info(f"Detection: {len(predictions)} boxes")
                 else:
                     ml_log("No predictions after thresholding")
             except Exception as e:
@@ -187,7 +190,7 @@ class MLEvents(Events):
                 if segmentation is not None and any(
                         np.any(mask > 0) for mask in segmentation.values()):
                     self.model.ml_visualize_segmentation(segmentation)
-                    print("Segmentation: displayed on screen")
+                    log.info("Segmentation: displayed on screen")
             except Exception as e:
                 ml_log(f"Segmentation prediction failed: {e}")
                 import traceback; traceback.print_exc()
@@ -622,5 +625,5 @@ class MLEvents(Events):
             self.model.nms_threshold        = mlsetting.nms_spinbox.value()
 
             self._ml_selected_image_paths = mlsetting.selected_image_paths
-            print(f"ML settings applied. "
-                  f"{len(self._ml_selected_image_paths)} images selected for training.")
+            log.info(f"ML settings applied. "
+                     f"{len(self._ml_selected_image_paths)} images selected for training.")

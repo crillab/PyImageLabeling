@@ -1,5 +1,8 @@
 from PyImageLabeling.model.Core import Core
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("sam.text")
+
 
 # DINO floor: everything >= this is cached at Generate time; the dialog
 # slider only refilters afterwards (instant, stable zones).
@@ -103,7 +106,7 @@ class SamTextAssist(Core):
                             f"(peak {info['clip_peak']:.2f}).\n"
                             f"Try English nouns (e.g. 'dog').")
             except Exception as e:
-                print(f"[text] CLIPSeg union failed: {e}")
+                log.warning(f"[text] CLIPSeg union failed: {e}")
 
         if not boxes:
             return (False,
@@ -335,7 +338,7 @@ class SamTextAssist(Core):
                 self.sam_text_masks[i] = None
                 n += 1
         if n:
-            print(f"[text] color check dropped {n} candidate(s)")
+            log.debug(f"[text] color check dropped {n} candidate(s)")
         return n
 
     def _sam_clip_verify(self, rgb, text, device, rel_margin=0.08):
@@ -359,9 +362,9 @@ class SamTextAssist(Core):
                 rgb, [self.sam_text_masks[i] for i in idx],
                 text, device=device)
         except Exception as e:
-            print(f"[text] CLIP verify failed: {e}")
+            log.warning(f"[text] CLIP verify failed: {e}")
             return 0, 0.0
-        print(f"[text] CLIP verify: {[round(s, 3) for s in scores]}")
+        log.debug(f"[text] CLIP verify: {[round(s, 3) for s in scores]}")
         best = max(scores)
         keep = {i for i, s in zip(idx, scores) if s >= best - rel_margin}
         n = 0
@@ -370,7 +373,7 @@ class SamTextAssist(Core):
                 self.sam_text_masks[i] = None
                 n += 1
         if n:
-            print(f"[text] CLIP verify dropped {n} candidate(s)")
+            log.debug(f"[text] CLIP verify dropped {n} candidate(s)")
         return n, best
 
     def sam_text_apply_threshold(self, threshold):

@@ -12,6 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("ml.predictor")
+
 try:
     import albumentations as A
     from albumentations.pytorch import ToTensorV2
@@ -30,9 +33,15 @@ ML_VERBOSE = False
 
 
 def ml_log(message, force=False):
-    """Print `message` only when ML_VERBOSE is on, or when force=True."""
-    if force or ML_VERBOSE:
-        print(message)
+    """Log `message` only when ML_VERBOSE is on, or when force=True.
+
+    Routed through logging (stderr): force=True messages are errors and
+    stay visible; verbose chatter goes at INFO.
+    """
+    if force:
+        log.error(message)
+    elif ML_VERBOSE:
+        log.info(message)
 
 
 def set_ml_verbose(value):
@@ -109,7 +118,7 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
     Models are downloaded from internet if not cached locally.
     """
     if backbone_name not in BACKBONE_REGISTRY:
-        print(f"[backbone] Unknown '{backbone_name}', falling back to {DEFAULT_BACKBONE}")
+        log.warning(f"[backbone] Unknown '{backbone_name}', falling back to {DEFAULT_BACKBONE}")
         backbone_name = DEFAULT_BACKBONE
     
     model_fn_name, weights_class_name = BACKBONE_REGISTRY[backbone_name]
@@ -118,7 +127,7 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
         # Import dynamically from torchvision.models
         from torchvision import models
         
-        print(f"[backbone] Loading {backbone_name}...")
+        log.debug(f"[backbone] Loading {backbone_name}...")
         
         # Get the model constructor function
         model_constructor = getattr(models, model_fn_name)
@@ -128,17 +137,17 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
         if pretrained:
             weights_class = getattr(models, weights_class_name)
             weights = weights_class.DEFAULT
-            print(f"[backbone] Downloading pretrained weights if not cached...")
+            log.debug(f"[backbone] Downloading pretrained weights if not cached...")
         
         # Instantiate the model (will download weights if needed)
         backbone_model = model_constructor(weights=weights)
         
-        print(f"[backbone] ✓ Successfully loaded {backbone_name} (pretrained={pretrained})")
+        log.info(f"[backbone] ✓ Successfully loaded {backbone_name} (pretrained={pretrained})")
         return backbone_model
         
     except Exception as e:
-        print(f"[backbone] ✗ Error loading {backbone_name}: {e}")
-        print(f"[backbone] Falling back to {DEFAULT_BACKBONE}")
+        log.error(f"[backbone] ✗ Error loading {backbone_name}: {e}")
+        log.error(f"[backbone] Falling back to {DEFAULT_BACKBONE}")
         # Fallback to ResNet18
         from torchvision import models
         model_constructor = getattr(models, "resnet18")
@@ -338,7 +347,7 @@ def _build_backbone(backbone_name: str, pretrained: bool):
         output = ext(dummy)
         feat_ch = output.shape[1]
 
-    print(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
+    log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
     return ext, feat_ch
 
 # ---------------------------------------------------------------------------
@@ -637,7 +646,7 @@ class MLPredictor(Core):
             set_ml_verbose(False)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(f"Using device: {self.device}")
+        log.info(f"Using device: {self.device}")
 
         self.model   = None
         self.trained = False
@@ -936,7 +945,9 @@ class MLPredictor(Core):
                          epoch_callback=None, log_callback=None):
 
         def log(msg):
-            print(msg)
+            # console echo goes through logging (DEBUG); the progress
+            # dialog keeps its own log_callback
+            ml_log(msg)
             if log_callback:
                 log_callback(msg)
 
@@ -1225,13 +1236,13 @@ class MLPredictor(Core):
         self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
         if backbone not in BACKBONE_NAMES:
-            print(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
+            log.warning(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
             backbone = DEFAULT_BACKBONE
         self.backbone_name = backbone
-        print(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
-              f"seg_backbone={self.seg_backbone}, "
-              f"epochs={self.num_epochs}, lr={self.learning_rate}, "
-              f"img_size={self.image_size}, pretrained={self.use_pretrained}")
+        log.info(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
+               f"seg_backbone={self.seg_backbone}, "
+               f"epochs={self.num_epochs}, lr={self.learning_rate}, "
+               f"img_size={self.image_size}, pretrained={self.use_pretrained}")
 
     def train_model(self, selected_paths=None):
         self._apply_ml_params()
@@ -1261,7 +1272,7 @@ class MLPredictor(Core):
             f"Epoch {current}/{total}  —  Loss: {loss:.4f}")
 
     def _on_training_log(self, message):
-        print(message)
+        log.info(message)
 
     def _on_training_finished(self):
         self._progress_dialog.close()
@@ -1796,12 +1807,12 @@ class MLPredictor(Core):
 
         }, path)
 
-        print(f"ML model saved to {path}")
+        log.info(f"ML model saved to {path}")
         self.ml_mark_model_saved(path)
 
     def load_model_file(self, file_path):
         if not os.path.exists(file_path):
-            print(f"Model file not found: {file_path}")
+            log.error(f"Model file not found: {file_path}")
             return False
 
         try:
@@ -1869,11 +1880,11 @@ class MLPredictor(Core):
             self._model_saved  = True
             self._model_path   = file_path
 
-            print(f"✅ Model loaded successfully from {file_path}")
+            log.info(f"✅ Model loaded successfully from {file_path}")
             return True
 
         except Exception as e:
-            print(f"❌ Error loading model: {e}")
+            log.error(f"❌ Error loading model: {e}")
             import traceback
             traceback.print_exc()
             return False

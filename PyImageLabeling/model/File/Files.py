@@ -10,6 +10,9 @@ from PyImageLabeling.model.Utils import Utils
 import numpy as np
 import os
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("files")
+
         
 class Files(Core):
     def __init__(self):
@@ -141,7 +144,7 @@ class Files(Core):
                         if len(union) >= 12:
                             break
                 except Exception as e:
-                    print(f"[import] cannot read '{mask_path}': {e}")
+                    log.error(f"cannot read '{mask_path}': {e}")
                 if len(union) >= 12:
                     break
             if not union:
@@ -200,8 +203,8 @@ class Files(Core):
                         else:
                             m = normalize_binary_mask(mask_path)
                     except Exception as e:
-                        print(f"[import] cannot convert "
-                              f"'{mask_path}': {e}")
+                        log.error(f"cannot convert "
+                                  f"'{mask_path}': {e}")
                         continue
                     if np.any(np.array(m)):
                         dest = os.path.join(

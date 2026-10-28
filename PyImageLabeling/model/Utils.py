@@ -7,6 +7,9 @@ import json
 import sys
 import shutil
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("utils")
+
 class Utils:
 
     @staticmethod
@@ -137,8 +140,8 @@ class Utils:
         except (json.JSONDecodeError, UnicodeDecodeError, OSError) as e:
             # A corrupt/truncated parameters.json must not make the app
             # unbootable: keep it aside and start from the defaults.
-            print(f"[Utils] parameters.json unreadable ({e}); "
-                  f"falling back to defaults")
+            log.warning(f"parameters.json unreadable ({e}); "
+                        f"falling back to defaults")
             try:
                 os.replace(param_path, param_path + ".corrupt")
             except OSError:
@@ -169,7 +172,7 @@ class Utils:
             try:
                 Utils._write_json_atomic(param_path, user_data)
             except OSError as e:
-                print(f"[Utils] could not save parameters.json: {e}")
+                log.error(f"could not save parameters.json: {e}")
 
         return user_data
 

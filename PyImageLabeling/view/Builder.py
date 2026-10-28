@@ -23,6 +23,10 @@ from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.view.ZoomableGraphicsView import ZoomableGraphicsView
 
 from PyImageLabeling.view.QWidgets import QBlanckWidget1, QSeparator1
+
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger("builder")
+
 import os
 
 class Builder:
@@ -191,7 +195,7 @@ class Builder:
             # Check if button is disabled
             if button is not None and not button.isEnabled():
                 # Button is disabled - block the action
-                print(f"Action '{action_name}' blocked - button is disabled")
+                log.debug(f"Action '{action_name}' blocked - button is disabled")
                 return
             
             # Button is enabled or doesn't exist - execute the action
