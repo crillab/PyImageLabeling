@@ -50,8 +50,8 @@ def _resolve_device(requested="auto"):
         import torch
         if torch.cuda.is_available():
             return "cuda"
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug(f"defensive catch (SAM UI guard): {e}")
     return "cpu"
 
 
@@ -96,8 +96,8 @@ class SAM2Assistant(Core):
         try:
             self.view.statusBar().showMessage(
                 f"SAM: next click = {mode} (right-click = negative)")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     # ------------------------------------------------------------------
     # Backend loading (lazy)
@@ -149,10 +149,10 @@ class SAM2Assistant(Core):
                 import torch
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         log.warning("[SAM] GPU caches purged after OOM")
 
     def _sam_emb_cache_key(self, image_path, rgb, repo):
@@ -225,13 +225,13 @@ class SAM2Assistant(Core):
             self.view.statusBar().showMessage(
                 f"SAM ({cfg['entry']['name']}): loading on {device} "
                 f"(first run downloads {cfg['entry']['size']})…")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             from PyQt6.QtWidgets import QApplication
             QApplication.processEvents()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             import warnings
             with warnings.catch_warnings():
@@ -382,14 +382,14 @@ class SAM2Assistant(Core):
                 f"SAM preview → '{label_name}' ({n_pix} px, "
                 f"{n_pos}+/{n_neg}-, {cand_txt}) — Apply to validate, "
                 f"Cancel to discard, click to refine")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             notify = getattr(self.controller, "sam_preview_changed", None)
             if callable(notify):
                 notify(True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     # ------------------------------------------------------------------
     # Entry points called from Events.eventEater
@@ -401,8 +401,8 @@ class SAM2Assistant(Core):
             try:
                 self.view.statusBar().showMessage(
                     "Batch propagation running — wait for it to finish…")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return
         QApplication.setOverrideCursor(
             __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.CursorShape.WaitCursor)
@@ -452,8 +452,8 @@ class SAM2Assistant(Core):
             if self.sam_box_item is not None:
                 try:
                     self.zoomable_graphics_view.scene.removeItem(self.sam_box_item)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug(f"defensive catch (SAM UI guard): {e}")
                 self.sam_box_item = None
             if abs(x1 - x0) < 5 or abs(y1 - y0) < 5:
                 return
@@ -466,8 +466,8 @@ class SAM2Assistant(Core):
             rect_item.setZValue(20)
             self.zoomable_graphics_view.scene.addItem(rect_item)
             self.sam_box_item = rect_item
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def sam_end_box(self, scene_pos):
         anchor = self.sam_press_anchor
@@ -475,8 +475,8 @@ class SAM2Assistant(Core):
         if self.sam_box_item is not None:
             try:
                 self.zoomable_graphics_view.scene.removeItem(self.sam_box_item)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             self.sam_box_item = None
         if anchor is None:
             return False  # not a box, caller may treat as click
@@ -488,8 +488,8 @@ class SAM2Assistant(Core):
             try:
                 self.view.statusBar().showMessage(
                     "Batch propagation running — wait for it to finish…")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return True
         from PyQt6.QtWidgets import QApplication, QMessageBox
         QApplication.setOverrideCursor(
@@ -533,12 +533,12 @@ class SAM2Assistant(Core):
             notify = getattr(self.controller, "sam_preview_changed", None)
             if callable(notify):
                 notify(False)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             self.view.statusBar().showMessage("SAM preview discarded")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def sam_undo_last(self):
         """Remove the last prompt (point or box) and refresh the preview."""
@@ -547,14 +547,14 @@ class SAM2Assistant(Core):
             try:
                 self.view.statusBar().showMessage(
                     "Batch propagation running — wait for it to finish…")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return
         if not self.sam_history:
             try:
                 self.view.statusBar().showMessage("SAM: nothing to undo")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return
         kind, payload = self.sam_history.pop()
         if kind == "pos" and payload in self.sam_points_pos:
@@ -570,8 +570,8 @@ class SAM2Assistant(Core):
                 notify = getattr(self.controller, "sam_preview_changed", None)
                 if callable(notify):
                     notify(False)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return
         QApplication.setOverrideCursor(
             __import__("PyQt6.QtCore", fromlist=["Qt"]).Qt.CursorShape.WaitCursor)
@@ -596,8 +596,8 @@ class SAM2Assistant(Core):
                 self.view.statusBar().showMessage(
                     "SAM: single mask (enable Multimask in SAM settings "
                     "for alternatives)")
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             return
         self.sam_candidate_idx = (
             (self.sam_candidate_idx + 1) % len(self.sam_preview_candidates))
@@ -631,21 +631,21 @@ class SAM2Assistant(Core):
         n_pix = int(mask.sum())
         try:
             self.controller.ml_invalidate_stats_cache(image_item.path_image)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._sam_reset_prompts()
         self.sam_negative_next = False
         try:
             notify = getattr(self.controller, "sam_preview_changed", None)
             if callable(notify):
                 notify(False)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             self.view.statusBar().showMessage(
                 f"SAM mask accepted → '{label_item.get_name()}' ({n_pix} px)")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     # ------------------------------------------------------------------
     # Inference
@@ -709,8 +709,8 @@ class SAM2Assistant(Core):
                 "Caches were purged — you can retry right away.\n"
                 "If it persists: close images, use SAM2-Tiny, or switch "
                 "the device to CPU in SAM settings (gear icon).")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         return True
 
     def _sam_infer_once(self, rgb, image_path, cfg, arch, h, w, points,
@@ -818,8 +818,8 @@ class SAM2Assistant(Core):
             overlay.undo_deque = deque([dq[0], dq[-1]], maxlen=dq.maxlen)
             overlay.previous_labeling_overlay_pixmap = \
                 overlay.labeling_overlay_pixmap.copy()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def _sam_paint_mask(self, image_item, mask):
         """Paint bool mask onto current overlay (creates undo entry)."""
@@ -838,10 +838,10 @@ class SAM2Assistant(Core):
         painter.drawPixmap(0, 0, pix)
         try:
             self.controller.ml_invalidate_stats_cache(image_item.path_image)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         image_item.update_labeling_overlay()
         try:
             self.controller.ml_update_stats()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")

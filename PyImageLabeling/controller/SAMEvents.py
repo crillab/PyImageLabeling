@@ -2,6 +2,9 @@ from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.controller.settings.SAMSetting import SAMSetting
 from PyQt6.QtCore import Qt, QPoint
 
+from PyImageLabeling.logging_setup import get_logger
+log = get_logger('sam.events')
+
 
 class SAMEvents(Events):
     def __init__(self):
@@ -73,8 +76,8 @@ class SAMEvents(Events):
         try:
             self._sam_confirm_bar.move(
                 self.view.zoomable_graphics_view.mapToGlobal(QPoint(10, 10)))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._sam_confirm_bar.show()
         self._sam_confirm_bar.raise_()
 
@@ -82,8 +85,8 @@ class SAMEvents(Events):
         if self._sam_confirm_bar is not None:
             try:
                 self._sam_confirm_bar.hide()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def sam_prev_mask(self):
         """Show previous candidate."""
@@ -219,16 +222,16 @@ class SAMEvents(Events):
             if debug_log.vram_pressure() > 0.85:
                 debug_log.log_event(f"{run_id} high VRAM pressure: pre-purge")
                 model._sam_oom_purge()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         # suspend auto-save: its timer fires through processEvents and
         # would save hundreds of edited masks re-entrantly mid-batch
         # (UI freeze). Restored in the finally block below.
         autosave_was_on = bool(getattr(model, "autosave_enabled", False))
         try:
             model.set_autosave_enabled(False)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         debug_log.arm_hang_dump(90)
 
         progress = QProgressDialog(
@@ -251,14 +254,14 @@ class SAMEvents(Events):
             try:
                 oneshot.release_dinov2()
                 model._sam_oom_purge()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 debug_log.cancel_hang_dump()
                 if autosave_was_on:
                     model.set_autosave_enabled(True)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             debug_log.log_event(f"{run_id} DINOv2 backend failed: {e}")
             QMessageBox.critical(
                 self.view, "One-shot propagation",
@@ -272,8 +275,8 @@ class SAMEvents(Events):
         try:
             model._last_batch = []
             model._last_batch_idx = -1
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         run = {"painted": 0, "skipped": 0, "errors": 0, "oom": 0,
                "touched": [], "done": 0, "total": len(targets),
                "autosave_was_on": autosave_was_on,
@@ -320,8 +323,8 @@ class SAMEvents(Events):
         self._prop_worker = worker
         try:
             self.view.buttons_ml_bar["sam_propagate_btn"].setEnabled(False)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         worker.progress.connect(self._on_prop_progress)
         worker.image_done.connect(self._on_prop_image)
         worker.stage.connect(self._on_prop_stage)
@@ -339,8 +342,8 @@ class SAMEvents(Events):
         try:
             if getattr(self, "_prop_progress", None) is not None:
                 self._prop_progress.setLabelText(msg)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def _on_prop_progress(self, done, total, path):
         import os as _os
@@ -350,8 +353,8 @@ class SAMEvents(Events):
                     f"Propagating {done}/{total}\n"
                     f"{_os.path.basename(path)}")
                 self._prop_progress.setValue(done)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         if done % 10 == 0:
             try:
                 from PyImageLabeling.model.SAM import debug_log
@@ -363,8 +366,8 @@ class SAMEvents(Events):
                     torch.cuda.empty_cache()
                 debug_log.cancel_hang_dump()
                 debug_log.arm_hang_dump(120)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def _on_prop_image(self, path, mask, score, status):
         import os as _os
@@ -404,8 +407,8 @@ class SAMEvents(Events):
             try:
                 model.controller.ml_invalidate_stats_cache(path)
                 model.controller.ml_update_stats()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def _prop_cleanup(self):
         """Collapse undo, offload backends, purge, restore UI (GUI thread)."""
@@ -414,47 +417,47 @@ class SAMEvents(Events):
         label_id = getattr(self, "_prop_label_id", None)
         try:
             model._sam_batch_mode = False
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             from PyImageLabeling.model.SAM import debug_log, oneshot
             debug_log.cancel_hang_dump()
             try:
                 if run.get("autosave_was_on"):
                     model.set_autosave_enabled(True)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 for item in run.get("touched", []):
                     model._sam_collapse_undo(item, label_id)
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 oneshot.release_dinov2()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 model._sam_oom_purge()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 if getattr(self, "_prop_progress", None) is not None:
                     self._prop_progress.close()
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
             try:
                 self.view.buttons_ml_bar["sam_propagate_btn"].setEnabled(
                     True)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as e:
+                log.debug(f"defensive catch (SAM UI guard): {e}")
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             worker = getattr(self, "_prop_worker", None)
             if worker is not None:
                 worker.deleteLater()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._prop_worker = None
 
     def _prop_summary(self, canceled=False):
@@ -467,8 +470,8 @@ class SAMEvents(Events):
                 f"sam_propagate: {'canceled' if canceled else 'done'} "
                 f"painted={run.get('painted')} errors={run.get('errors')} "
                 f"oom={run.get('oom')}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             # painted masks are already on disk; release the ImageItems the
             # batch loaded so painting stays light afterwards
@@ -476,21 +479,21 @@ class SAMEvents(Events):
             if dropped:
                 debug_log.log_event(
                     f"{self._prop_run_id} released {dropped} image item(s)")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             model.controller.ml_invalidate_stats_cache()
             model.controller.ml_update_stats(immediate=True)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             debug_log.log_event(
                 f"{self._prop_run_id} END painted={run.get('painted', 0)} "
                 f"skipped={run.get('skipped', 0)} "
                 f"errors={run.get('errors', 0)} oom={run.get('oom', 0)} "
                 f"canceled={canceled} {debug_log.mem_stats()}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         extra = ""
         if run.get("oom", 0):
             extra += f"\nSkipped (out of memory): {run['oom']}"
@@ -512,8 +515,8 @@ class SAMEvents(Events):
                 f"Painted: {run.get('painted', 0)}\n"
                 f"Skipped (low confidence): {run.get('skipped', 0)}\n"
                 f"Errors: {run.get('errors', 0)}{extra}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._prop_run = None
 
     def _on_prop_done(self, summary):
@@ -522,16 +525,16 @@ class SAMEvents(Events):
             if summary.get("canceled"):
                 debug_log.log_event(
                     f"{self._prop_run_id} worker acknowledged cancel")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             run = getattr(self, "_prop_run", None) or {}
             self.model._last_batch = [
                 it.path_image for it in run.get("touched", [])
                 if it is not None and hasattr(it, "path_image")]
             self.model._last_batch_idx = -1
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._prop_cleanup()
         self._prop_summary(canceled=bool(summary.get("canceled", False)))
 
@@ -578,23 +581,23 @@ class SAMEvents(Events):
                             pass
                     found = True
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         try:
             self.view.statusBar().showMessage(
                 f"Review {nxt + 1}/{len(paths)}: "
                 f"{__import__('os').path.basename(target)}"
                 + ("" if found else " (not in file bar)"))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
 
     def _on_prop_failed(self, message):
         from PyQt6.QtWidgets import QMessageBox
         from PyImageLabeling.model.SAM import debug_log
         try:
             debug_log.log_event(f"{self._prop_run_id} FATAL: {message}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._prop_cleanup()
         run = getattr(self, "_prop_run", None) or {}
         try:
@@ -605,6 +608,6 @@ class SAMEvents(Events):
                 f"Already painted: {run.get('painted', 0)} image(s) — "
                 f"nothing was lost.\n"
                 f"Details: {debug_log.log_path()}")
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"defensive catch (SAM UI guard): {e}")
         self._prop_run = None
