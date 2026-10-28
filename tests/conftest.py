@@ -177,23 +177,6 @@ def write_labels_json(folder):
                 '"color": [0, 255, 0]}}')
 
 
-@pytest.fixture(scope="session")
-def app_stack(qapp):
-    """(controller, view, model): a single shared app instance.
-
-    One stack per session: constructing a second View after a test has
-    painted/selected/unloaded aborts natively in setIcon(). State is reset
-    by the project fixture instead.
-    """
-    config = Utils.get_config()
-    controller = Controller(config)
-    view = View(controller, config)
-    model = Model(view, controller, config)
-    controller.set_model(model)
-    _live_stacks.append((controller, view, model))
-    yield controller, view, model
-
-
 @pytest.fixture()
 def project(app_stack, workspace):
     """App + 12 labelled images loaded without the modal progress dialog."""

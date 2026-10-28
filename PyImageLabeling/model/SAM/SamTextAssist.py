@@ -281,15 +281,11 @@ class SamTextAssist(Core):
 
     @staticmethod
     def _boxes_iou(box1, box2):
-        x1 = max(box1[0], box2[0])
-        y1 = max(box1[1], box2[1])
-        x2 = min(box1[2], box2[2])
-        y2 = min(box1[3], box2[3])
-        inter = max(0, x2 - x1) * max(0, y2 - y1)
-        a1 = max(0, box1[2] - box1[0]) * max(0, box1[3] - box1[1])
-        a2 = max(0, box2[2] - box2[0]) * max(0, box2[3] - box2[1])
-        union = a1 + a2 - inter
-        return inter / union if union > 0 else 0.0
+        """IoU between two boxes — delegates to the canonical
+        implementation in grounding (kept as a method because call sites
+        and tests reference it as SamTextAssist._boxes_iou)."""
+        from PyImageLabeling.model.SAM.grounding import _box_iou
+        return _box_iou(box1, box2)
 
     def _sam_zone_check_new(self, idx_list, h, w, colorheat):
         """Per-zone giant + color checks for lazily refined masks.
