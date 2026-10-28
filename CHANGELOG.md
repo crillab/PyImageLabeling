@@ -3,6 +3,34 @@
 Each `## <version>` section becomes the text of the GitHub release of that
 version: the Release workflow refuses to publish a version without one.
 
+## Unreleased
+
+### Changed
+- All `print()` calls in the app have been routed through the new `logging`-based
+  setup (`logging_setup.py`); the `ML_VERBOSE` log level now lands in the same
+  stream (stdout → stderr). `PYIMAGELABELING_LOG_LEVEL` selects the level.
+- `torch.load` now sets `weights_only=True`, freezing the safe default below
+  torch 2.6.
+
+### Fixed
+- Basename-mask name collisions (`dirA/IMG_001.png` vs `dirB/IMG_001.png`, or
+  `dup.png` vs `dup.jpg`) no longer overwrite annotations at save time: masks
+  are now keyed by a digest of the absolute image path.
+- A corrupted image (0-byte or garbage PNG) no longer crashes `save()` and takes
+  every other image's annotations down with it.
+- Mask writes are now isolated per overlay and per image; a failed write marks
+  the image as still unsaved (`Save Error` dialog) so it can be retried.
+- `complete_state.json` is merged rather than overwritten: completion ticks from
+  another instance working in the same folder survive.
+- `select_image` now keeps only the `load.memory_keep_images` most recent images
+  in memory (default 8, 0 disables unloading), evicting unsaved work never.
+- Settings on a read-only installation fall back to `~/.pyimagelabeling` instead
+  of crashing on the first launch with `PermissionError`; unwritable everywhere,
+  the app boots on in-memory defaults.
+
+### Added
+- `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
+
 ## 1.0.14 (2026-10-24)
 
 ### New
