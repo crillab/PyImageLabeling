@@ -225,7 +225,7 @@ class Files(Core):
             try:
                 with open(labels_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            except Exception:
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError):
                 data = {}
         for _i, (_kind, _p, _n, _c) in enumerate(specs):
             lid = label_ids[_i]
@@ -240,7 +240,7 @@ class Files(Core):
             self.view.statusBar().showMessage(
                 f"Imported {len(mask_candidates)} mask(s) → "
                 f"{len(specs)} label(s)")
-        except Exception:
+        except (AttributeError, RuntimeError):
             pass
         return labels_path
 
@@ -343,7 +343,7 @@ class Files(Core):
                     self.view.statusBar().showMessage(
                         f"{len(mask_candidates)} file(s) loaded as plain "
                         f"images (mask import declined)")
-                except Exception:
+                except (AttributeError, RuntimeError):
                     pass
         # ── Progress bar ─────────────────────────────────────────────────────
         # Compute an approximate step count so the bar fills evenly:

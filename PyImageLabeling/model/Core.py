@@ -970,7 +970,7 @@ class Core():
         """
         try:
             new_depth = int(new_depth)
-        except Exception:
+        except (TypeError, ValueError):
             return 0
         if new_depth < 0:
             new_depth = 0
@@ -1167,7 +1167,7 @@ class Core():
                 try:
                     os.remove(path)
                     log.debug(f"Removed empty file: {os.path.basename(path)}")
-                except Exception as e:
+                except OSError as e:
                     log.error(f"Error removing {path}: {e}")
 
     def save(self):
