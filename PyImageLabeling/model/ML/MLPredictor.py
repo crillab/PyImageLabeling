@@ -1805,7 +1805,12 @@ class MLPredictor(Core):
             return False
 
         try:
-            ck = torch.load(file_path, map_location=self.device)
+            # weights_only=True: refuse any pickle'd custom object / code
+            # path. The checkpoints we write are plain dicts (tensors,
+            # numbers, strings, lists, dicts), so this stays compatible
+            # while pinning the safe default on torch < 2.6 too.
+            ck = torch.load(file_path, map_location=self.device,
+                            weights_only=True)
 
             # 🔑 Récupérer les paramètres EXACTS du modèle sauvegardé
             num_classes = ck.get('num_classes', 2)
