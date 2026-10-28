@@ -31,7 +31,7 @@ try:
     import torch  # noqa: F401
     import transformers  # noqa: F401
     _SAM_DEPS_OK = True
-except Exception as e:  # pragma: no cover - optional dependency
+except (ImportError, ModuleNotFoundError) as e:  # pragma: no cover
     _SAM_DEPS_OK = False
     SAM_AVAILABLE_IMPORT_ERROR = e
 

@@ -351,7 +351,7 @@ class SamTextAssist(Core):
         import numpy as np
         try:
             from PyImageLabeling.model.SAM import relational
-        except Exception:
+        except (ImportError, ModuleNotFoundError):
             return 0
         idx = [i for i, m in enumerate(self.sam_text_masks)
                if m is not None]

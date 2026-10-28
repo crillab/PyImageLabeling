@@ -19,7 +19,7 @@ try:
     import albumentations as A
     from albumentations.pytorch import ToTensorV2
     ALBUMENTATIONS_AVAILABLE = True
-except Exception:
+except (ImportError, ModuleNotFoundError):
     A = None
     ToTensorV2 = None
     ALBUMENTATIONS_AVAILABLE = False
