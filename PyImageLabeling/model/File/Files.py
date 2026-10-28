@@ -4,7 +4,8 @@
 from PyQt6.QtCore import Qt, QFileInfo
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 
-from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
+from PyImageLabeling.model.Core import (Core, KEYWORD_SAVE_LABEL,
+                                        image_base_from_mask_name)
 from PyImageLabeling.model.Utils import Utils
 
 import numpy as np
@@ -378,7 +379,7 @@ class Files(Core):
 
             # Check pixel-mask overlays
             has_label = any(
-                k.split(KEYWORD_SAVE_LABEL)[0] == fp_basename
+                image_base_from_mask_name(k) == fp_basename
                 for k in self.labeling_overview_was_loaded
             )
 

@@ -17,7 +17,8 @@
             255,
             255,
             255
-        ]
+        ],
+        "memory_keep_images": 8
     },
     "zoom": {
         "min_zoom": 0.5,

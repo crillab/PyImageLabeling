@@ -442,9 +442,10 @@ class MLSetting(QDialog):
             return True
 
         # Check pixel overlays registered but not yet loaded
+        from PyImageLabeling.model.Core import (KEYWORD_SAVE_LABEL,
+                                                image_base_from_mask_name)
         for key in self.model.labeling_overview_was_loaded:
-            from PyImageLabeling.model.Core import KEYWORD_SAVE_LABEL
-            img_basename = key.split(KEYWORD_SAVE_LABEL)[0]
+            img_basename = image_base_from_mask_name(key)
             if img_basename == name_no_ext:
                 return True
 

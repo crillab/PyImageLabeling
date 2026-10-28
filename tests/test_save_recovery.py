@@ -53,10 +53,9 @@ def _annotate(app_stack, workspace):
 
 
 def _mask_files(directory, paths, label_id):
-    return [os.path.join(
-        directory,
-        os.path.basename(p).rsplit(".", 1)[0] + KEYWORD_SAVE_LABEL
-        + str(label_id) + ".png") for p in paths]
+    """Canonical (v2 hashed) mask file names for the given images."""
+    from PyImageLabeling.model.Core import mask_file_name
+    return [mask_file_name(str(directory), p, label_id) for p in paths]
 
 
 # ----------------------------------------------------------------------

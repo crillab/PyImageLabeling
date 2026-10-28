@@ -23,12 +23,57 @@ from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 import numpy as np
 import os
 import json
+import re
+import hashlib
 import shutil
 
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("core")
 
 KEYWORD_SAVE_LABEL = ".label."
+PATH_HASH_LEN = 8
+DEFAULT_KEEP_LOADED_IMAGES = 8
+
+
+def path_hash(file_path):
+    """Stable short digest of an image's absolute path.
+
+    Masks used to be keyed by the image *basename* alone, so two images
+    named IMG_001.png in two different folders (or IMG_001.png/IMG_001.jpg
+    in one folder) silently overwrote each other's annotations at save
+    time. The digest disambiguates them without keeping any registry.
+    normcase() makes it stable across case-insensitive filesystems.
+    """
+    norm = os.path.normcase(os.path.abspath(file_path))
+    return hashlib.md5(norm.encode("utf-8")).hexdigest()[:PATH_HASH_LEN]
+
+
+def mask_image_base(file_path):
+    """Stem under which this image's masks are written."""
+    name = os.path.basename(file_path)
+    if "." in name:
+        name = name.rsplit(".", 1)[0]
+    return f"{name}.{path_hash(file_path)}"
+
+
+def mask_file_name(directory, file_path, label_id):
+    """Mask file of (image, label) inside a project directory."""
+    return os.path.join(
+        directory,
+        f"{mask_image_base(file_path)}{KEYWORD_SAVE_LABEL}{label_id}.png")
+
+
+def image_base_from_mask_name(mask_name):
+    """Stem of the owning image, from a mask file name (legacy or v2).
+
+    Loads-side indexations compare this against image basenames, so the
+    optional path digest appended by mask_image_base must be stripped:
+    "IMG_001.a1b2c3d4.label.0.png" and "IMG_001.label.0.png" both give
+    "IMG_001". A plain stem that happens to end with .abcdef12 loses its
+    last section only for the cosmetic "has annotations" tag.
+    """
+    left = mask_name.split(KEYWORD_SAVE_LABEL)[0]
+    return re.sub(r"\.[0-9a-f]{8}$", "", left)
 
 class CompactUndoEntry:
     """
@@ -560,23 +605,53 @@ class LabelingOverlay():
 
     def save(self, current_file_path, path_image):
         name = os.path.basename(path_image)
-        name, format = name.rsplit(".", 1)
+        if "." in name:
+            name, format = name.rsplit(".", 1)
+        else:
+            format = "png"
         format = "png"
-        save_file = current_file_path + os.sep + name + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format 
-        
+        h = path_hash(path_image)
+        save_file = current_file_path + os.sep + f"{name}.{h}" + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format
+
+        def _unmask_stale():
+            """A mask that became all-black means the user erased it: the
+            file must disappear, otherwise the stale mask would come back
+            (older format sibling included) on the next reload."""
+            stale_prefixes = (f"{name}.{h}{KEYWORD_SAVE_LABEL}",
+                              f"{name}{KEYWORD_SAVE_LABEL}")
+            try:
+                for file in os.listdir(current_file_path):
+                    if any(file.startswith(p)
+                           for p in stale_prefixes) \
+                            and file.endswith(
+                                KEYWORD_SAVE_LABEL
+                                + str(self.label.get_label_id()) + ".png"):
+                        os.remove(os.path.join(current_file_path, file))
+                        log.debug(f"removed erased mask {file}")
+            except OSError as e:
+                log.warning(f"could not remove stale mask for {name}: {e}")
+
         # Get original image
         image = self.labeling_overlay_pixmap.toImage()
-        
-        # Create binary mask directly from alpha channel
-        mask = image.createAlphaMask()
-        mask.invertPixels()
 
-        ptr = mask.bits()
-        packed = ptr.asstring(mask.sizeInBytes())  # packed 1-bit-per-pixel bytes
+        # Create binary mask directly from alpha channel
+        mask = image.createAlphaMask() if not image.isNull() else QImage()
+        if mask.isNull() or mask.width() == 0 or mask.height() == 0:
+            log.error(f"could not rasterise mask for {name} "
+                      f"(unreadable image); mask not saved")
+            return
+        try:
+            mask.invertPixels()
+            ptr = mask.bits()
+            packed = ptr.asstring(mask.sizeInBytes())
+        except Exception as e:
+            log.error(f"could not rasterise mask for {name}: {e}; "
+                      f"mask not saved")
+            return
 
         # In a packed 1-bit image: 0x00 = eight black pixels, 0xFF = eight white pixels.
         if all(b == 0xFF for b in packed):
-            return
+            _unmask_stale()
         else:
             # Write to a scratch file and rename: mask.save() used to target
             # the final name directly and its False return was ignored, so a
@@ -690,12 +765,34 @@ class ImageItem():
         self.view.max_zoom = diagonal_pixmap/self.view.max_zoom        
         self.view.initial_zoom_factor = self.view.zoom_factor
 
+    def _mask_key_candidates(self, label_id):
+        """Possible on-disk mask keys of (this image, label_id), most
+        specific first: the current hashed form, then the legacy
+        basename-only form (projects saved before the collision fix)."""
+        stem = os.path.basename(self.path_image)
+        if "." in stem:
+            stem = stem.rsplit(".", 1)[0]
+        hashed = f"{stem}.{path_hash(self.path_image)}{KEYWORD_SAVE_LABEL}{label_id}.png"
+        legacy = f"{stem}{KEYWORD_SAVE_LABEL}{label_id}.png"
+        return hashed, legacy
+
+    def _indexed_mask_key(self, label_id):
+        """Key under which this image's disk mask was indexed, or None if
+        no disk mask exists for it in this project."""
+        was_loaded = self.labeling_overview_was_loaded
+        hashed, legacy = self._mask_key_candidates(label_id)
+        if was_loaded.get(hashed) is False:
+            return hashed
+        if was_loaded.get(legacy) is False:
+            return legacy
+        return None
+
     def update_labeling_overlays(self, label_items, selected_label_id):
         # Ensure all existing labels have an overlay
         for label_id in label_items:
             if label_id not in self.labeling_overlays:
-                basename_key = ".".join(os.path.basename(self.path_image).split(".")[:-1])+KEYWORD_SAVE_LABEL+str(label_id)+".png"
-                if basename_key in self.labeling_overview_was_loaded and self.labeling_overview_was_loaded[basename_key] is False:
+                basename_key = self._indexed_mask_key(label_id)
+                if basename_key is not None:
                     self.labeling_overlays[label_id] = LabelingOverlay(
                         label_items[label_id],
                         self.view.zoomable_graphics_view.scene,
@@ -804,13 +901,23 @@ class ImageItem():
         return self.image_qrect.height()
     
     def save_overlays(self, current_file_path, reset_edited=True):
-        for labeling_overlay in self.labeling_overlays.values():
+        failed = 0
+        for label_id, labeling_overlay in list(self.labeling_overlays.items()):
             if labeling_overlay.get_is_edited():
-                labeling_overlay.save(current_file_path, self.path_image)
-                if reset_edited:
-                    labeling_overlay.set_is_edited(False)
-            
-            self.update_icon_file()        
+                try:
+                    labeling_overlay.save(current_file_path, self.path_image)
+                except Exception as e:
+                    # stay edited: another save() may still fix/write it
+                    failed += 1
+                    log.error(f"mask save failed for "
+                              f"{os.path.basename(self.path_image)} "
+                              f"(label {label_id}): {e}")
+                else:
+                    if reset_edited:
+                        labeling_overlay.set_is_edited(False)
+
+            self.update_icon_file()
+        return failed
 
 class LabelItem():
 
@@ -872,6 +979,13 @@ class Core():
         
         
         self.checked_button = None # The current button checked => usefull to know the labelinf tool to use
+        
+        # LRU of selected images: ImageItem objects carry the full pixmap,
+        # numpy buffers and per-label overlay pixmaps (~50 MB each for big
+        # images) and used to stay forever, so merely *browsing* hundreds
+        # of images grew the process to tens of GB. Old entries beyond
+        # keep_loaded_images are unloaded (select_image / _evict_images).
+        self._image_lru = []
         
         self.file_paths = [] # List of file paths of images (in the good order)
 
@@ -1112,11 +1226,31 @@ class Core():
                 os.path.join(current_file_path, "labels.json"), labels_dict)
 
     def save_overlays(self, current_file_path, reset_edited=True):
+        failed = 0
         for file in self.file_paths:
-            image_item = self.image_items.get(file) 
+            image_item = self.image_items.get(file)
             if image_item is not None:
-                if image_item.get_edited():
-                    image_item.save_overlays(current_file_path, reset_edited)
+                try:
+                    failed += image_item.save_overlays(current_file_path,
+                                                       reset_edited)
+                except Exception as e:
+                    # one broken image must never prevent the others (nor
+                    # the project jsons) from being written
+                    failed += 1
+                    log.error(f"overlays save failed for "
+                              f"{os.path.basename(file)}: {e}")
+        if failed and reset_edited:
+            try:
+                self.controller.error_message(
+                    "Save Error",
+                    f"{failed} annotation(es) could not be written to disk. "
+                    "The rest of the project was saved.\n"
+                    "The unreadable image(s) stay marked as edited: "
+                    "try saving again after closing the files that use "
+                    "them.")
+            except Exception:
+                pass
+        return failed
 
     def save_labels_geometric_shape(self, current_file_path):
         rectangles_save = {}
@@ -1275,7 +1409,7 @@ class Core():
         if file not in self.labeling_overview_was_loaded:
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = file
-        image_basename = basename.split(KEYWORD_SAVE_LABEL)[0]  # "image"
+        image_basename = image_base_from_mask_name(basename)  # "image"
         
         for file_path in self.file_paths:
             fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])  # "image"
@@ -1421,7 +1555,7 @@ class Core():
             self.labeling_overview_was_loaded[basename] = False
             self.labeling_overview_file_paths[basename] = label_file_path
 
-        image_basename = basename.split(KEYWORD_SAVE_LABEL)[0]  
+        image_basename = image_base_from_mask_name(basename)
         for file_path in self.file_paths:
             fp_basename = ".".join(os.path.basename(file_path).split(".")[:-1])
             if fp_basename == image_basename:
@@ -1484,6 +1618,12 @@ class Core():
             self.image_items[path_image].update_scene()
             self.current_image_item = self.image_items[path_image]
 
+        # nothing is kept in memory forever: recent-first order + eviction
+        if path_image in self._image_lru:
+            self._image_lru.remove(path_image)
+        self._image_lru.append(path_image)
+        self._evict_loaded_images()
+
         if self.get_current_image_item().image_rectangles is not None:
             self.restore_rectangles_for_image(path_image)
         if self.get_current_image_item().image_ellipses is not None:
@@ -1494,6 +1634,132 @@ class Core():
         if self.checked_button == "contour_filling":
             self.controller.model.apply_contour()
 
+    def _keep_loaded_images(self):
+        """How many ImageItems stay loaded around the current one.
+
+        Read from parameters (load.memory_keep_images); 0 disables any
+        unloading, a negative/absent value falls back to the default.
+        Loading a default at every selection is cheap compared to the
+        50 MB an ImageItem can hold.
+        """
+        try:
+            keep = int(Utils.load_parameters().get("load", {}).get(
+                "memory_keep_images", DEFAULT_KEEP_LOADED_IMAGES))
+        except Exception:
+            keep = DEFAULT_KEEP_LOADED_IMAGES
+        if keep < 0:
+            keep = DEFAULT_KEEP_LOADED_IMAGES
+        return keep
+
+    def _evict_loaded_images(self):
+        """Unload images that drift far from the current selection.
+
+        An ImageItem is evictable only when nothing in it is unsaved
+        (get_edited() false): its annotations live on disk, so a later
+        re-selection rebuilds the identical ImageItem from the files.
+        Images holding unsaved strokes are never evicted.
+        """
+        keep = self._keep_loaded_images()
+        if keep == 0:
+            return
+        current = self.current_image_item.path_image \
+            if self.current_image_item is not None else None
+        loaded = sum(1 for item in self.image_items.values()
+                     if item is not None)
+        if loaded <= keep:
+            return
+        for path in list(self._image_lru):
+            if loaded <= keep:
+                return
+            if path == current:
+                continue
+            item = self.image_items.get(path)
+            if item is None:
+                self._image_lru.remove(path)   # stale bookkeeping
+                continue
+            if item.get_edited():
+                continue   # unsaved work: keep it alive
+            self._image_lru.remove(path)
+            self._unload_image(path)
+            loaded -= 1
+
+    def _unload_image(self, path_image):
+        """Free an ImageItem's memory, with a clean re-selection contract.
+
+        Teardown is DETERMINISTIC, done right here: QImage/QPixmap hold
+        native memory, and letting an arbitrary GC cycle destroy them --
+        which can fire in the middle of unrelated code, e.g. a lazy
+        module import much later in the session -- was the
+        use-after-free family behind the native aborts. Every painter is
+        finished, every copy detached, so the object graph becomes
+        acyclic and refcounting frees the C++ side immediately.
+
+        A mask written to disk AFTER the image was first selected is not
+        in the overlays index (there was no mask to load back then): if
+        eviction left that unindexed, re-selecting the image built a
+        BLANK overlay and the user's strokes "came back erased". So for
+        every (image, label) pair whose mask file now exists, reset the
+        index flag and register the file path, exactly as the load path
+        would have.
+        """
+        item = self.image_items.get(path_image)
+        if item is None:
+            return
+        for label_id in list(item.labeling_overlays.keys()):
+            overlay = item.labeling_overlays.get(label_id)
+            if overlay is not None:
+                timer = getattr(overlay, "_undo_compact_timer", None)
+                if timer is not None:
+                    try:
+                        timer.stop()
+                    except Exception:
+                        pass
+                    overlay._undo_compact_timer = None
+                # A QPainter must be finished before its device is destroyed.
+                for attr in ("labeling_overlay_painter",
+                             "labeling_overlay_opacity_painter",
+                             "labeling_overlay_color_painter"):
+                    painter = getattr(overlay, attr, None)
+                    if painter is not None:
+                        try:
+                            if painter.isActive():
+                                painter.end()
+                        except Exception:
+                            pass
+                try:
+                    overlay.undo_deque.clear()
+                except Exception:
+                    pass
+                overlay.previous_labeling_overlay_pixmap = None
+                overlay.labeling_overlay_color_pixmap = None
+                overlay.labeling_overlay_item = None
+                overlay.image_item = None      # break the ImageItem cycle
+                overlay.scene = None
+                overlay.labeling_overlay_pixmap = None
+            for key in item._mask_key_candidates(label_id):
+                mask_path = os.path.join(self.save_directory, key) \
+                    if self.save_directory else ""
+                if mask_path and os.path.isfile(mask_path):
+                    self.labeling_overview_was_loaded[key] = False
+                    self.labeling_overview_file_paths.setdefault(
+                        key, mask_path)
+            item.labeling_overlays[label_id] = None
+        item.labeling_overlays.clear()
+        item.current_labeling_overlay = None
+        # scene.clear() already deleted the C++ scene items on the switch
+        # away; these are dangling wrappers and only ever get dereferenced
+        # if is_displayed_in_scene is (wrongly) True, so just drop them.
+        item.backgroung_item = None
+        item.image_item = None
+        item.image_pixmap = None
+        item.image_numpy_pixels_rgb = None
+        item.view = None
+        item.controller = None
+        item.icon_button = None
+        item.zoomable_graphics_view = None
+        self.image_items[path_image] = None
+        log.debug(f"unloaded {os.path.basename(path_image)} (LRU eviction)")
+
     def save_complete_state(self, directory=None):
         # directory defaults to the project itself, but the auto-save
         # snapshot must get its own copy: writing the real project's file
@@ -1502,13 +1768,28 @@ class Core():
         target = directory if directory else self.save_directory
         if not target:
             return
+        path = os.path.join(target, "complete_state.json")
         complete_state = {}
+        if os.path.isfile(path):
+            # Merge with what is already there: another instance working
+            # on the same save_directory keeps its own images' ticks --
+            # overwriting wholesale used to make the first instance lose
+            # its completion state silently (bugs from concurrent use).
+            try:
+                with open(path, "r", encoding="utf-8") as fp:
+                    existing = json.load(fp)
+                if isinstance(existing, dict):
+                    complete_state = existing
+            except (json.JSONDecodeError, UnicodeDecodeError, OSError,
+                    ValueError) as e:
+                log.warning(f"unreliable complete_state.json ({e}); "
+                            f"rewritten")
+                complete_state = {}
         for file_path in self.file_paths:
             icons = self.icon_button_files.get(file_path)
             if icons is not None:
                 complete_state[os.path.basename(file_path)] = icons["complete"].isChecked()
-        Utils.write_json_atomic(
-            os.path.join(target, "complete_state.json"), complete_state)
+        Utils.write_json_atomic(path, complete_state)
 
     def load_complete_state(self):
         if not self.save_directory:

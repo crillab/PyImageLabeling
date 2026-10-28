@@ -6,6 +6,7 @@ import os
 import json
 import sys
 import shutil
+import tempfile
 
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("utils")
@@ -98,36 +99,100 @@ class Utils:
         """Deprecated alias kept for the existing parameters.json callers."""
         Utils.write_json_atomic_indent4(path, data)
 
+    _params_path_cache = None
+
     @staticmethod
     def get_parameters_path():
         """Where the per-user parameters.json lives.
 
         Next to the package for a pip or source install. A PyInstaller exe
         runs from _MEIPASS, a temporary folder deleted on exit: settings
-        saved there were lost at every launch, so frozen builds keep them in
-        ~/.pyimagelabeling/ with the logs.
+        saved there were lost at every launch, so frozen builds keep them
+        in ~/.pyimagelabeling/ with the logs.
+
+        A source/pip install directory can be read-only (system python,
+        sudo pip, /usr/lib raster): writing parameters.json there crashed
+        the very first launch with a PermissionError. In that case the
+        user-writable ~/.pyimagelabeling/ is used instead. Resolved once
+        per session; "" means "unwritable anywhere", and callers must
+        degrade to in-memory defaults instead of raising.
         """
+        if Utils._params_path_cache is not None \
+                and not getattr(sys, "_MEIPASS", None):
+            # cache applies to a real install; a monkeypatched (or
+            # frozen-every-launch) _MEIPASS env is resolved fresh
+            return Utils._params_path_cache
+
+        candidates = []
         if getattr(sys, "_MEIPASS", None):
-            user_dir = os.path.join(os.path.expanduser("~"), ".pyimagelabeling")
-            os.makedirs(user_dir, exist_ok=True)
-            return os.path.join(user_dir, "parameters.json")
-        return os.path.join(Utils.get_base_dir(), "parameters.json")
+            candidates.append(os.path.join(os.path.expanduser("~"),
+                                           ".pyimagelabeling"))
+        else:
+            candidates.append(Utils.get_base_dir())
+            candidates.append(os.path.join(os.path.expanduser("~"),
+                                           ".pyimagelabeling"))
+        for directory in candidates:
+            if Utils._ensure_writable(directory):
+                Utils._params_path_cache = os.path.join(
+                    directory, "parameters.json")
+                return Utils._params_path_cache
+        log.warning("no writable location for parameters.json: "
+                    "settings will not persist")
+        Utils._params_path_cache = ""
+        return ""
+
+    @staticmethod
+    def _ensure_writable(directory):
+        """True if a file can be created in `directory` (made if needed)."""
+        os.makedirs(directory, exist_ok=True)
+        probe = None
+        try:
+            probe_fd, probe = tempfile.mkstemp(dir=directory,
+                                               suffix=".probe")
+            os.close(probe_fd)
+            return True
+        except OSError:
+            return False
+        finally:
+            if probe:
+                try:
+                    os.remove(probe)
+                except OSError:
+                    pass
 
     @staticmethod
     def save_parameters(data):
-        Utils._write_json_atomic(Utils.get_parameters_path(), data)
+        path = Utils.get_parameters_path()
+        if not path:
+            return
+        try:
+            Utils._write_json_atomic(path, data)
+        except OSError as e:
+            log.error(f"could not save parameters.json: {e}")
 
     @staticmethod
     def load_parameters():
         default_param_path = os.path.join(Utils.get_base_dir(), "default_parameters.json")
-        param_path = Utils.get_parameters_path()
-
         if not os.path.exists(default_param_path):
             raise FileNotFoundError(f"Default parameters not found at {default_param_path}")
 
-        # If parameters.json does not exist, copy from default
-        if not os.path.exists(param_path):
-            shutil.copyfile(default_param_path, param_path)
+        param_path = Utils.get_parameters_path() or None
+
+        # If parameters.json does not exist, copy from default; a
+        # read-only install must degrade to in-memory defaults instead of
+        # crashing the very first launch.
+        if param_path and not os.path.exists(param_path):
+            try:
+                shutil.copyfile(default_param_path, param_path)
+            except OSError as e:
+                log.warning(f"could not seed parameters.json ({e}); "
+                            f"using in-memory defaults")
+                param_path = None
+
+        if not param_path:
+            # fully degraded: defaults only, in memory
+            with open(default_param_path, 'r', encoding='utf-8') as default_file:
+                return json.load(default_file)
 
         # Load both files
         with open(default_param_path, 'r', encoding='utf-8') as default_file:

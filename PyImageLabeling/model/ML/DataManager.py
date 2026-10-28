@@ -44,6 +44,12 @@ class DataManager(Core):
                 for name in os.listdir(folder):
                     if KEYWORD_SAVE_LABEL in name:
                         found.add(name.split(KEYWORD_SAVE_LABEL)[0])
+                        # mask names may carry a path digest before the
+                        # keyword: strip it so "IMG_001.<hash>" matches the
+                        # plain image basename IMG_001 too
+                        left = name.split(KEYWORD_SAVE_LABEL)[0]
+                        for piece in left.rsplit(".", 1):
+                            found.add(piece)
             except OSError:
                 pass
             bases[folder] = found
