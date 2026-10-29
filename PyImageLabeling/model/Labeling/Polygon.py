@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtWidgets import QGraphicsPolygonItem, QGraphicsLineItem, QGraphicsEllipseItem
 from PyQt6.QtGui import QPen, QBrush, QPolygonF
 from PyQt6.QtCore import Qt, QPointF
@@ -9,7 +9,7 @@ from PyImageLabeling.model.Labeling.PolygonItem import PolygonItem
 CLOSE_DISTANCE = 20
 
 
-class Polygon(Core):
+class Polygon(Base):
     def __init__(self):
         super().__init__()
         self.polygon_points = []

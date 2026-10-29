@@ -1,6 +1,6 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
-class Undo(Core):
+class Undo(Base):
     def __init__(self):
         super().__init__() 
     

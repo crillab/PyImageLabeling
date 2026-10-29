@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, QRectF, QRect
 from PyQt6.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QImage
 from PyQt6.QtWidgets import QGraphicsItem
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyImageLabeling.model.Utils import Utils
 import numpy as np
 import cv2
@@ -76,7 +76,7 @@ class EraserBrushItem(QGraphicsItem):
             self.labeling_overlay_painter.drawPoint(int(self.x), int(self.y))
 
 
-class Eraser(Core):
+class Eraser(Base):
     def __init__(self):
         super().__init__()
         self.last_position_x, self.last_position_y = None, None

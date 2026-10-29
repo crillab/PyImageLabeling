@@ -4,7 +4,7 @@
 from PyQt6.QtCore import Qt, QFileInfo
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyImageLabeling.model.Masks import (KEYWORD_SAVE_LABEL,
                                         image_base_from_mask_name)
 from PyImageLabeling.model.Utils import Utils
@@ -16,7 +16,7 @@ from PyImageLabeling.logging_setup import get_logger
 log = get_logger("files")
 
         
-class Files(Core):
+class Files(Base):
     def __init__(self):
         super().__init__() 
 

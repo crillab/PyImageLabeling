@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtGui import QPixmap, QImage, QPen, QBrush
 from PyQt6.QtWidgets import QMessageBox
 from PyImageLabeling.model.Utils import Utils
@@ -15,7 +15,7 @@ log = get_logger("labeling.change_label")
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
 
-class ChangeLabel(Core):
+class ChangeLabel(Base):
     def __init__(self):
         super().__init__()
         self.target_label_id = None

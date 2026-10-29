@@ -14,7 +14,7 @@ from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QColor, QImage
 
 from PyImageLabeling.model import Autosave
-from PyImageLabeling.model.Core import (KEYWORD_SAVE_LABEL,
+from PyImageLabeling.model.Base import (KEYWORD_SAVE_LABEL,
                                         image_base_from_mask_name,
                                         mask_file_name, path_hash)
 from PyImageLabeling.model.Labeling.PaintBrush import PaintBrush

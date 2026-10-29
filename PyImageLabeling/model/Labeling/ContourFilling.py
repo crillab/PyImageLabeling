@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QPixmap, QImage
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 import numpy as np
 import cv2
 
@@ -57,7 +57,7 @@ class ContourItem():
 
         
 
-class ContourFilling(Core):
+class ContourFilling(Base):
     def __init__(self):
         super().__init__()
         self.contours = [] # It is in list of contours. A contour is a list of points (x, y).

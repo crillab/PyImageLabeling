@@ -1,9 +1,9 @@
 import os
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyImageLabeling.model.Masks import KEYWORD_SAVE_LABEL
 import numpy as np
 
-class DataManager(Core):
+class DataManager(Base):
     """
     Data Manager Tool - inherits from Core
     Handles export to YOLO/COCO formats using existing annotations

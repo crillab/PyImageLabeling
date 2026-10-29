@@ -1,11 +1,11 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtWidgets import QGraphicsRectItem
 from PyQt6.QtGui import QPen
 from PyQt6.QtCore import Qt, QPointF
 from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 
-class Rectangle(Core):
+class Rectangle(Base):
     def __init__(self):
         super().__init__()
         self.first_click_pos = None

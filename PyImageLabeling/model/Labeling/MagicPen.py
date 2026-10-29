@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from collections import deque
 
 import numpy
@@ -8,7 +8,7 @@ from PyImageLabeling.model.Utils import Utils
 
 DIRECTIONS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
-class MagicPen(Core):
+class MagicPen(Base):
     def __init__(self):
         super().__init__()
 

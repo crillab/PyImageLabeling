@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsPixmapItem, QProgressDialog, QMessageBox
 from PyQt6.QtGui import QPen, QColor, QBrush, QPixmap, QImage
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -632,7 +632,7 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 # Main predictor
 # ---------------------------------------------------------------------------
 
-class MLPredictor(Core):
+class MLPredictor(Base):
     def __init__(self):
         super().__init__()
 

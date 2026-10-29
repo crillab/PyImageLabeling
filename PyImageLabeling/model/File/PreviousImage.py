@@ -1,7 +1,7 @@
 
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
-class PreviousImage(Core):
+class PreviousImage(Base):
     def __init__(self):
         super().__init__()
 

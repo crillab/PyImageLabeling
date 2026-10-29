@@ -17,7 +17,7 @@ Design notes:
 
 import os
 
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyImageLabeling.model.SAM.assistants import (
     get_assistant, detect_arch, DEFAULT_ASSISTANT, SAM_ASSISTANTS,
 )
@@ -78,7 +78,7 @@ def _resolve_device(requested="auto"):
     return "cpu"
 
 
-class SAM2Assistant(Core):
+class SAM2Assistant(Base):
     def __init__(self):
         super().__init__()
         # Session state (per image)

@@ -1,6 +1,6 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
-class MoveImage(Core):
+class MoveImage(Base):
     def __init__(self):
         super().__init__()
         self.move_tool_activation = False

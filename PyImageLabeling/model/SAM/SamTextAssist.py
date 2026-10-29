@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("sam.text")
@@ -20,7 +20,7 @@ TEXT_MAX_BOXES = TEXT_EAGER_BOXES  # legacy alias
 TEXT_MAX_COVERAGE = 0.8
 
 
-class SamTextAssist(Core):
+class SamTextAssist(Base):
     def __init__(self):
         super().__init__()
         self.sam_text_boxes = []

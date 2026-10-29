@@ -1,7 +1,7 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtWidgets import QMessageBox
 
-class ClearAll(Core):
+class ClearAll(Base):
     def __init__(self):
         super().__init__()
 

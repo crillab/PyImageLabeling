@@ -1,11 +1,11 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 from PyQt6.QtWidgets import QGraphicsEllipseItem
 from PyQt6.QtGui import QPen
 from PyQt6.QtCore import Qt, QPointF
 from PyImageLabeling.model.Labeling.EllipseItem import EllipseItem
 from PyImageLabeling.model.Utils import Utils
 
-class Ellipse(Core):
+class Ellipse(Base):
     def __init__(self):
         super().__init__()
         self.first_click_pos = None

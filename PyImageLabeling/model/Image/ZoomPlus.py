@@ -1,8 +1,8 @@
 
 
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
-class ZoomPlus(Core):
+class ZoomPlus(Base):
     def zoom_plus(self):
         self.checked_button = self.zoom_plus.__name__
         

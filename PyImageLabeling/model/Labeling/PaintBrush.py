@@ -1,4 +1,4 @@
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 import numpy as np
 from PyQt6.QtWidgets import QGraphicsItem, QMessageBox
 from PyQt6.QtGui import (
@@ -301,7 +301,7 @@ class PaintBrushItem(QGraphicsItem):
             self.tex_x, self.tex_y, self.texture)
 
 
-class PaintBrush(Core):
+class PaintBrush(Base):
     def __init__(self):
         super().__init__()
         self.last_position_x, self.last_position_y = None, None

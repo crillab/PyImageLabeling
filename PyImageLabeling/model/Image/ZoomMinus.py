@@ -1,8 +1,8 @@
 
 
-from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Base import Base
 
-class ZoomMinus(Core):
+class ZoomMinus(Base):
     def zoom_minus(self):
         self.checked_button = self.zoom_minus.__name__
         
@@ -12,4 +12,4 @@ class ZoomMinus(Core):
 
 
     
-
+
