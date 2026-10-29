@@ -43,6 +43,29 @@ def sam_dependencies_available():
     return _SAM_DEPS_OK
 
 
+def sam_prefetch_default() -> str:
+    """Offline-friendly pre-download of the default SAM assistant weights.
+
+    Used by `python -m PyImageLabeling --sam-prefetch` to land a complete
+    copy in the HuggingFace cache on a stable connection."""
+    from PyImageLabeling.model.Utils import Utils
+    from PyImageLabeling.model.SAM.assistants import get_assistant, detect_arch, DEFAULT_ASSISTANT
+
+    params = Utils.load_parameters().get("sam", {})
+    entry = get_assistant(params.get("assistant", DEFAULT_ASSISTANT))
+    repo = entry["repo"]
+    arch = detect_arch(repo, default=entry["arch"])
+    if arch == "sam":
+        from transformers import SamModel, SamProcessor
+        SamProcessor.from_pretrained(repo)
+        SamModel.from_pretrained(repo)
+    else:
+        from transformers import Sam2Model, Sam2Processor
+        Sam2Processor.from_pretrained(repo)
+        Sam2Model.from_pretrained(repo)
+    return repo
+
+
 def _resolve_device(requested="auto"):
     if requested and requested != "auto":
         return requested
@@ -259,11 +282,37 @@ class SAM2Assistant(Core):
         except Exception as e:
             import traceback
             traceback.print_exc()
+            # release any partial model half-built above so the app remains
+            # usable; otherwise a failed download would poison later attempts.
+            self._sam_processor = None
+            self._sam_model = None
+            self._sam_device = None
+            self._sam_model_id_loaded = None
+            self._sam_arch_loaded = None
             self._sam_error = str(e)
+            try:
+                self._sam_oom_purge()
+            except Exception as purge_err:
+                log.debug(f"SAM purge after failure: {purge_err}")
+            # Guidance tailored to the failure family:
+            msg = str(e)
+            is_network = ("IncompleteRead" in msg or "ChunkedEncodingError" in msg
+                          or "Connection broken" in msg or "ConnectTimeoutError" in msg
+                          or "TimeoutError" in msg)
+            if is_network:
+                extra = ("\n\nNetwork interrupted while downloading the SAM "
+                         "weights ({size}). A partial file may be left in your "
+                         "HuggingFace cache.\n".format(size=cfg['entry']['size']) +
+                         "To retry cleanly, either:\n"
+                         "  - relaunch on a more stable connection, or\n"
+                         "  - pre-download them completely in a terminal:\n"
+                         "        python -m PyImageLabeling --sam-prefetch")
+            else:
+                extra = ""
             return (False,
                     "Failed to load SAM weights:\n"
-                    f"{e}\n\nCheck internet connection (first run downloads "
-                    f"{cfg['entry']['size']}).")
+                    f"{e}{extra}\n\n"
+                    "(first run downloads {size}).".format(size=cfg['entry']['size']))
 
     # ------------------------------------------------------------------
     # Session helpers

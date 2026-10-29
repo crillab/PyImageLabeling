@@ -1187,9 +1187,13 @@ class Core():
                 image_item.update_icon_file()
                 self.save_labels(self.save_directory)
             else:
-                #TODO: if a file (ImageItem) is not open, the color is not update. 
-                # We have to open the good file and change the color of this file (only the file of the good label_id)
-                pass
+                # deferred: never-opened images carry no overlay color in
+                # memory (the mask on disk stores only annotation alpha, so
+                # the currently-chosen label colour is applied on load). Their
+                # overlay and icon bar are refreshed when the image is next
+                # opened. Opening here would be an unwarranted LRU/screen churn.
+                log.debug("update_color skipped %s: not loaded (color "
+                          "reapplied on load)", os.path.basename(file))
             
     def update_geometric_colors_in_scene(self, label_id):
         if self.current_image_item is None:

@@ -47,4 +47,15 @@ def __main__():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
+    if "--sam-prefetch" in sys.argv:
+        try:
+            from PyImageLabeling.model.SAM.SAM2Assistant import sam_prefetch_default
+            repo = sam_prefetch_default()
+            print("SAM weights ready in cache:", repo)
+            sys.exit(0)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print("SAM prefetch FAILED:", e)
+            sys.exit(1)
     __main__()
