@@ -161,7 +161,7 @@ class Files(Core):
 
         # ── allocate label ids + names (items/bars are built later by the
         # native labels.json loader; reuses same-named labels) ──
-        from PyImageLabeling.model.Core import LabelItem
+        from PyImageLabeling.model.LabelItem import LabelItem
         pixel_mode = self.view.config["labeling_bar"]["pixel"]["name_view"]
         existing_by_name = {item.get_name(): lid
                             for lid, item in self.label_items.items()}

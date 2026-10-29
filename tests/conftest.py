@@ -106,7 +106,7 @@ def app_stack(qapp):
 
 def reset_app(controller, view, model):
     """Return the shared stack to a pristine state between tests."""
-    from PyImageLabeling.model.Core import LabelItem
+    from PyImageLabeling.model.LabelItem import LabelItem
 
     model.file_paths = []
     model.image_items = {}
@@ -231,7 +231,7 @@ def reset_overlay(model):
     Faithful to LabelingOverlay.reset(): the deque keeps one entry holding
     the pristine state, otherwise undo() can never walk back to empty.
     """
-    from PyImageLabeling.model.Core import CompactUndoEntry
+    from PyImageLabeling.model.Undo import CompactUndoEntry
     o = model.get_current_image_item().get_labeling_overlay()
     o.labeling_overlay_pixmap.fill(__import__(
         "PyQt6.QtCore", fromlist=["Qt"]).Qt.GlobalColor.transparent)

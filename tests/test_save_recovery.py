@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from PyImageLabeling.model import Autosave
 from PyImageLabeling.model.Utils import Utils
-from PyImageLabeling.model.Core import KEYWORD_SAVE_LABEL
+from PyImageLabeling.model.Masks import KEYWORD_SAVE_LABEL
 from tests.conftest import make_images, reset_app
 
 
@@ -54,7 +54,7 @@ def _annotate(app_stack, workspace):
 
 def _mask_files(directory, paths, label_id):
     """Canonical (v2 hashed) mask file names for the given images."""
-    from PyImageLabeling.model.Core import mask_file_name
+    from PyImageLabeling.model.Masks import mask_file_name
     return [mask_file_name(str(directory), p, label_id) for p in paths]
 
 

@@ -246,7 +246,7 @@ def test_broken_overlay_does_not_kill_other_labels(app_stack, workspace,
     _paint_box(model, doomed, la, 40, 40)
 
     real_save = None
-    from PyImageLabeling.model.Core import LabelingOverlay
+    from PyImageLabeling.model.LabelingOverlay import LabelingOverlay
     real_save = LabelingOverlay.save
 
     def exploding_save(self, directory, path_image):

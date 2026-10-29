@@ -94,7 +94,7 @@ def test_undo_leaves_no_dangling_items(project):
 def test_has_painted_pixels_forms():
     from PyQt6.QtGui import QPixmap
     from PyQt6.QtCore import Qt
-    from PyImageLabeling.model.Core import CompactUndoEntry
+    from PyImageLabeling.model.Undo import CompactUndoEntry
 
     empty = QPixmap(8, 8)
     empty.fill(Qt.GlobalColor.transparent)
@@ -110,7 +110,7 @@ def test_has_painted_pixels_forms():
 def _loaded_mask_setup(model, paths):
     """Simulate a mask from a previous session: deque[0] holds content,
     like an overlay constructed with from_file does."""
-    from PyImageLabeling.model.Core import CompactUndoEntry
+    from PyImageLabeling.model.Undo import CompactUndoEntry
     from PyQt6.QtCore import QPointF
     model.select_image(paths[0])
     reset_overlay(model)

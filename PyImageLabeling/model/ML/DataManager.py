@@ -1,5 +1,6 @@
 import os
-from PyImageLabeling.model.Core import Core, KEYWORD_SAVE_LABEL
+from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Masks import KEYWORD_SAVE_LABEL
 import numpy as np
 
 class DataManager(Core):
@@ -187,4 +188,4 @@ class DataManager(Core):
                     return True
         except Exception:
             pass
-        return False
+        return False

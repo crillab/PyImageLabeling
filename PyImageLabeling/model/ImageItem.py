@@ -117,7 +117,7 @@ class ImageItem():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     def _mask_key_candidates(self, label_id):
-        from PyImageLabeling.model.Core import KEYWORD_SAVE_LABEL, path_hash
+        from PyImageLabeling.model.Masks import KEYWORD_SAVE_LABEL, path_hash
         """Possible on-disk mask keys of (this image, label_id), most
         specific first: the current hashed form, then the legacy
         basename-only form (projects saved before the collision fix)."""

@@ -1892,7 +1892,7 @@ class MLPredictor(Core):
     def load_image_for_training(self, path_image):
         if self.image_items.get(path_image) is not None:
             return
-        from PyImageLabeling.model.Core import ImageItem
+        from PyImageLabeling.model.ImageItem import ImageItem
         image_item = ImageItem(
             self.view, self.controller, path_image,
             self.icon_button_files.get(path_image),
