@@ -4,7 +4,8 @@
 from PyQt6.QtCore import Qt, QFileInfo
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 
-from PyImageLabeling.model.Core import (Core, KEYWORD_SAVE_LABEL,
+from PyImageLabeling.model.Core import Core
+from PyImageLabeling.model.Masks import (KEYWORD_SAVE_LABEL,
                                         image_base_from_mask_name)
 from PyImageLabeling.model.Utils import Utils
 

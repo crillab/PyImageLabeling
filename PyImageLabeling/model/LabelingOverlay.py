@@ -395,8 +395,9 @@ class LabelingOverlay():
         # Late-import helpers to avoid circular import with Core (where
         # KEYWORD_SAVE_LABEL / path_hash currently live).  Resolve after
         # imports are complete – by call time both modules are defined.
-        from PyImageLabeling.model.Core import (KEYWORD_SAVE_LABEL,
-                                                 path_hash)
+        from PyImageLabeling.model.Masks import (
+            KEYWORD_SAVE_LABEL,
+            path_hash)
         name = os.path.basename(path_image)
         if "." in name:
             name, format = name.rsplit(".", 1)
