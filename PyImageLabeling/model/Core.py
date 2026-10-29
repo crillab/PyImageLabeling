@@ -47,7 +47,33 @@ from PyImageLabeling.model.Undo import CompactUndoEntry
 from PyImageLabeling.model.LabelingOverlay import LabelingOverlay
 from PyImageLabeling.model.ImageItem import ImageItem
 from PyImageLabeling.model.LabelItem import LabelItem
+from PyImageLabeling.model.ImageCatalog import ImageCatalog
+
 class Core(GeometryUpdaterMixin):
+    @property
+    def file_paths(self):
+        return self._image_catalog.file_paths
+
+    @file_paths.setter
+    def file_paths(self, value):
+        self._image_catalog.file_paths = value
+
+    @property
+    def image_items(self):
+        return self._image_catalog.image_items
+
+    @image_items.setter
+    def image_items(self, value):
+        self._image_catalog.image_items = value
+
+    @property
+    def icon_button_files(self):
+        return self._image_catalog.icon_button_files
+
+    @icon_button_files.setter
+    def icon_button_files(self, value):
+        self._image_catalog.icon_button_files = value
+
 
     def __init__(self):
         
@@ -61,6 +87,7 @@ class Core(GeometryUpdaterMixin):
         # keep_loaded_images are unloaded (select_image / _evict_images).
         self._image_lru = []
         
+        self.__dict__["_image_catalog"] = ImageCatalog()
         self.file_paths = [] # List of file paths of images (in the good order)
 
         self.image_items = dict() # Dictionnary: (key: file_path) -> (value: ImageItem or None)
