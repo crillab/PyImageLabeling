@@ -5,6 +5,24 @@ version: the Release workflow refuses to publish a version without one.
 
 ## Unreleased
 
+### Added
+- `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
+- `--sam-prefetch` CLI flag: pre-download the SAM2 checkpoints (offline-friendly,
+  no GUI needed) instead of starting the download mid-labeling.
+- SAM loading is hardened: a download failure (e.g. `IncompleteRead` over an
+  unstable connection) no longer leaves a half-written checkpoint in the cache —
+  it is purged so the next attempt restarts clean, and the error message now
+  points to the connection instead of a generic crash.
+
+### Internal / refactor
+- `Model` god-object decomposition: `CompactUndoEntry`, `LabelingOverlay`,
+  `ImageItem`, `LabelItem`, mask-name helpers (`Masks`), geometry tools
+  (`GeometryUpdater`) and the image index (`ImageCatalog`) are now separate
+  modules; the central class was renamed `Core` -> `Base`
+  (`PyImageLabeling/model/Base.py`). No behavior change: backward-compatible
+  re-exports are kept (`from PyImageLabeling.model.Core import ...` still
+  works), full test suite green throughout.
+
 ### Changed
 - All `print()` calls in the app have been routed through the new `logging`-based
   setup (`logging_setup.py`); the `ML_VERBOSE` log level now lands in the same
@@ -29,7 +47,8 @@ version: the Release workflow refuses to publish a version without one.
   the app boots on in-memory defaults.
 
 ### Added
-- `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
+- `load.memory_keep_images` parameter in `default_parameters.json` (default 8),
+  controlling how many images stay loaded while browsing (see Fixed below).
 
 ## 1.0.14 (2026-10-24)
 
