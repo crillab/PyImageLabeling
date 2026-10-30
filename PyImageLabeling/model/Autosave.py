@@ -1,7 +1,7 @@
-"""Auto-save snapshots: the write side is Core.auto_save(), this is the
+"""Auto-save snapshots: the write side is Base.auto_save(), this is the
 read side.
 
-Core.auto_save() copies the annotation files into <project>/auto_save/ every
+Base.auto_save() copies the annotation files into <project>/auto_save/ every
 few minutes, but until now nothing in the codebase ever read that folder
 back. After a native crash the snapshot was only useful if you happened to
 know it existed and copied the files by hand.
@@ -105,7 +105,7 @@ def needs_recovery(project_dir):
     """True when the snapshot is newer than the project itself.
 
     A snapshot older than the last real save holds nothing new: either the
-    user saved normally after it, or Core._save_all() already closed it.
+    user saved normally after it, or Base._save_all() already closed it.
     """
     info = scan(project_dir)
     if not info["exists"]:

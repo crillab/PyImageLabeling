@@ -1,7 +1,7 @@
 class ImageCatalog:
     """Owns the image index: ordered paths, loaded items, icon buttons.
 
-    Core delegates to it through properties, keeping all call-sites unchanged.
+    Base delegates to it through properties, keeping all call-sites unchanged.
     """
 
     def __init__(self):

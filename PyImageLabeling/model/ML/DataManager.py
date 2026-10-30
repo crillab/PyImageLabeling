@@ -5,7 +5,7 @@ import numpy as np
 
 class DataManager(Base):
     """
-    Data Manager Tool - inherits from Core
+    Data Manager Tool - inherits from Base
     Handles export to YOLO/COCO formats using existing annotations
     """
     

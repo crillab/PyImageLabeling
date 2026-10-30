@@ -392,7 +392,7 @@ class LabelingOverlay():
 
 
     def save(self, current_file_path, path_image):
-        # Late-import helpers to avoid circular import with Core (where
+        # Late-import helpers to avoid circular import with Base (where
         # KEYWORD_SAVE_LABEL / path_hash currently live).  Resolve after
         # imports are complete – by call time both modules are defined.
         from PyImageLabeling.model.Masks import (
