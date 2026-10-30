@@ -8,10 +8,15 @@ from tests.conftest import write_labels_json, overlay_alpha, reset_overlay
 
 
 @pytest.fixture()
-def two_color(app_stack, workspace):
+def two_color(app_stack, workspace, fake_params):
     """256x256, left half blue, right half red."""
     from tests.conftest import reset_app
     from PIL import Image as PILImage
+    # Pin the brush size: without this, a real parameters.json lying in the
+    # package directory (user machine) leaks its own paint_brush size into
+    # start_paint_brush and shifts the blob below the thresholds asserted
+    # by the colour-criterion tests.
+    fake_params(**{"paint_brush": {"size": 20}})
     controller, view, model = app_stack
     reset_app(controller, view, model)
     p = str(workspace / "two.png")
