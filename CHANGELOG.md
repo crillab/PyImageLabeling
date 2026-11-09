@@ -24,6 +24,12 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- One project = one folder: opening a folder now **replaces** the open project
+  (unsaved annotations: Save / Discard / Cancel) and shows its first image.
+  It used to append the new images to the list while resetting the overlays of
+  the previous ones and redirecting every save to the new folder, so the old
+  images showed no annotation and strokes made on them were saved in the
+  wrong folder.
 - All `print()` calls in the app have been routed through the new `logging`-based
   setup (`logging_setup.py`); the `ML_VERBOSE` log level now lands in the same
   stream (stdout → stderr). `PYIMAGELABELING_LOG_LEVEL` selects the level.
@@ -45,10 +51,9 @@ version: the Release workflow refuses to publish a version without one.
 - Settings on a read-only installation fall back to `~/.pyimagelabeling` instead
   of crashing on the first launch with `PermissionError`; unwritable everywhere,
   the app boots on in-memory defaults.
-- Opening a folder with nothing to load no longer returns silently: a message
-  says so, and for a parent folder lists the subfolders that do contain images
-  (subfolders are not scanned). Opening a folder whose images are all already
-  open says that too.
+- Opening a folder with no image no longer returns silently: a message says so
+  and, for a parent folder, lists the subfolders that do contain images
+  (subfolders are not scanned). The open project is left untouched.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

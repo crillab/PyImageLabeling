@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QFileInfo
 from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 
 from PyImageLabeling.model.Base import Base
+from PyImageLabeling.model.LabelItem import LabelItem
 from PyImageLabeling.model.Masks import (KEYWORD_SAVE_LABEL,
                                         image_base_from_mask_name)
 from PyImageLabeling.model.Utils import Utils
@@ -46,24 +47,13 @@ def _subfolders_with_images(folder):
     return found
 
 
-def nothing_to_load_message(folder, open_paths):
-    """Explain why opening `folder` added nothing to the project.
+def nothing_to_load_message(folder):
+    """Explain why `folder` cannot be opened: it holds no image.
 
-    Either every image in it is already open, or it has no image at all;
-    in the latter case, point at the subfolders that do have images
-    (only the selected folder itself is scanned, not its subfolders).
+    Points at the subfolders that do have images, since only the selected
+    folder itself is scanned, not its subfolders.
     """
     folder = os.path.normpath(folder)
-    try:
-        names = [n for n in os.listdir(folder)
-                 if _is_image_name(n)
-                 and os.path.isfile(os.path.join(folder, n))]
-    except OSError:
-        names = []
-    if names:
-        return (f"All {len(names)} image(s) of this folder are already "
-                f"open:\n{folder}")
-
     message = f"No image found in this folder:\n{folder}"
     subfolders = _subfolders_with_images(folder)
     if subfolders:
@@ -310,6 +300,107 @@ class Files(Base):
             pass
         return labels_path
 
+    def confirm_close_project(self):
+        """Offer to save unsaved annotations before the project is closed.
+
+        Returns False when the project must stay open as it is: the user
+        cancelled, or chose to save and the save did not go through (save
+        dialog cancelled, failed mask write).
+        """
+        if not self.get_edited():
+            return True
+        Button = QMessageBox.StandardButton
+        answer = QMessageBox.question(
+            self.view, "Unsaved annotations",
+            "The current project has unsaved annotations.\n\n"
+            "Save them before opening the new folder?",
+            Button.Save | Button.Discard | Button.Cancel, Button.Save)
+        if answer == Button.Discard:
+            return True
+        if answer != Button.Save:
+            return False
+        self.save()
+        return not self.get_edited()
+
+    def close_project(self):
+        """Forget the open folder: images, overlays, labels, file list.
+
+        One project = one folder: opening a folder replaces the project
+        instead of appending to it. The trained ML model is kept (it is
+        not tied to a folder); per-image ML bookkeeping is not.
+        """
+        # transient tool graphics live in the scene that is about to go
+        if getattr(self, "checked_button", None) == "contour_filling":
+            try:
+                self.remove_contour()
+            except Exception:
+                pass
+        if hasattr(self, "_sam_reset_prompts"):
+            try:
+                self._sam_reset_prompts()
+            except Exception:
+                pass
+            self.sam_session_image_path = None
+        try:
+            self.zoomable_graphics_view.scene.clear()
+        except (AttributeError, RuntimeError):
+            pass
+        self.current_image_item = None
+
+        # deterministic teardown of every loaded image (painters, pixmaps)
+        for path in list(self.image_items):
+            if self.image_items[path] is not None:
+                self._unload_image(path)
+        self._image_lru.clear()
+        # cleared in place: the file bar's remove buttons hold these objects
+        self.file_paths.clear()
+        self.image_items.clear()
+        self.icon_button_files.clear()
+        file_bar = self.view.file_bar_list
+        was_blocked = file_bar.blockSignals(True)
+        try:
+            file_bar.clear()
+        finally:
+            file_bar.blockSignals(was_blocked)
+
+        self.labeling_overview_was_loaded.clear()
+        self.labeling_overview_file_paths.clear()
+        self.left_rectangles.clear()
+        self.left_ellipses.clear()
+        self.left_polygons.clear()
+
+        self._clear_label_bar()
+        self.label_items.clear()
+        self.current_label_item = None
+        LabelItem.static_label_id = 0
+        LabelItem.used_ids.clear()
+
+        for name in ("_ml_annotated", "_ml_disk_annotated",
+                     "_ml_painted_cache"):
+            cache = getattr(self, name, None)
+            if isinstance(cache, dict):
+                cache.clear()
+        self._last_batch = []
+        self._last_batch_idx = -1
+        controller = self.controller
+        if isinstance(getattr(controller, "_ml_paint_cache", None), dict):
+            controller._ml_paint_cache.clear()
+        controller._al_ranking = None
+        controller._al_pos = -1
+
+        self.save_directory = ""
+
+    def _clear_label_bar(self):
+        """Remove every label row from the label bar."""
+        view = self.view
+        for label_id in list(view.container_label_bar_temporary):
+            widget, separator = view.container_label_bar_temporary.pop(label_id)
+            widget.hide()
+            view.label_bar_layout.removeWidget(widget)
+            separator.hide()
+            view.label_bar_layout.removeWidget(separator)
+            view.buttons_label_bar_temporary.pop(label_id, None)
+
     def load(self, default_path=None):
         if default_path is None:
             self.default_path = Utils.load_parameters()["load"]["path"]
@@ -364,8 +455,6 @@ class Files(Base):
         labels_images = []
         raw_images = []  # non-native image files (plain images or ext. masks)
         for file in current_files:
-            if file in self.file_paths:
-                continue
             if file.lower().endswith(IMAGE_EXTENSIONS):
                 if KEYWORD_SAVE_LABEL in file:
                     # It is a label file
@@ -390,8 +479,17 @@ class Files(Base):
             # subfolders, which are not scanned).
             QMessageBox.information(
                 self.view, "Nothing to load",
-                nothing_to_load_message(current_file_path, self.file_paths))
+                nothing_to_load_message(current_file_path))
             return
+
+        # ── One project = one folder: opening a folder replaces the project ──
+        # Opening used to *append* the new images to the list while resetting
+        # the overlays of the previous ones and redirecting every save to the
+        # new folder: the old images stayed listed but showed no annotation,
+        # and strokes made on them were saved into the wrong folder.
+        if not self.confirm_close_project():
+            return
+        self.close_project()
 
         # ── External masks? (binary / indexed / RGB next to the images) ──
         # Files like "img_mask.png" next to "img.png" are probably masks,
@@ -491,53 +589,10 @@ class Files(Base):
             progress.setValue(total_steps)   # dismiss the progress bar
             return
 
-        if labels_json is not None and self.get_edited():
-            msgBox = QMessageBox(self.view.zoomable_graphics_view)
-            msgBox.setWindowTitle("Load")
-            msgBox.setText("Are you sure you want to load the new labeling overview without save our previous works ?")
-            msgBox.setInformativeText("All previous works not saved will be reset.")
-            msgBox.setStandardButtons(QMessageBox.StandardButton.No | QMessageBox.StandardButton.Yes)
-            msgBox.setDefaultButton(QMessageBox.StandardButton.No)
-            msgBox.setModal(True)
-            result = msgBox.exec()
-
-            if result == QMessageBox.StandardButton.No:
-                progress.setValue(total_steps)   # dismiss the progress bar
-                return
-
         # ── Step counter resumes after the file-bar phase ────────────────
         step = n_images
 
-        # ── Reset all labeling overlays in the model ─────────────────────
-        progress.setLabelText("Resetting previous annotations…")
-        progress.setValue(step)
-        self.reset()
-        self.labeling_overview_was_loaded.clear()
-        self.labeling_overview_file_paths.clear()
-
-        # Reset the view
-        to_delete = []
-        for label_id in self.view.container_label_bar_temporary:
-            widget, separator = self.view.container_label_bar_temporary[label_id]
-
-            widget.hide()
-            self.view.label_bar_layout.removeWidget(widget)
-            separator.hide()
-            self.view.label_bar_layout.removeWidget(separator)
-
-            # Clean up the view dictionaries
-            to_delete.append(label_id)
-            if label_id in self.view.buttons_label_bar_temporary:
-                del self.view.buttons_label_bar_temporary[label_id]
-
-        for label_id in to_delete:
-            del self.view.container_label_bar_temporary[label_id]
-
-        # Clear the labels in the model
-        self.label_items.clear()
-
-        # Reset the icon file
-        self.update_icon_file()
+        # (the previous project was fully closed by close_project() above)
         step += 1
         progress.setValue(step)
 
