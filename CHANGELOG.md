@@ -45,6 +45,10 @@ version: the Release workflow refuses to publish a version without one.
 - Settings on a read-only installation fall back to `~/.pyimagelabeling` instead
   of crashing on the first launch with `PermissionError`; unwritable everywhere,
   the app boots on in-memory defaults.
+- Opening a folder with nothing to load no longer returns silently: a message
+  says so, and for a parent folder lists the subfolders that do contain images
+  (subfolders are not scanned). Opening a folder whose images are all already
+  open says that too.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

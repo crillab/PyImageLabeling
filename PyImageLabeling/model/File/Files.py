@@ -15,7 +15,71 @@ import os
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("files")
 
-        
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif")
+
+# Subfolders listed in the "nothing to load" message, at most.
+_MAX_SUBFOLDERS_LISTED = 10
+
+
+def _is_image_name(name):
+    return name.lower().endswith(IMAGE_EXTENSIONS) \
+        and KEYWORD_SAVE_LABEL not in name
+
+
+def _subfolders_with_images(folder):
+    """Names of the direct subfolders of `folder` holding an image."""
+    found = []
+    try:
+        entries = sorted(os.scandir(folder), key=lambda e: e.name.lower())
+    except OSError:
+        return found
+    for entry in entries:
+        try:
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            with os.scandir(entry.path) as children:
+                if any(c.is_file() and _is_image_name(c.name)
+                       for c in children):
+                    found.append(entry.name)
+        except OSError:
+            continue
+    return found
+
+
+def nothing_to_load_message(folder, open_paths):
+    """Explain why opening `folder` added nothing to the project.
+
+    Either every image in it is already open, or it has no image at all;
+    in the latter case, point at the subfolders that do have images
+    (only the selected folder itself is scanned, not its subfolders).
+    """
+    folder = os.path.normpath(folder)
+    try:
+        names = [n for n in os.listdir(folder)
+                 if _is_image_name(n)
+                 and os.path.isfile(os.path.join(folder, n))]
+    except OSError:
+        names = []
+    if names:
+        return (f"All {len(names)} image(s) of this folder are already "
+                f"open:\n{folder}")
+
+    message = f"No image found in this folder:\n{folder}"
+    subfolders = _subfolders_with_images(folder)
+    if subfolders:
+        shown = subfolders[:_MAX_SUBFOLDERS_LISTED]
+        message += ("\n\nSubfolders are not opened automatically, but "
+                    "these ones contain images:\n"
+                    + "\n".join(f"  • {name}" for name in shown))
+        if len(subfolders) > len(shown):
+            message += f"\n  … and {len(subfolders) - len(shown)} more"
+        message += "\n\nOpen one of them instead."
+    else:
+        message += ("\n\nSupported formats: "
+                    + ", ".join(e[1:] for e in IMAGE_EXTENSIONS) + ".")
+    return message
+
+
 class Files(Base):
     def __init__(self):
         super().__init__() 
@@ -302,8 +366,7 @@ class Files(Base):
         for file in current_files:
             if file in self.file_paths:
                 continue
-            if file.lower().endswith((".png", ".jpg", ".jpeg", ".gif",
-                                       ".bmp", ".tiff", ".tif")):
+            if file.lower().endswith(IMAGE_EXTENSIONS):
                 if KEYWORD_SAVE_LABEL in file:
                     # It is a label file
                     labels_images.append(file)
@@ -317,6 +380,18 @@ class Files(Base):
                 ellipse_json = file # Load it later
             elif file.endswith("Polygons.json"):
                 polygon_json = file # Load it later
+
+        if not raw_images and not labels_images and labels_json is None \
+                and rectangle_json is None and ellipse_json is None \
+                and polygon_json is None:
+            # Nothing to do here. Returning silently left the user staring
+            # at an unchanged window, wondering whether the open had even
+            # happened (typically: a parent folder whose images live in
+            # subfolders, which are not scanned).
+            QMessageBox.information(
+                self.view, "Nothing to load",
+                nothing_to_load_message(current_file_path, self.file_paths))
+            return
 
         # ── External masks? (binary / indexed / RGB next to the images) ──
         # Files like "img_mask.png" next to "img.png" are probably masks,
