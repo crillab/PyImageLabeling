@@ -31,39 +31,30 @@ class LabelingOverlay():
         if from_file is None:
             self.labeling_overlay_pixmap.fill(Qt.GlobalColor.transparent)
         else:
-            # Load the the file in the pixmap
-            basename = os.path.basename(from_file)
-            folder = os.path.dirname(from_file)
-            json_path = os.path.join(folder, "labels.json")
+            # Load the file in the pixmap, in the color of its label. The
+            # color used to be read back from the labels.json next to the
+            # mask, red when the label was not in it yet: masks just imported
+            # for a new label showed in red, whatever its color.
+            color = QColor(self.label.get_color())
+            label_pixmap = QPixmap(from_file)
+            if label_pixmap.isNull():
+                # The registered label file no longer exists (deleted
+                # returns a null pixmap, which used to REPLACE the
+                # working overlay: every stroke drawn on that image was
+                # then silently dropped.
+                self.labeling_overlay_pixmap.fill(
+                    Qt.GlobalColor.transparent)
+            else:
+                image = label_pixmap.toImage()
+                image = image.convertToFormat(QImage.Format.Format_ARGB32)
 
-            with open(json_path, "r", encoding="utf-8") as f:
-                labels_data = json.load(f)
+                # Create a mask for non-black pixels and fill with color
+                mask = image.createMaskFromColor(
+                    QColor(0, 0, 0).rgb(), Qt.MaskMode.MaskOutColor)
+                image.fill(color)
+                image.setAlphaChannel(mask)
 
-                id = basename.split('.')[-2]
-                
-                info = labels_data.get(id, {})
-                color_list = info.get("color")
-                color = QColor(*color_list[:3]) if isinstance(color_list, list) else QColor(255, 0, 0)
-
-                label_pixmap = QPixmap(from_file)
-                if label_pixmap.isNull():
-                    # The registered label file no longer exists (deleted
-                    # returns a null pixmap, which used to REPLACE the
-                    # working overlay: every stroke drawn on that image was
-                    # then silently dropped.
-                    self.labeling_overlay_pixmap.fill(
-                        Qt.GlobalColor.transparent)
-                else:
-                    image = label_pixmap.toImage()
-                    image = image.convertToFormat(QImage.Format.Format_ARGB32)
-
-                    # Create a mask for non-black pixels and fill with color
-                    mask = image.createMaskFromColor(
-                        QColor(0, 0, 0).rgb(), Qt.MaskMode.MaskOutColor)
-                    image.fill(color)
-                    image.setAlphaChannel(mask)
-
-                    self.labeling_overlay_pixmap = QPixmap.fromImage(image)
+                self.labeling_overlay_pixmap = QPixmap.fromImage(image)
 
         self.labeling_overlay_item = None
 

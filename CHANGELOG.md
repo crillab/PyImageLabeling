@@ -95,6 +95,9 @@ version: the Release workflow refuses to publish a version without one.
   label is created. When several images match a file, the longest name wins
   (`img_2` over `img` for `img_2_mask.png`). A label name clash no longer leaves
   the imported masks behind, under the id the next label would get.
+- Masks loaded from a file take the color of their label. The color was read
+  back from the `labels.json` next to the mask, red when the label was not in
+  it yet: masks just imported for a new label showed in red.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),
