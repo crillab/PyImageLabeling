@@ -51,7 +51,9 @@ class ChangeLabel(Base):
         if image_item is None:
             return
 
-        if self.target_label_id not in image_item.labeling_overlays:
+        # Overlays are created lazily: the target label may simply have no
+        # overlay on this image yet. Only a deleted label is an error.
+        if image_item.ensure_labeling_overlay(self.target_label_id) is None:
             QMessageBox.warning(
                 None,
                 "Change Label",

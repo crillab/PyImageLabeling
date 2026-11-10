@@ -770,7 +770,6 @@ class Base(GeometryUpdaterMixin):
                 except Exception:
                     pass
                 overlay.previous_labeling_overlay_pixmap = None
-                overlay.labeling_overlay_color_pixmap = None
                 overlay.labeling_overlay_item = None
                 overlay.image_item = None      # break the ImageItem cycle
                 overlay.scene = None

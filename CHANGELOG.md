@@ -35,6 +35,10 @@ version: the Release workflow refuses to publish a version without one.
   stream (stdout → stderr). `PYIMAGELABELING_LOG_LEVEL` selects the level.
 - `torch.load` now sets `weights_only=True`, freezing the safe default below
   torch 2.6.
+- Much lower memory per loaded image: labeling overlays are now created lazily
+  (only for the labels that have a mask on the image, plus the selected label),
+  and recoloring a label no longer keeps a second full-size pixmap per overlay.
+  On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
 - Basename-mask name collisions (`dirA/IMG_001.png` vs `dirB/IMG_001.png`, or

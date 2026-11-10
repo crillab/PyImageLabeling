@@ -82,9 +82,11 @@ class LabelingOverlay():
         # Initialize the previous pixmap for the `undo` feature
         self.previous_labeling_overlay_pixmap = None
 
-        # Initialize others pixmaps and painters to change the color or opacity operations
+        # Painters for the color and opacity operations. No full-size
+        # "color" pixmap is kept: update_color() fills with the label color
+        # directly (CompositionMode_SourceIn), which gives the same result
+        # without holding a second width x height ARGB buffer per label.
         self.labeling_overlay_opacity_painter = QPainter()
-        self.labeling_overlay_color_pixmap = QPixmap(self.width, self.height)
         self.labeling_overlay_color_painter = QPainter()
 
         self.is_displayed_in_scene = False
@@ -234,9 +236,9 @@ class LabelingOverlay():
             self.set_is_edited(True)
 
         # Apply Color
-        self.labeling_overlay_color_pixmap.fill(self.label.get_color())
+        color = self.label.get_color()
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-        self.labeling_overlay_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
+        self.labeling_overlay_painter.fillRect(self.labeling_overlay_pixmap.rect(), color)
         self.labeling_overlay_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         
         # Update
@@ -252,7 +254,7 @@ class LabelingOverlay():
             # Apply color change
             self.labeling_overlay_color_painter.begin(pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-            self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
+            self.labeling_overlay_color_painter.fillRect(pixmap.rect(), color)
             self.labeling_overlay_color_painter.end()
             
             # Store back as compact
@@ -264,7 +266,8 @@ class LabelingOverlay():
         if self.previous_labeling_overlay_pixmap is not None:
             self.labeling_overlay_color_painter.begin(self.previous_labeling_overlay_pixmap)
             self.labeling_overlay_color_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-            self.labeling_overlay_color_painter.drawPixmap(0, 0, self.labeling_overlay_color_pixmap)
+            self.labeling_overlay_color_painter.fillRect(
+                self.previous_labeling_overlay_pixmap.rect(), color)
             self.labeling_overlay_color_painter.end()
 
         
