@@ -88,6 +88,13 @@ version: the Release workflow refuses to publish a version without one.
   reopens the project: the masks show up in the open project at once.
   Reopening it asked to save or discard the unsaved strokes, and Cancel left
   the imported masks on disk but not shown.
+- Importing masks no longer writes the files that match no image of the
+  project: written under their own name they were masks of no image, orphans
+  in the project folder (a whole folder of slides and masks could end up
+  there, silently). A report lists what was left out; when nothing matches, no
+  label is created. When several images match a file, the longest name wins
+  (`img_2` over `img` for `img_2_mask.png`). A label name clash no longer leaves
+  the imported masks behind, under the id the next label would get.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

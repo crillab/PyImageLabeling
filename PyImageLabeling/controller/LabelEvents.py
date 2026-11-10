@@ -38,8 +38,17 @@ class LabelEvents(Events):
     def _create_label(self, label_setting):
         if label_setting.exec():
             if self.model.name_already_exists(label_setting.name):
+                    # the import ran in the dialog's OK: its masks carry the
+                    # id the next label will get, and would show up there
+                    self._discard_import(label_setting)
                     self.error_message("Error", f"The label name '{label_setting.name}' already exists!")
                     return
+
+            if label_setting.import_ready and not label_setting.importdata:
+                # the import went through but wrote no mask: no empty label
+                if not label_setting.import_failed:
+                    self._report_import(label_setting, None)
+                return
 
             # Uncheck all activation buttons
             for label_id in self.view.buttons_label_bar_temporary:
@@ -53,7 +62,7 @@ class LabelEvents(Events):
             # project used to be reopened instead, which asked to save or
             # discard the unsaved strokes just to import a label.
             imported = label_setting.importdata is True
-            if imported and self.model.file_paths:
+            if imported:
                 for mask_path in label_setting.imported_files:
                     self.model.load_labels_images(mask_path)
 
@@ -69,11 +78,55 @@ class LabelEvents(Events):
             if imported:
                 # the masks are on disk already: their label must be too
                 self.model.save_labels(self.model.save_directory)
-                if not self.model.file_paths:
-                    # no project open: open the folder the masks went to
-                    self.model.load(self.model.save_directory)
-                
-            
+                self._report_import(label_setting, label_setting.name)
+
+    @staticmethod
+    def _discard_import(label_setting):
+        for mask_path in label_setting.imported_files:
+            try:
+                os.remove(mask_path)
+            except OSError:
+                pass
+        label_setting.imported_files = []
+        label_setting.importdata = False
+
+    def _report_import(self, label_setting, label_name):
+        """Say what the import did, and above all what it left out."""
+        unmatched = label_setting.import_unmatched
+        empty = label_setting.import_empty
+        count = len(label_setting.imported_files)
+        if label_name is not None and not unmatched and not empty:
+            try:
+                self.view.statusBar().showMessage(
+                    f"{count} mask(s) imported into the label '{label_name}'")
+            except (AttributeError, RuntimeError):
+                pass
+            return
+
+        def listing(names, limit=10):
+            shown = "\n".join(f"  {n}" for n in names[:limit])
+            more = len(names) - limit
+            return shown + (f"\n  … and {more} more" if more > 0 else "")
+
+        if label_name is None:
+            parts = ["No mask was imported, and no label was created."]
+            if not unmatched and not empty:
+                parts.append("No file of the folder matches the filter.")
+        else:
+            parts = [f"{count} mask(s) imported into the label "
+                     f"'{label_name}'."]
+        if unmatched:
+            parts.append(
+                "Not imported, no image of the project has this name:\n"
+                + listing(unmatched)
+                + "\nA mask must be named after its image: for img.jpg, "
+                "img.png, img_mask.png or img.label.0.png.")
+        if empty:
+            parts.append("Not imported, empty in the chosen format:\n"
+                         + listing(empty))
+        QMessageBox.information(self.view, "Import Labels",
+                                "\n\n".join(parts))
+
     def select_label(self, label_id):
         self.all_events(label_id)
         

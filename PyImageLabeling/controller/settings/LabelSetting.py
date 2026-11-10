@@ -234,6 +234,9 @@ class LabelSetting(QDialog):
         self.labeling_mode = labeling_mode_pixel if labeling_mode is None else labeling_mode
         self.importdata = False
         self.imported_files = []   # masks written by process_import_data()
+        self.import_unmatched = []  # source files matching no project image
+        self.import_empty = []      # source files empty for the chosen format
+        self.import_failed = False  # an error was already reported
         self.import_ready = False
         self.setWindowTitle("Label Setting")
         layout = QFormLayout()
@@ -435,6 +438,7 @@ class LabelSetting(QDialog):
                                   "save_directory", ""))
         if not destination:
             self.importdata = False
+            self.import_failed = True
             self.parent().view.controller.error_message(
                 "Import Error",
                 "No destination folder for the imported labels.\n\n"
@@ -443,6 +447,8 @@ class LabelSetting(QDialog):
             return
         self.destination_directory = destination
         self.imported_files = []
+        self.import_unmatched = []
+        self.import_empty = []
 
         try:
             # Get label ID for renaming
@@ -481,17 +487,24 @@ class LabelSetting(QDialog):
                 source_file_path = os.path.join(self.source_directory, filename)
                 name, _ = os.path.splitext(filename)
 
-                # Match the label file to a loaded image by finding the image whose
-                # basename is a prefix of the label filename (e.g. "img" in "img_L").
+                # Match the file to an image of the project: the image whose
+                # stem is the file name, or a prefix of it followed by a
+                # separator ("img" for "img_mask", "img.label.0"); the longest
+                # one wins ("img_2" over "img" for "img_2_mask"). A file that
+                # matches no image is not imported: written under its own
+                # name, it was the mask of no image, an orphan in the project.
                 loaded_paths = self.parent().view.controller.model.file_paths
                 matched_base = None
                 for fp in loaded_paths:
                     img_base = os.path.splitext(os.path.basename(fp))[0]
                     remainder = name[len(img_base):]
                     if name == img_base or (name.startswith(img_base) and len(remainder) > 0 and remainder[0] in ("_", "-", " ", ".")):
-                        matched_base = img_base
-                        break
-                output_name = matched_base if matched_base else name
+                        if matched_base is None or len(img_base) > len(matched_base):
+                            matched_base = img_base
+                if matched_base is None:
+                    self.import_unmatched.append(filename)
+                    continue
+                output_name = matched_base
 
                 new_filename   = f"{output_name}.label.{label_id}.png"
                 dest_file_path = os.path.join(self.destination_directory, new_filename)
@@ -499,6 +512,7 @@ class LabelSetting(QDialog):
                 if fmt == ImportFormatDialog.FORMAT_INDEXED:
                     mask = self._indexed_to_binary(source_file_path, idx_values)
                     if not np.any(np.array(mask)):
+                        self.import_empty.append(filename)
                         continue
                     log.debug(f"Indexed mask '{filename}': values={idx_values} → white binary")
                     mask.save(dest_file_path)
@@ -506,6 +520,7 @@ class LabelSetting(QDialog):
                 elif fmt == ImportFormatDialog.FORMAT_RGB and rgb_color is not None:
                     mask = self._rgb_to_binary(source_file_path, rgb_color)
                     if not np.any(np.array(mask)):
+                        self.import_empty.append(filename)
                         continue
                     log.debug(f"RGB mask '{filename}': colour={rgb_color.name()} → white binary")
                     mask.save(dest_file_path)
@@ -515,6 +530,7 @@ class LabelSetting(QDialog):
                         normalize_binary_mask)
                     mask = normalize_binary_mask(source_file_path)
                     if not np.any(np.array(mask)):
+                        self.import_empty.append(filename)
                         continue
                     log.debug(f"Binary mask '{filename}': "
                               f"non-zero → white")
@@ -535,6 +551,7 @@ class LabelSetting(QDialog):
             # a failed import used to be invisible: the masks simply were
             # not there and only the console knew why
             log.error(f"Error importing labels: {str(e)}")
+            self.import_failed = True
             try:
                 self.parent().view.controller.error_message(
                     "Import Error",

@@ -83,6 +83,8 @@ def test_completed_wizard_imports_the_masks(app_stack, monkeypatch, tmp_path):
         ImportFormatDialog)
 
     controller, view, model, d = _label_dialog(app_stack, monkeypatch)
+    # masks are imported for the images of the project only
+    model.file_paths.append(str(tmp_path / "Abyssinian_1.jpg"))
     source = tmp_path / "trimaps"
     destination = tmp_path / "save"
     source.mkdir()
@@ -193,3 +195,127 @@ def test_import_adds_the_masks_to_the_open_project(app_stack, monkeypatch,
     # ...and on the other one when it is displayed
     model.select_image(paths[2])
     assert imported_alpha(paths[2]) > 0
+
+
+# ----------------------------------------------------------------------
+# a file matching no image of the project is not imported
+# ----------------------------------------------------------------------
+def _import_project(app_stack, tmp_path):
+    from tests.conftest import make_images, reset_app, write_labels_json
+    controller, view, model = app_stack
+    reset_app(controller, view, model)
+    project = tmp_path / "project"
+    project.mkdir()
+    make_images(project, 2, seed=8)
+    write_labels_json(project)
+    model.load(str(project))
+    return controller, view, model, project
+
+
+def _source(tmp_path, names):
+    import numpy as np
+    from PIL import Image
+    source = tmp_path / "external"
+    source.mkdir()
+    mask = np.zeros((128, 128), np.uint8)
+    mask[90:120, 90:120] = 255
+    for name in names:
+        Image.fromarray(mask).save(source / name)
+    return str(source)
+
+
+def _run_import(controller, model, monkeypatch, source, name="Imported"):
+    from PyQt6.QtGui import QColor
+    import PyImageLabeling.controller.LabelEvents as label_events
+    from PyImageLabeling.controller.settings.LabelSetting import (
+        ImportFormatDialog)
+
+    class CompletedImport(label_events.LabelSetting):
+        def exec(self):
+            self.name = name
+            self.labeling_mode = "Pixel-by-pixel"
+            self.color = QColor(255, 0, 0)
+            self.source_directory = source
+            self.destination_directory = model.save_directory
+            self.import_format = ImportFormatDialog.FORMAT_BINARY
+            self.import_filter = "*"
+            self.import_ready = True
+            self.process_import_data()
+            return True
+    monkeypatch.setattr(label_events, "LabelSetting", CompletedImport)
+    shown = []
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        staticmethod(lambda parent, title, text, *a, **k:
+                     shown.append(text)))
+    controller.new_label()
+    return shown
+
+
+def _label_files(folder):
+    return sorted(n for n in os.listdir(folder) if ".label." in n)
+
+
+def test_files_matching_no_image_are_not_imported(app_stack, monkeypatch,
+                                                  tmp_path):
+    """Seen on real data: importing a folder whose file names differ from
+    the project's (another naming of the same slides) wrote every file of
+    it -- slides and other masks included -- as an orphan mask of no image
+    into the project folder, without a word."""
+    controller, view, model, project = _import_project(app_stack, tmp_path)
+    source = _source(tmp_path, ["img001_mask.png", "other slide.png",
+                                "other slide.label.0.png"])
+
+    shown = _run_import(controller, model, monkeypatch, source)
+
+    label_id = max(model.get_label_items())
+    assert _label_files(project) == [f"img001.label.{label_id}.png"]
+    assert len(shown) == 1
+    assert "1 mask(s) imported" in shown[0]
+    assert "other slide.png" in shown[0]
+    assert "other slide.label.0.png" in shown[0]
+
+
+def test_nothing_matching_creates_no_label(app_stack, monkeypatch, tmp_path):
+    controller, view, model, project = _import_project(app_stack, tmp_path)
+    labels_before = list(model.get_label_items())
+    source = _source(tmp_path, ["other slide.png"])
+
+    shown = _run_import(controller, model, monkeypatch, source)
+
+    assert list(model.get_label_items()) == labels_before
+    assert _label_files(project) == []
+    assert len(shown) == 1 and "no label was created" in shown[0]
+
+
+def test_the_longest_image_name_wins(app_stack, monkeypatch, tmp_path):
+    controller, view, model, project = _import_project(app_stack, tmp_path)
+    # listed directly: opened from the folder, slide_2.png would look like
+    # a mask of slide.png and the load would offer to import it
+    for name in ("slide.png", "slide_2.png"):
+        model.file_paths.append(str(project / name))
+        model.image_items[str(project / name)] = None
+    source = _source(tmp_path, ["slide_2_mask.png"])
+
+    _run_import(controller, model, monkeypatch, source)
+
+    label_id = max(model.get_label_items())
+    assert _label_files(project) == [f"slide_2.label.{label_id}.png"]
+
+
+def test_a_label_name_clash_removes_the_imported_masks(app_stack,
+                                                      monkeypatch, tmp_path):
+    """The masks are written in the dialog's OK, before the name check:
+    left behind, they carried the id the next label would get."""
+    controller, view, model, project = _import_project(app_stack, tmp_path)
+    source = _source(tmp_path, ["img001.png"])
+    errors = []
+    monkeypatch.setattr(controller, "error_message",
+                        lambda title, text: errors.append(text))
+    labels_before = list(model.get_label_items())
+
+    _run_import(controller, model, monkeypatch, source, name="L")
+
+    assert errors and "already exists" in errors[0]
+    assert list(model.get_label_items()) == labels_before
+    assert _label_files(project) == []
