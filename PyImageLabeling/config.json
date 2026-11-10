@@ -44,27 +44,27 @@
     "file_bar":[
         {
             "name": "load",
-            "name_view": "Load images and labels",
+            "name_view": "Open Project…",
             "icon": "open_image",
             "checkable": false,
-            "tooltip": "Load images and labels.",
+            "tooltip": "Open a project folder, with its images and annotations. Opening another folder closes the current project.",
             "shortcut": "Ctrl+O"
         },
         {
             "name": "save",
-            "name_view": "Save labels",
+            "name_view": "Save",
             "icon": "save",
             "checkable": false,
-            "tooltip": "Save all labels.",
+            "tooltip": "Save the annotations into the project folder.",
             "shortcut": "Ctrl+S"
         },
 
         {
             "name": "save_copy",
-            "name_view": "Save copy",
+            "name_view": "Save Copy…",
             "icon": "save_copy",
             "checkable": false,
-            "tooltip": "Export a copy.",
+            "tooltip": "Save, then copy the annotations (labels and masks, not the images) into another folder.",
             "shortcut": ""
         },
 
@@ -73,7 +73,7 @@
             "name_view": "Next Image",
             "icon": "down",
             "checkable": false,
-            "tooltip": "Next image.",
+            "tooltip": "Show the next image.",
             "shortcut": "Ctrl+Right"
         },
         {
@@ -81,7 +81,7 @@
             "name_view": "Previous Image",
             "icon": "up",
             "checkable": false,
-            "tooltip": "Previous image.",
+            "tooltip": "Show the previous image.",
             "shortcut": "Ctrl+Left"
         }
     ],
@@ -90,18 +90,18 @@
             [
                 {
                     "name": "zoom_plus",
-                    "name_view": "Zoom Plus",
+                    "name_view": "Zoom In",
                     "icon": "zoom_plus",
                     "checkable": true,
-                    "tooltip": "Zoom Plus.",
+                    "tooltip": "Zoom in.",
                     "shortcut": "Z"
                 },
                 {
                     "name": "zoom_minus",
-                    "name_view": "Zoom Minus",
+                    "name_view": "Zoom Out",
                     "icon": "zoom_minus",
                     "checkable": true,
-                    "tooltip": "zoom_minus.",
+                    "tooltip": "Zoom out.",
                     "shortcut": "X"
                 },
                 {
@@ -109,15 +109,15 @@
                     "icon": "move",
                     "checkable": true,
                     "name_view": "Move",
-                    "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                    "tooltip": "Move mode: drag the image to move it around.",
                     "shortcut": "H"
                 },
                 {
                     "name": "reset_move_zoom_image",
                     "icon": "reset",
                     "checkable": false,
-                    "name_view": "Move/Zoom Reset",
-                    "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                    "name_view": "Reset View",
+                    "tooltip": "Reset the position and the zoom of the image.",
                     "shortcut": "0"
                 }
             ],
@@ -128,7 +128,7 @@
                     "name_view": "New Label",
                     "icon": "plus",
                     "checkable": false,
-                    "tooltip": "Add a new label.",
+                    "tooltip": "Create a new label (its masks can be imported from another folder).",
                     "shortcut": "Ctrl+N"
                 },
                 {
@@ -136,7 +136,7 @@
                     "name_view": "Opacity",
                     "checkable": false,
                     "icon": "opacity",
-                    "tooltip": "Click to toggle opacity mode, allowing you to adjust the transparency of layers.",
+                    "tooltip": "Adjust the opacity of the labels.",
                     "shortcut": "Ctrl+Shift+O"
                 }
             ],
@@ -146,7 +146,7 @@
                     "name_view": "Color",
                     "icon": "",
                     "checkable": false,
-                    "tooltip": "Color of the layer/label.",
+                    "tooltip": "Change the color of this label.",
                     "shortcut": ""
                 },
                 {
@@ -154,7 +154,7 @@
                     "name_view": "Visibility",
                     "icon": "visibility",
                     "checkable": true,
-                    "tooltip": "Visibility of the label.",
+                    "tooltip": "Show or hide this label.",
                     "shortcut": ""
                 },
                 {
@@ -162,7 +162,7 @@
                     "name_view": "Label Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of the layer/label.",
+                    "tooltip": "Settings of this label.",
                     "shortcut": ""
                 },
                 {
@@ -170,7 +170,7 @@
                     "name_view": "Remove Label",
                     "icon": "close",
                     "checkable": false,
-                    "tooltip": "Remove the label",
+                    "tooltip": "Remove this label and its masks from the project.",
                     "shortcut": "Delete"
                 }
                 
@@ -260,7 +260,7 @@
                         "icon_tool": "filling_tool",
                         "checkable": true,
                         "name_view": "Contour Filling",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "tooltip": "Contour filling: click inside a detected contour to fill it with the current label.",
                         "shortcut": "F"
                     },
                     {
@@ -269,7 +269,7 @@
                         "checkable": true,
                         "icon": "paint",
                         "icon_tool": "paint_tool",
-                        "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                        "tooltip": "Paintbrush: paint with the current label.",
                         "shortcut": "B"
                     },
                     {
@@ -278,7 +278,7 @@
                         "checkable": true,
                         "icon": "magic",
                         "icon_tool": "magi_tool",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "tooltip": "Magic pen: click to fill the surrounding area of similar color with the current label.",
                         "shortcut": "M"
                     },
                     {
@@ -301,7 +301,7 @@
                         "name_view": "Ellipse",
                         "checkable": true,
                         "icon": "ellipse",
-                        "tooltip": ".",
+                        "tooltip": "Ellipse: drag to draw an ellipse with the current label.",
                         "shortcut": "L"
                     },
                     {
@@ -309,7 +309,7 @@
                         "name_view": "Rectangle",
                         "checkable": true,
                         "icon": "rectangle",
-                        "tooltip": "Click to reset the image's position and zoom level to the default view.",
+                        "tooltip": "Rectangle: drag to draw a rectangle with the current label.",
                         "shortcut": "R"
                     },
                     {
@@ -317,7 +317,7 @@
                         "name_view": "Polygon",
                         "checkable": true,
                         "icon": "polygon",
-                        "tooltip": "Click to activate Move mode. This allows you to move the image around in the viewer by dragging it.",
+                        "tooltip": "Polygon: click to add points, click the first point again to close the shape.",
                         "shortcut": "P"
                     }
                 ]}
@@ -330,7 +330,7 @@
                     "name_view": "Change Labeled Area",
                     "checkable": true,
                     "icon": "changelabel",
-                    "tooltip": "Click to change the label of an laready labeled area.",
+                    "tooltip": "Change labeled area: click an annotated area to move it to the target label (set in its settings).",
                     "shortcut": "C"
                 },
                 {
@@ -338,7 +338,7 @@
                     "name_view": "Undo",
                     "checkable": false,
                     "icon": "back",
-                    "tooltip": "Click to undo the last drawing action or modification.",
+                    "tooltip": "Undo the last change.",
                     "shortcut": "Ctrl+Z"
                 },
                 {
@@ -347,7 +347,7 @@
                     "checkable": true,
                     "icon": "eraser",
                     "icon_tool": "eraser_tool",
-                    "tooltip": "Click to activate the eraser tool, allowing you to erase parts of the image or layer.",
+                    "tooltip": "Eraser: erase the current label.",
                     "shortcut": "E"
                 },
                 {
@@ -355,7 +355,7 @@
                     "name_view": "Clear All",
                     "checkable": false,
                     "icon": "cleaner",
-                    "tooltip": "Click to clear all layers and reset the image to its original state.",
+                    "tooltip": "Clear the current label on this image.",
                     "shortcut": "Ctrl+Shift+C"
                 }
             ]}
@@ -366,10 +366,10 @@
             {"Edit Setting":[
                 {
                     "name": "change_label_setting",
-                    "name_view": "Chaneg Labeled Area Setting",
+                    "name_view": "Change Labeled Area Setting",
                     "icon": "setting",
                     "checkable": false,
-                    "tooltip": "Parameters of change labeled area.",
+                    "tooltip": "Settings of Change Labeled Area (target label).",
                     "shortcut": ""
                 },
                 {

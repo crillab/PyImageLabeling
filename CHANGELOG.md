@@ -6,10 +6,13 @@ version: the Release workflow refuses to publish a version without one.
 ## Unreleased
 
 ### Added
-- *File > Add Images…*: copy images from another folder into the open
-  project folder and list them, without closing the project. A file of the
-  project is never overwritten; masks are not copied (their label ids belong
-  to the other project: use *New Label > Import data*).
+- *File > Add Images…* (Ctrl+Shift+A): copy images from another folder into
+  the open project folder and list them, without closing the project. A file
+  of the project is never overwritten; masks are not copied (their label ids
+  belong to the other project: use *Import Labels*).
+- *File > Import Labels…* (Ctrl+Shift+L): import masks from another folder
+  (binary, indexed or RGB) as a new label of the open project. Same import as
+  *New Label > Import data*, wizard first.
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
 - `--sam-prefetch` CLI flag: pre-download the SAM2 checkpoints (offline-friendly,
   no GUI needed) instead of starting the download mid-labeling.
@@ -28,6 +31,12 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- File menu grouped (open / add / import, save, navigation, recovery) with
+  separators; *Load images and labels* is now *Open Project…*, *Save labels*
+  *Save*, *Save copy* *Save Copy…*.
+- Button tooltips rewritten: several described another tool (Paintbrush,
+  Rectangle, Contour Filling, Magic Pen, Polygon), and the tooltip of a button
+  whose action has a shortcut now shows it.
 - The auto-save snapshot is no longer offered at startup: recovering it is
   up to the user, through *File > Recover Unsaved Annotations…*.
 - One project = one folder: opening a folder now **replaces** the open project

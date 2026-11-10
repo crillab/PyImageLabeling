@@ -400,8 +400,8 @@ class Files(Base):
         One project = one folder: an image joins the project by being
         copied into the project folder, so reopening the folder finds it
         again. The project stays open, unsaved strokes included. Masks are
-        not copied: their label ids belong to the other project, and New
-        Label > Import data brings them in under a label of this one.
+        not copied: their label ids belong to the other project, and File >
+        Import Labels brings them in under a label of this one.
 
         `image_paths` is asked with a file dialog when None. Returns the
         paths of the images added to the project.
@@ -440,7 +440,7 @@ class Files(Base):
             target = os.path.join(project_dir, name)
             if not _is_image_name(name):
                 skipped.append(f"{name}: not an image, or a mask file "
-                               "(masks: New Label > Import data)")
+                               "(masks: File > Import Labels)")
             elif key(target) in listed:
                 skipped.append(f"{name}: already in the project")
             elif os.path.exists(target) and \

@@ -17,8 +17,25 @@ class LabelEvents(Events):
         
     def new_label(self):
         self.all_events(self.new_label.__name__)
-        label_setting = LabelSetting(self.view.zoomable_graphics_view)   
-        
+        self._create_label(LabelSetting(self.view.zoomable_graphics_view))
+
+    def import_labels(self):
+        """File > Import Labels: masks from another folder become a new
+        label of the open project (New Label > Import data, wizard first)."""
+        self.all_events(self.import_labels.__name__)
+        if not self.model.file_paths:
+            QMessageBox.information(
+                self.view, "No project open",
+                "Open a project folder first, then import labels into it.")
+            return
+        label_setting = LabelSetting(self.view.zoomable_graphics_view)
+        label_setting.setWindowTitle("Import Labels")
+        label_setting.import_data()
+        if not label_setting.import_ready:
+            return  # wizard cancelled
+        self._create_label(label_setting)
+
+    def _create_label(self, label_setting):
         if label_setting.exec():
             if self.model.name_already_exists(label_setting.name):
                     self.error_message("Error", f"The label name '{label_setting.name}' already exists!")

@@ -123,7 +123,7 @@ def test_mask_files_are_not_added_as_images(open_project, tmp_path):
 
     assert model.add_images([str(mask)]) == []
     assert not os.path.exists(os.path.join(project, mask.name))
-    assert "Import data" in shown[0]
+    assert "Import Labels" in shown[0]
 
 
 def test_without_a_project_nothing_is_copied(app_stack, tmp_path,
