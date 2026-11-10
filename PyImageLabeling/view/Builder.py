@@ -85,6 +85,14 @@ class Builder:
                 file_menu.addAction(action)
                 self.view.menu_actions[button["name"]] = action
 
+        add_images_action = file_menu.addAction("Add Images…")
+        add_images_action.setToolTip(
+            "Copy images from another folder into the open project folder "
+            "(their masks are not copied: use New Label > Import data).")
+        add_images_action.triggered.connect(
+            self.view.controller.add_images)
+        self.view.menu_actions["add_images"] = add_images_action
+
         file_menu.addSeparator()
         recover_action = file_menu.addAction(
             "Recover Unsaved Annotations…")

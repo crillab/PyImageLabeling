@@ -6,6 +6,10 @@ version: the Release workflow refuses to publish a version without one.
 ## Unreleased
 
 ### Added
+- *File > Add Images…*: copy images from another folder into the open
+  project folder and list them, without closing the project. A file of the
+  project is never overwritten; masks are not copied (their label ids belong
+  to the other project: use *New Label > Import data*).
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
 - `--sam-prefetch` CLI flag: pre-download the SAM2 checkpoints (offline-friendly,
   no GUI needed) instead of starting the download mid-labeling.

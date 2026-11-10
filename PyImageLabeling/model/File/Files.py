@@ -12,6 +12,7 @@ from PyImageLabeling.model.Utils import Utils
 
 import numpy as np
 import os
+import shutil
 
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("files")
@@ -393,6 +394,90 @@ class Files(Base):
         controller._al_pos = -1
 
         self.save_directory = ""
+
+    def add_images(self, image_paths=None):
+        """Bring images from another folder into the open project.
+
+        One project = one folder: an image joins the project by being
+        copied into the project folder, so reopening the folder finds it
+        again. The project stays open, unsaved strokes included. Masks are
+        not copied: their label ids belong to the other project, and New
+        Label > Import data brings them in under a label of this one.
+
+        `image_paths` is asked with a file dialog when None. Returns the
+        paths of the images added to the project.
+        """
+        if not self.file_paths:
+            QMessageBox.information(
+                self.view, "No project open",
+                "Open a project folder first, then add images to it.")
+            return []
+        project_dir = os.path.normpath(os.path.dirname(self.file_paths[0]))
+        if image_paths is None:
+            image_paths, _ = QFileDialog.getOpenFileNames(
+                self.view, "Add images to the project",
+                os.path.dirname(project_dir),
+                "Images (" + " ".join("*" + e for e in IMAGE_EXTENSIONS)
+                + ")",
+                options=QFileDialog.Option.DontUseNativeDialog)
+        if not image_paths:
+            return []
+
+        def key(path):
+            return os.path.normcase(os.path.abspath(path))
+
+        listed = {key(p) for p in self.file_paths}
+        added, skipped = [], []
+        progress = QProgressDialog("Copying images…", "Cancel", 0,
+                                   len(image_paths), self.view)
+        progress.setWindowTitle("Add Images")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(400)
+        for i, source in enumerate(image_paths):
+            if progress.wasCanceled():
+                break
+            progress.setValue(i)
+            name = os.path.basename(source)
+            target = os.path.join(project_dir, name)
+            if not _is_image_name(name):
+                skipped.append(f"{name}: not an image, or a mask file "
+                               "(masks: New Label > Import data)")
+            elif key(target) in listed:
+                skipped.append(f"{name}: already in the project")
+            elif os.path.exists(target) and \
+                    not os.path.samefile(source, target):
+                skipped.append(f"{name}: another file with this name is "
+                               "already in the project folder")
+            else:
+                if not os.path.exists(target):
+                    try:
+                        shutil.copy2(source, target)
+                    except OSError as e:
+                        skipped.append(f"{name}: could not be copied ({e})")
+                        continue
+                added.append(target)
+                listed.add(key(target))
+        progress.setValue(len(image_paths))
+
+        if added:
+            first_row = self.view.file_bar_list.count()
+            for path in added:
+                self.file_paths.append(path)
+                self.image_items[path] = None
+            self.view.file_bar_add(added)
+            self.view.file_bar_list.setCurrentRow(first_row)
+        if skipped:
+            QMessageBox.information(
+                self.view, "Add Images",
+                f"{len(added)} image(s) added to the project.\n\n"
+                "Not added:\n" + "\n".join(skipped))
+        else:
+            try:
+                self.view.statusBar().showMessage(
+                    f"{len(added)} image(s) added to the project")
+            except (AttributeError, RuntimeError):
+                pass
+        return added
 
     def _clear_label_bar(self):
         """Remove every label row from the label bar."""

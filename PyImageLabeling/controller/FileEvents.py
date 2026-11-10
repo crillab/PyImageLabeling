@@ -32,6 +32,11 @@ class FileEvents(Events):
     def save(self):
         self.model.save()
 
+    def add_images(self):
+        """File > Add Images: copy images into the open project folder."""
+        self.all_events(self.add_images.__name__)
+        self.model.add_images()
+
     def save_copy(self):
         self.model.save()
         self.model.save_copy()
