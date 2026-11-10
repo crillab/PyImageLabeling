@@ -65,6 +65,12 @@ class View(QMainWindow):
         # Display
         self.show()
 
+    def set_project_title(self, project_dir):
+        """Show the open project's folder in the title bar ('' = none)."""
+        base = getattr(self, "base_window_title", "PyImageLabeling")
+        self.setWindowTitle(f"{base} — {project_dir}" if project_dir
+                            else base)
+
     def closeEvent(self, event):
         # Closing the window used to drop unsaved annotations without a word
         # (only the auto-save snapshot, up to 5 minutes old, was left):
@@ -317,6 +323,7 @@ class View(QMainWindow):
     def initialize(self):
         version = Utils.get_version()
         self.setWindowTitle("PyImageLabeling - "+ str(version))
+        self.base_window_title = self.windowTitle()
         # Get screen information
         self.screen = QApplication.primaryScreen()
 

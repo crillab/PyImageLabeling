@@ -23,10 +23,16 @@ class LabelEvents(Events):
         """File > Import Labels: masks from another folder become a new
         label of the open project (New Label > Import data, wizard first)."""
         self.all_events(self.import_labels.__name__)
-        if not self.model.file_paths:
+        if not self.model.project_directory():
             QMessageBox.information(
                 self.view, "No project open",
-                "Open a project folder first, then import labels into it.")
+                "Create or open a project first, then import labels into it.")
+            return
+        if not self.model.file_paths:
+            QMessageBox.information(
+                self.view, "No image in the project",
+                "Add images to the project first (File > Add Images): the "
+                "masks are imported for its images.")
             return
         label_setting = LabelSetting(self.view.zoomable_graphics_view)
         label_setting.setWindowTitle("Import Labels")

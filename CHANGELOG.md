@@ -6,6 +6,10 @@ version: the Release workflow refuses to publish a version without one.
 ## Unreleased
 
 ### Added
+- *File > New Project…* (Ctrl+Shift+N): an empty project in a folder (an
+  empty `labels.json` makes it a project), to fill with *Add Images* and
+  *Import Labels*. Opening an empty folder offers the same. The title bar shows
+  the folder of the open project.
 - *File > Add Images…* (Ctrl+Shift+A): copy images from another folder into
   the open project folder and list them, without closing the project. A file
   of the project is never overwritten; masks are not copied (their label ids
@@ -31,6 +35,10 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- Save writes into the opened folder, also when it has no `labels.json` yet:
+  it used to ask where to save, which split the project between two folders.
+  A project with no label yet opens without the "No label definition could
+  be read" error.
 - File menu grouped (open / add / import, save, navigation, recovery) with
   separators; *Load images and labels* is now *Open Project…*, *Save labels*
   *Save*, *Save copy* *Save Copy…*.

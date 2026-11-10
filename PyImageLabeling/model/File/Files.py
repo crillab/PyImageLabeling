@@ -27,6 +27,22 @@ def _is_image_name(name):
         and KEYWORD_SAVE_LABEL not in name
 
 
+# Files that make a folder a project (besides images and masks).
+PROJECT_FILES = ("labels.json", "Rectangles.json", "Ellipses.json",
+                 "Polygons.json", "complete_state.json")
+
+
+def _is_empty_json(path):
+    """True for a readable JSON file holding {}: a project with no label
+    yet (a new project saved before its first label)."""
+    import json
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f) == {}
+    except (OSError, ValueError):
+        return False
+
+
 def _subfolders_with_images(folder):
     """Names of the direct subfolders of `folder` holding an image."""
     found = []
@@ -117,6 +133,7 @@ class Files(Base):
             data["save"]["path"] = current_file_path
             Utils.save_parameters(data)
             self.save_directory = current_file_path
+            self.show_project_in_title()
 
         super().save()
 
@@ -393,6 +410,79 @@ class Files(Base):
         controller._al_pos = -1
 
         self.save_directory = ""
+        self.show_project_in_title()
+
+    def show_project_in_title(self):
+        """Window title: the path of the open project, if any."""
+        try:
+            self.view.set_project_title(self.project_directory())
+        except (AttributeError, RuntimeError):
+            pass
+
+    def project_directory(self):
+        """Folder of the open project, '' when none (one project = one
+        folder)."""
+        if self.save_directory:
+            return os.path.normpath(self.save_directory)
+        if self.file_paths:
+            return os.path.normpath(os.path.dirname(self.file_paths[0]))
+        return ""
+
+    def new_project(self, folder=None):
+        """Start an empty project in a folder, to fill with File > Add
+        Images and File > Import Labels. Returns True once it is open.
+
+        The folder must hold no image and no project file: an existing
+        project is opened with Open Project, never mixed into a new one.
+        """
+        if folder is None:
+            last = (Utils.load_parameters().get("load") or {}).get("path", "")
+            folder = QFileDialog.getExistingDirectory(
+                self.view, "New project: choose or create an empty folder",
+                os.path.dirname(os.path.normpath(last)) if last else "",
+                QFileDialog.Option.ShowDirsOnly
+                | QFileDialog.Option.DontUseNativeDialog)
+            if not folder:
+                return False
+        folder = os.path.normpath(folder)
+        try:
+            names = os.listdir(folder)
+        except OSError as e:
+            QMessageBox.warning(self.view, "New Project",
+                                f"This folder cannot be used:\n{e}")
+            return False
+        if any(_is_image_name(n) or KEYWORD_SAVE_LABEL in n
+               or n in PROJECT_FILES for n in names):
+            QMessageBox.information(
+                self.view, "New Project",
+                "This folder already holds images or a project.\n\n"
+                "Open it with Open Project, or choose an empty folder (the "
+                "dialog can create one).")
+            return False
+        if not self.confirm_close_project(before="creating a new project"):
+            return False
+        self.close_project()
+        self.save_directory = folder
+        # an empty labels.json makes the folder a project: reopening it
+        # before anything was saved finds it again
+        try:
+            Utils.write_json_atomic(os.path.join(folder, "labels.json"), {})
+        except OSError as e:
+            QMessageBox.warning(self.view, "New Project",
+                                f"The project could not be created:\n{e}")
+            self.save_directory = ""
+            return False
+        data = Utils.load_parameters()
+        data.setdefault("load", {})["path"] = folder
+        Utils.save_parameters(data)
+        self.show_project_in_title()
+        try:
+            self.view.statusBar().showMessage(
+                "New project: add images with File > Add Images, then "
+                "create labels or import them (File > Import Labels)")
+        except (AttributeError, RuntimeError):
+            pass
+        return True
 
     def add_images(self, image_paths=None):
         """Bring images from another folder into the open project.
@@ -406,12 +496,12 @@ class Files(Base):
         `image_paths` is asked with a file dialog when None. Returns the
         paths of the images added to the project.
         """
-        if not self.file_paths:
+        project_dir = self.project_directory()
+        if not project_dir:
             QMessageBox.information(
                 self.view, "No project open",
-                "Open a project folder first, then add images to it.")
+                "Create or open a project first, then add images to it.")
             return []
-        project_dir = os.path.normpath(os.path.dirname(self.file_paths[0]))
         if image_paths is None:
             image_paths, _ = QFileDialog.getOpenFileNames(
                 self.view, "Add images to the project",
@@ -464,6 +554,9 @@ class Files(Base):
                 self.file_paths.append(path)
                 self.image_items[path] = None
             self.view.file_bar_add(added)
+            # an empty project had them disabled (previous, next, save)
+            for button in self.view.buttons_file_bar.values():
+                button.setEnabled(True)
             self.view.file_bar_list.setCurrentRow(first_row)
         if skipped:
             QMessageBox.information(
@@ -565,6 +658,18 @@ class Files(Base):
             # at an unchanged window, wondering whether the open had even
             # happened (typically: a parent folder whose images live in
             # subfolders, which are not scanned).
+            if not _subfolders_with_images(current_file_path):
+                # an empty folder: most likely a new project to start
+                Button = QMessageBox.StandardButton
+                answer = QMessageBox.question(
+                    self.view, "Empty folder",
+                    "This folder holds no image and no project.\n\n"
+                    "Create a new project in it? (then File > Add Images "
+                    "and File > Import Labels fill it)",
+                    Button.Yes | Button.No, Button.Yes)
+                if answer == Button.Yes:
+                    self.new_project(current_file_path)
+                return
             QMessageBox.information(
                 self.view, "Nothing to load",
                 nothing_to_load_message(current_file_path))
@@ -578,6 +683,11 @@ class Files(Base):
         if not self.confirm_close_project():
             return
         self.close_project()
+        # one project = one folder: saving goes into it, also when it has no
+        # labels.json yet (Save used to ask where to save, which split the
+        # project between two folders)
+        self.save_directory = current_file_path
+        self.show_project_in_title()
 
         # ── External masks? (binary / indexed / RGB next to the images) ──
         # Files like "img_mask.png" next to "img.png" are probably masks,
@@ -712,6 +822,8 @@ class Files(Base):
             if self.get_label_items():
                 first_id = list(self.get_label_items().keys())[0]
                 self.controller.select_label(first_id)
+            elif _is_empty_json(labels_json):
+                pass   # a project with no label yet (new project)
             else:
                 # labels.json was missing or unreadable: load_labels_json
                 # already reported it. Selecting label 0 of an empty dict

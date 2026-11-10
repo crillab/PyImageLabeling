@@ -93,6 +93,10 @@ class Builder:
             file_actions[name] = action
 
         controller = self.view.controller
+        menu_only("new_project", "New Project…", controller.new_project,
+                  "Create an empty project in a folder, then fill it with "
+                  "Add Images and Import Labels.",
+                  "Ctrl+Shift+N")
         menu_only("add_images", "Add Images…", controller.add_images,
                   "Copy images from another folder into the open project "
                   "folder (not their masks: use Import Labels).",
@@ -106,7 +110,7 @@ class Builder:
                   "Restore the auto-save snapshot when it holds work the "
                   "project files do not have (after a crash, for instance).")
 
-        groups = [["load", "add_images", "import_labels"],
+        groups = [["new_project", "load", "add_images", "import_labels"],
                   ["save", "save_copy"],
                   ["next_image", "previous_image"],
                   ["recover_annotations"]]

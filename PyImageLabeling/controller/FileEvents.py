@@ -20,6 +20,15 @@ class FileEvents(Events):
     def load(self):
         self.all_events(self.load.__name__)
         self.model.load()
+        self._enable_project_buttons()
+
+    def new_project(self):
+        """File > New Project: an empty project in a folder."""
+        self.all_events(self.new_project.__name__)
+        if self.model.new_project():
+            self._enable_project_buttons()
+
+    def _enable_project_buttons(self):
         for button_names in self.view.buttons_image_bar:
             self.view.buttons_image_bar[button_names].setEnabled(True)
         for button_names in self.view.buttons_label_bar_permanent:

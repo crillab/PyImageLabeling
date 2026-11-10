@@ -35,7 +35,7 @@ def test_entries_are_grouped(app_stack):
             groups[-1].append(action.text())
 
     assert groups == [
-        ["Open Project…", "Add Images…", "Import Labels…"],
+        ["New Project…", "Open Project…", "Add Images…", "Import Labels…"],
         ["Save", "Save Copy…"],
         ["Next Image", "Previous Image"],
         ["Recover Unsaved Annotations…"],
