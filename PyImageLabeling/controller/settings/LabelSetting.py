@@ -233,6 +233,7 @@ class LabelSetting(QDialog):
         self.color = QColor(random.choice(QColor.colorNames())) if color is None else color
         self.labeling_mode = labeling_mode_pixel if labeling_mode is None else labeling_mode
         self.importdata = False
+        self.imported_files = []   # masks written by process_import_data()
         self.import_ready = False
         self.setWindowTitle("Label Setting")
         layout = QFormLayout()
@@ -441,6 +442,7 @@ class LabelSetting(QDialog):
                 "pick a destination folder.")
             return
         self.destination_directory = destination
+        self.imported_files = []
 
         try:
             # Get label ID for renaming
@@ -519,6 +521,7 @@ class LabelSetting(QDialog):
                     mask.save(dest_file_path)
 
                 self.importdata = True
+                self.imported_files.append(dest_file_path)
 
                 if i % _upd == 0 or i == n - 1:
                     progress.setLabelText(f"Importing '{filename}'…  ({i + 1} / {n})")

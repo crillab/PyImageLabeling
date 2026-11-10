@@ -66,6 +66,10 @@ version: the Release workflow refuses to publish a version without one.
 - *File > Recover Unsaved Annotations…* did nothing: the menu's `checked`
   flag reached a parameter meant for the startup offer, and the error was
   only logged.
+- Importing masks for a new label (*New Label > Import data*) no longer
+  reopens the project: the masks show up in the open project at once.
+  Reopening it asked to save or discard the unsaved strokes, and Cancel left
+  the imported masks on disk but not shown.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

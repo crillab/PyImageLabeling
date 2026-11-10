@@ -29,7 +29,16 @@ class LabelEvents(Events):
                 self.view.buttons_label_bar_temporary[label_id]["activation"].setChecked(False)
 
             # Create a new label
-            label = self.model.new_label(label_setting.name, label_setting.labeling_mode, label_setting.color) 
+            label = self.model.new_label(label_setting.name, label_setting.labeling_mode, label_setting.color)
+
+            # Masks imported for this label: index them before the overlays
+            # are built, so they show up in the open project at once. The
+            # project used to be reopened instead, which asked to save or
+            # discard the unsaved strokes just to import a label.
+            imported = label_setting.importdata is True
+            if imported and self.model.file_paths:
+                for mask_path in label_setting.imported_files:
+                    self.model.load_labels_images(mask_path)
 
             # Display the new label bar 
             self.view.builder.build_new_layer_label_bar(label.get_label_id(), label_setting.name, label_setting.labeling_mode, label_setting.color)
@@ -40,9 +49,12 @@ class LabelEvents(Events):
             # Put the good labeling buttons according to the mode 
             self.view.update_labeling_buttons(label_setting.labeling_mode)
 
-            if label_setting.importdata is True:
+            if imported:
+                # the masks are on disk already: their label must be too
                 self.model.save_labels(self.model.save_directory)
-                self.model.load(self.model.save_directory)
+                if not self.model.file_paths:
+                    # no project open: open the folder the masks went to
+                    self.model.load(self.model.save_directory)
                 
             
     def select_label(self, label_id):

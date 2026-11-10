@@ -105,3 +105,91 @@ def test_completed_wizard_imports_the_masks(app_stack, monkeypatch, tmp_path):
     assert d.importdata is True
     assert os.listdir(destination) == [written.name]
     assert np.array(Image.open(written)).tolist() == [[0, 255], [255, 255]]
+
+
+# ----------------------------------------------------------------------
+# importing a label keeps the open project as it is
+# ----------------------------------------------------------------------
+def test_import_adds_the_masks_to_the_open_project(app_stack, monkeypatch,
+                                                   tmp_path):
+    """The import used to reopen the whole project: with unsaved strokes it
+    asked to save or discard them ("before opening the new folder"), and
+    Cancel left the imported masks on disk but not shown."""
+    import json
+    import numpy as np
+    from PIL import Image
+    from PyQt6.QtCore import QPointF
+    from PyQt6.QtGui import QColor
+    import PyImageLabeling.controller.LabelEvents as label_events
+    from PyImageLabeling.controller.settings.LabelSetting import (
+        ImportFormatDialog)
+    from tests.conftest import make_images, reset_app, write_labels_json
+
+    controller, view, model = app_stack
+    reset_app(controller, view, model)
+    project = tmp_path / "project"
+    project.mkdir()
+    paths = make_images(project, 3, seed=5)
+    write_labels_json(project)
+    model.load(str(project))
+
+    # img001 is loaded (and left), img000 holds an unsaved stroke, img002
+    # has never been displayed
+    model.select_image(paths[1])
+    model.select_image(paths[0])
+    model.start_paint_brush(QPointF(20.0, 20.0))
+    model.move_paint_brush(QPointF(60.0, 50.0))
+    model.end_paint_brush()
+    assert model.get_edited()
+
+    source = tmp_path / "external"
+    source.mkdir()
+    mask = np.zeros((128, 128), np.uint8)
+    mask[90:120, 90:120] = 255
+    for name in ("img001.png", "img002.png"):
+        Image.fromarray(mask).save(source / name)
+
+    class CompletedImport(label_events.LabelSetting):
+        """The label dialog once the import wizard went through and OK."""
+        def exec(self):
+            self.name = "Imported"
+            self.labeling_mode = "Pixel-by-pixel"
+            self.color = QColor(255, 0, 0)
+            self.source_directory = str(source)
+            self.destination_directory = model.save_directory
+            self.import_format = ImportFormatDialog.FORMAT_BINARY
+            self.import_filter = "*"
+            self.import_ready = True
+            self.process_import_data()
+            return True
+    monkeypatch.setattr(label_events, "LabelSetting", CompletedImport)
+    asked = []
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        staticmethod(lambda *a, **k: asked.append(a) or
+                     QMessageBox.StandardButton.Cancel))
+
+    controller.new_label()
+
+    label_id = max(model.get_label_items())
+    assert model.get_label_items()[label_id].name == "Imported"
+    assert asked == []
+    # the project stayed open, unsaved stroke included
+    assert len(model.file_paths) == 3
+    assert model.get_edited()
+    assert model.get_current_image_item().path_image == paths[0]
+    # the label is on disk next to its masks
+    with open(project / "labels.json", encoding="utf-8") as f:
+        assert str(label_id) in json.load(f)
+    assert (project / f"img001.label.{label_id}.png").is_file()
+
+    def imported_alpha(path):
+        overlay = model.image_items[path].labeling_overlays[label_id]
+        return overlay.labeling_overlay_pixmap.toImage().pixelColor(
+            100, 100).alpha()
+
+    # shown at once on the image already loaded...
+    assert imported_alpha(paths[1]) > 0
+    # ...and on the other one when it is displayed
+    model.select_image(paths[2])
+    assert imported_alpha(paths[2]) > 0
