@@ -24,6 +24,8 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- The auto-save snapshot is no longer offered at startup: recovering it is
+  up to the user, through *File > Recover Unsaved Annotations…*.
 - One project = one folder: opening a folder now **replaces** the open project
   (unsaved annotations: Save / Discard / Cancel) and shows its first image.
   It used to append the new images to the list while resetting the overlays of
@@ -61,6 +63,9 @@ version: the Release workflow refuses to publish a version without one.
 - Closing the window with unsaved annotations no longer drops them silently
   (only the auto-save snapshot, up to 5 minutes old, survived): it asks
   Save / Discard / Cancel, and stays open if the save does not go through.
+- *File > Recover Unsaved Annotations…* did nothing: the menu's `checked`
+  flag reached a parameter meant for the startup offer, and the error was
+  only logged.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

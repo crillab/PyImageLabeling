@@ -44,29 +44,26 @@ class FileEvents(Events):
             return True
         return model.confirm_close_project(before="quitting")
 
-    def recover_annotations(self, info=None):
+    def recover_annotations(self):
         """Restore the auto-save snapshot when it is newer than the project.
 
-        File > Recover Unsaved Annotations. Without this the snapshot
-        written every few minutes was dead weight: after a native crash the
-        only way back was to copy <project>/auto_save/ by hand.
+        File > Recover Unsaved Annotations, the only way in: the snapshot
+        is never offered at startup. Without this the snapshot written
+        every few minutes was dead weight: after a native crash the only
+        way back was to copy <project>/auto_save/ by hand.
         """
-        project_dir = ""
-        if info is None:
-            project_dir = getattr(self.model, "save_directory", "") or ""
-            if not project_dir:
-                data = Utils.load_parameters()
-                project_dir = (data.get("save", {}) or {}).get("path", "") or ""
-        else:
-            project_dir = info.get("project_dir", "")
+        project_dir = getattr(self.model, "save_directory", "") or ""
+        if not project_dir:
+            data = Utils.load_parameters()
+            project_dir = (data.get("save", {}) or {}).get("path", "") or ""
 
         if not project_dir or not Autosave.needs_recovery(project_dir):
             QMessageBox.information(
                 self.view, "Nothing to recover",
                 "No auto-save snapshot newer than the project files was "
                 "found.\n\nAuto-save writes a snapshot every few minutes; "
-                "it is offered here and at startup only when it holds work "
-                "the project files do not have yet.")
+                "it is offered here only when it holds work the project "
+                "files do not have yet.")
             return False
 
         answer = QMessageBox.question(

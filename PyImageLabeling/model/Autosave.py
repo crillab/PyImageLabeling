@@ -17,7 +17,8 @@ scan()/needs_recovery()/restore()/close() close that loop:
 
 The snapshot is only *offered*: every decision is made by the caller (a
 message box), so declining costs nothing and the snapshot is kept for the
-next attempt.
+next attempt. It is offered on request only (File > Recover Unsaved
+Annotations…), never at startup.
 """
 import os
 import shutil
@@ -158,26 +159,3 @@ def close(project_dir):
     shutil.rmtree(snapshot, ignore_errors=True)
     return not os.path.isdir(snapshot)
 
-
-def candidate_projects(parameters):
-    """Project directories worth checking, from the persisted parameters."""
-    out = []
-    for section in ("save", "load"):
-        path = (parameters.get(section) or {}).get("path")
-        if not path:
-            continue
-        path = os.path.normpath(path)
-        if os.path.isdir(path) and path not in out:
-            out.append(path)
-    return out
-
-
-def pending_recovery(parameters=None):
-    """First project holding a snapshot newer than its files, else None."""
-    if parameters is None:
-        from PyImageLabeling.model.Utils import Utils
-        parameters = Utils.load_parameters()
-    for project_dir in candidate_projects(parameters):
-        if needs_recovery(project_dir):
-            return scan(project_dir)
-    return None

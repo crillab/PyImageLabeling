@@ -309,20 +309,36 @@ def test_scan_reports_the_snapshot_content(app_stack, workspace, tmp_path):
     assert "notes.txt" not in Autosave.restore(str(project))
 
 
-def test_pending_recovery_uses_the_persisted_paths(app_stack, workspace,
-                                                  tmp_path):
-    _, _, model, _, la, _ = _annotate(app_stack, workspace)
+def _recover_action(view):
+    for menu_action in view.menuBar().actions():
+        menu = menu_action.menu()
+        for action in (menu.actions() if menu is not None else []):
+            if action.text().startswith("Recover Unsaved Annotations"):
+                return action
+    raise AssertionError("File > Recover Unsaved Annotations… not found")
+
+
+def test_recover_menu_runs_the_recovery(app_stack, workspace, tmp_path,
+                                        monkeypatch):
+    # QAction.triggered passes its `checked` flag: it used to land in the
+    # startup-only `info` parameter and the slot died on False.get(), so
+    # the menu did nothing at all.
+    controller, view, model, paths, la, _ = _annotate(app_stack, workspace)
     project = tmp_path / "project"
     project.mkdir()
     model.save_directory = str(project)
-    model.auto_save()
+    model.save()
 
-    params = {"save": {"path": str(project)}, "load": {"path": str(project)}}
-    assert Autosave.pending_recovery(params)["project_dir"] == str(project)
+    errors, shown = [], []
+    monkeypatch.setattr("sys.excepthook", lambda t, v, tb: errors.append(v))
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        staticmethod(lambda parent, title, *a, **k: shown.append(title)))
 
-    empty = Autosave.pending_recovery(
-        {"save": {"path": str(tmp_path / "nope")}, "load": {"path": ""}})
-    assert empty is None
+    _recover_action(view).trigger()
+
+    assert errors == []
+    assert shown == ["Nothing to recover"]
 
 
 def test_controller_recover_annotations_declines_when_nothing_pending(

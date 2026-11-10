@@ -354,7 +354,7 @@ class Base(GeometryUpdaterMixin):
 
         if reset_edited and self.save_directory:
             # A real save supersedes the snapshot: leaving it behind would
-            # make the next startup offer to "recover" work that is already
+            # make File > Recover offer to "recover" work that is already
             # on disk. Autosave itself passes reset_edited=False, so it keeps
             # its own copy.
             try:
