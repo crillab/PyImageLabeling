@@ -670,7 +670,7 @@ class SAM2Assistant(Base):
         if image_item is None or label_item is None:
             return
         label_id = label_item.get_label_id()
-        if label_id not in image_item.labeling_overlays:
+        if image_item.ensure_labeling_overlay(label_id) is None:
             QMessageBox.warning(
                 None, "No overlay",
                 f"Current image has no overlay for label "

@@ -33,7 +33,9 @@ class ImageItem():
 
         self.backgroung_item = None # The QBackgroundItem behind the images
 
-        self.labeling_overlays = dict() # dict of LabelingOverlay instance 
+        self.labeling_overlays = dict() # dict of LabelingOverlay instance (created lazily, see update_labeling_overlays)
+        self._label_items = None # label_items known at the last update_labeling_overlays (for ensure_labeling_overlay)
+        self.current_label_id = None
 
         self.current_labeling_overlay = None # The current selected LabelingOverlay
 
@@ -139,32 +141,66 @@ class ImageItem():
             return legacy
         return None
 
-    def update_labeling_overlays(self, label_items, selected_label_id):
-        # Ensure all existing labels have an overlay
-        for label_id in label_items:
-            if label_id not in self.labeling_overlays:
-                basename_key = self._indexed_mask_key(label_id)
-                if basename_key is not None:
-                    self.labeling_overlays[label_id] = LabelingOverlay(
-                        label_items[label_id],
-                        self.view.zoomable_graphics_view.scene,
-                        self.image_qrect.width(),
-                        self.image_qrect.height(),
-                        self.labeling_overview_file_paths[basename_key],
-                        image_item = self
-                    )
-                    self.labeling_overview_was_loaded[basename_key] = True
-                else:
-                    self.labeling_overlays[label_id] = LabelingOverlay(
-                        label_items[label_id],
-                        self.view.zoomable_graphics_view.scene,
-                        self.image_qrect.width(),
-                        self.image_qrect.height(),
-                        image_item = self
+    def _create_labeling_overlay(self, label_item, label_id):
+        """Build the overlay of one label: from its mask file when one is
+        indexed and not loaded yet, otherwise an empty one."""
+        basename_key = self._indexed_mask_key(label_id)
+        if basename_key is not None:
+            overlay = LabelingOverlay(
+                label_item,
+                self.view.zoomable_graphics_view.scene,
+                self.image_qrect.width(),
+                self.image_qrect.height(),
+                self.labeling_overview_file_paths[basename_key],
+                image_item = self
+            )
+            self.labeling_overview_was_loaded[basename_key] = True
+        else:
+            overlay = LabelingOverlay(
+                label_item,
+                self.view.zoomable_graphics_view.scene,
+                self.image_qrect.width(),
+                self.image_qrect.height(),
+                image_item = self
+            )
+        self.labeling_overlays[label_id] = overlay
+        return overlay
 
-                    )
-        self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
+    def update_labeling_overlays(self, label_items, selected_label_id):
+        # Overlays are created lazily: only for the labels that have a mask
+        # file on this image, plus the selected label (the one that can be
+        # painted). Each overlay holds a full-size ARGB pixmap, so creating
+        # one per label for every loaded image cost ~150 MB per label on
+        # large slides even when the label was absent from the image.
+        # The other labels get theirs on demand (ensure_labeling_overlay).
+        self._label_items = label_items
         self.current_label_id = selected_label_id
+        for label_id in label_items:
+            if label_id in self.labeling_overlays:
+                continue
+            if label_id == selected_label_id or \
+                    self._indexed_mask_key(label_id) is not None:
+                self._create_labeling_overlay(label_items[label_id], label_id)
+        self.current_labeling_overlay = self.labeling_overlays[selected_label_id]
+
+    def ensure_labeling_overlay(self, label_id):
+        """Return the overlay of label_id, creating it if needed.
+
+        Returns None when the label is unknown (e.g. deleted). A created
+        overlay is added to the scene when this image is displayed.
+        """
+        overlay = self.labeling_overlays.get(label_id)
+        if overlay is not None:
+            return overlay
+        label_items = getattr(self, "_label_items", None)
+        if not label_items or label_id not in label_items:
+            return None
+        overlay = self._create_labeling_overlay(label_items[label_id], label_id)
+        overlay.zvalue = 3 if label_id == getattr(
+            self, "current_label_id", None) else 2
+        if self.is_displayed_in_scene:
+            overlay.update_scene()
+        return overlay
     
     def foreground_current_labeling_overlay(self):        
         for label_id in self.labeling_overlays:
@@ -235,8 +271,13 @@ class ImageItem():
             labeling_overlay.set_opacity(opacity)
     
     def update_color(self, label_id):
-        self.labeling_overlays[label_id].update_color()
-        
+        overlay = self.labeling_overlays.get(label_id)
+        if overlay is None:
+            # No overlay yet: nothing painted with this label on this image,
+            # a later one is created with the label's current color.
+            return
+        overlay.update_color()
+
         self.update_icon_file()   
 
     def get_image_numpy_pixels_rgb(self):

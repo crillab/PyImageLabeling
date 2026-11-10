@@ -1633,7 +1633,8 @@ class MLPredictor(Base):
         ml_log(f"Accepting segmentation for {len(preds)} label(s)")
 
         for label_id, mask in preds.items():
-            if label_id not in current_image.labeling_overlays:
+            # overlays are lazy: create the one of a label with no paint yet
+            if current_image.ensure_labeling_overlay(label_id) is None:
                 ml_log(f"ERROR: No overlay for label {label_id}", force=True)
                 continue
 
