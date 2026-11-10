@@ -133,38 +133,11 @@ class ImageItem():
 
     def _indexed_mask_key(self, label_id):
         """Key of this image's disk mask for label_id, or None if there is
-        none in this project.
-
-        Several files may hold it: "img.png.label.0.png", "img.label.0.png",
-        and the digest form written by development versions after 1.0.14,
-        possibly with the digest of a former location of the folder. The
-        most recent of those that belong to this image wins; the stem form
-        of a shared stem (dup.png next to dup.jpg) is ambiguous and only
-        used when nothing else is there.
-        """
-        from PyImageLabeling.model.Masks import (
-            digest_mask_names, mask_name_candidates, stem_is_shared)
-        was_loaded = self.labeling_overview_was_loaded
-        full, digest, stem_form = mask_name_candidates(self.path_image,
-                                                       label_id)
-        shared = stem_is_shared(self.path_image)
-        own = [full, digest]
-        if not shared:
-            own += digest_mask_names(list(was_loaded), self.path_image,
-                                     label_id)
-            own.append(stem_form)
-        own = [k for k in dict.fromkeys(own) if was_loaded.get(k) is False]
-        if own:
-            def mtime(key):
-                try:
-                    return os.path.getmtime(
-                        self.labeling_overview_file_paths[key])
-                except (KeyError, OSError):
-                    return 0.0
-            return max(own, key=mtime)
-        if shared and was_loaded.get(stem_form) is False:
-            return stem_form
-        return None
+        none in this project (see Masks.indexed_mask_key)."""
+        from PyImageLabeling.model.Masks import indexed_mask_key
+        return indexed_mask_key(self.path_image, label_id,
+                                self.labeling_overview_was_loaded,
+                                self.labeling_overview_file_paths)
 
     def _create_labeling_overlay(self, label_item, label_id):
         """Build the overlay of one label: from its mask file when one is

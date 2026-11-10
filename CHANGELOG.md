@@ -6,6 +6,19 @@ version: the Release workflow refuses to publish a version without one.
 ## Unreleased
 
 ### Added
+- Segmentation models on large images, by tiles. A segmentation model used to
+  see the whole image resized to its input size (416 px), so an 8192 px image
+  lost most of its detail and its aspect ratio. With tiles, training draws
+  random crops of the images (half of them on an annotated pixel, so that small
+  classes are seen) and prediction slides a window of overlapping tiles over
+  the image, each pixel being taken from the tile where it is the farthest
+  from the edge. Validation goes through the same sliding window. New *Large
+  Images* group in the ML settings: *Tiles* (Auto: only for images more than
+  twice the tile size / Always / Never), *Tile Size* (multiple of 32, default
+  512 px), *Overlap* (default 128 px) and *Resolution* (full, half, quarter).
+  Each epoch sees about a third of every image, whatever the tile size. The
+  tiling is saved with the model; models saved before predict on the whole
+  image, as they were trained. Detection is unchanged (whole image).
 - *File > New Project…* (Ctrl+Shift+N): an empty project in a folder (an
   empty `labels.json` makes it a project), to fill with *Add Images* and
   *Import Labels*. Opening an empty folder offers the same. The title bar shows
@@ -35,6 +48,13 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- *ML > Train* no longer loads every selected image (a full-size overlay per
+  painted label) to read its masks: images that are not loaded are read from
+  their mask files. Without an image selection in the ML settings, training
+  uses every annotated image of the project, not only the loaded ones.
+- When the GPU runs out of memory during a segmentation training, the batches
+  are split in halves (and kept smaller) instead of the training failing.
+- Segmentation predictions no longer include a mask for the background.
 - Save writes into the opened folder, also when it has no `labels.json` yet:
   it used to ask where to save, which split the project between two folders.
   A project with no label yet opens without the "No label definition could
@@ -64,6 +84,15 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
+- The ML *Statistics* panel counts every image of the project: it only
+  counted the images loaded in memory, so it showed 0 right after opening a
+  project or after a training. An annotation is a shape, or a label painted
+  on an image (counting the painted regions of the images that are not
+  loaded would decode every mask).
+- Releasing the loaded images after a propagation (and, until now, after
+  every ML training) also dropped the images holding unsaved strokes: the
+  strokes were lost and the project no longer looked modified, so closing did
+  not offer to save. Those images are now kept, as the LRU eviction does.
 - `dup.png` and `dup.jpg` in one folder no longer share a single mask file:
   their masks are named after the full file name (`dup.png.label.0.png`). Every
   other mask keeps the plain name (`img.label.0.png`), read by every version.

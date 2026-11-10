@@ -108,3 +108,68 @@ def image_base_from_mask_name(mask_name):
     if left.lower().endswith(IMAGE_EXTENSIONS):
         return left.rsplit(".", 1)[0]
     return re.sub(_DIGEST + "$", "", left)
+
+
+def indexed_mask_key(path_image, label_id, was_loaded, file_paths):
+    """Key (file name) of the disk mask of (path_image, label_id) in the
+    project's mask index, or None.
+
+    `was_loaded` / `file_paths` are the index (key -> loaded flag, key ->
+    path); only masks not loaded into an overlay yet (flag False) count.
+
+    Several files may hold the mask: "img.png.label.0.png",
+    "img.label.0.png", and the digest form written by development versions
+    after 1.0.14, possibly with the digest of a former location of the
+    folder. The most recent of those that belong to this image wins; the
+    stem form of a shared stem (dup.png next to dup.jpg) is ambiguous and
+    only used when nothing else is there.
+    """
+    full, digest, stem_form = mask_name_candidates(path_image, label_id)
+    shared = stem_is_shared(path_image)
+    own = [full, digest]
+    if not shared:
+        own += digest_mask_names(list(was_loaded), path_image, label_id)
+        own.append(stem_form)
+    own = [k for k in dict.fromkeys(own) if was_loaded.get(k) is False]
+    if own:
+        def mtime(key):
+            try:
+                return os.path.getmtime(file_paths[key])
+            except (KeyError, OSError):
+                return 0.0
+        return max(own, key=mtime)
+    if shared and was_loaded.get(stem_form) is False:
+        return stem_form
+    return None
+
+
+def read_painted_mask(mask_path):
+    """Painted pixels of a mask file, as a boolean (height, width) array.
+
+    Same rule as the overlays built from a file (LabelingOverlay): every
+    pixel that is not black is painted. Reading the file directly gives
+    the mask without building a full-size ARGB overlay for it.
+    Returns None when the file cannot be read.
+    """
+    import numpy as np
+    from PIL import Image
+
+    try:
+        with Image.open(mask_path) as im:
+            im.load()
+            if im.mode == "P" and im.getpalette():
+                palette = np.asarray(im.getpalette(), dtype=np.uint8)
+                palette = palette[: len(palette) // 3 * 3].reshape(-1, 3)
+                painted = np.zeros(256, dtype=bool)
+                painted[:len(palette)] = palette.any(axis=1)
+                return painted[np.asarray(im)]
+            if im.mode in ("1", "L"):
+                return np.asarray(im) != 0
+            return np.asarray(im.convert("RGB")).any(axis=2)
+    except Image.DecompressionBombError:
+        pass    # above PIL's pixel limit: OpenCV has none this low
+    except (OSError, ValueError):
+        return None
+    import cv2
+    bgr = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+    return None if bgr is None else bgr.any(axis=2)

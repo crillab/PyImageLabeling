@@ -146,7 +146,13 @@ def reset_app(controller, view, model):
     model._seg_val_loader = None
     model.label_id_to_class = {}
     model.class_to_label_id = {}
-    controller._ml_paint_cache = {}
+    model.tiling = None
+    model._seg_val_sources = None
+    model.tiling_mode = "auto"
+    model.tile_size = 512
+    model.tile_overlap = 128
+    model.tile_scale = 1.0
+    model._ml_label_count_cache = {}
     controller._al_ranking = None
     controller._al_pos = -1
     try:

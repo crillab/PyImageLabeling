@@ -397,15 +397,13 @@ class Files(Base):
         LabelItem.used_ids.clear()
 
         for name in ("_ml_annotated", "_ml_disk_annotated",
-                     "_ml_painted_cache"):
+                     "_ml_painted_cache", "_ml_label_count_cache"):
             cache = getattr(self, name, None)
             if isinstance(cache, dict):
                 cache.clear()
         self._last_batch = []
         self._last_batch_idx = -1
         controller = self.controller
-        if isinstance(getattr(controller, "_ml_paint_cache", None), dict):
-            controller._ml_paint_cache.clear()
         controller._al_ranking = None
         controller._al_pos = -1
 

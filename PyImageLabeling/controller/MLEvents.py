@@ -2,8 +2,6 @@ from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt
 import os
 import numpy as np
-import cv2
-from PyQt6.QtGui import QImage
 
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.model.ML.MLPredictor import ml_log
@@ -51,57 +49,22 @@ class MLEvents(Events):
         selected_paths = getattr(self, '_ml_selected_image_paths', None)
 
         # ----------------------------------------------------------------
-        # Load images that are not yet in memory — with a blocking progress bar
+        # Quick data check before committing to training. Images are not
+        # loaded for it any more: the training reads the masks of the
+        # images that are not loaded from their files.
         # ----------------------------------------------------------------
-        if selected_paths:
-            paths_to_load = [p for p in selected_paths
-                             if self.model.image_items.get(p) is None]
+        n_detection, n_segmentation = self.model.ml_training_image_counts(
+            selected_paths)
+        log.info(f"Found: {n_detection} detection images, "
+                 f"{n_segmentation} segmentation images")
 
-            if paths_to_load:
-                load_progress = QProgressDialog(
-                    "Loading images into memory…", None,
-                    0, len(paths_to_load), self.view)
-                load_progress.setWindowTitle("Loading Images")
-                load_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-                load_progress.setMinimumDuration(0)
-                load_progress.setAutoClose(False)
-                load_progress.setAutoReset(False)
-                load_progress.setCancelButton(None)
-                load_progress.resize(420, 100)
-                load_progress.show()
-
-                for i, path in enumerate(paths_to_load):
-                    fname = os.path.basename(path)
-                    load_progress.setLabelText(
-                        f"Loading image {i+1}/{len(paths_to_load)}\n{fname}")
-                    load_progress.setValue(i)
-                    # Force the dialog to repaint before the (blocking) load
-                    from PyQt6.QtWidgets import QApplication
-                    QApplication.processEvents()
-                    self.model.load_image_for_training(path)
-
-                load_progress.setValue(len(paths_to_load))
-                load_progress.close()
-
-        # ----------------------------------------------------------------
-        # Quick data check before committing to training
-        # ----------------------------------------------------------------
-        detection_data    = self.model.collect_training_data(selected_paths)
-        segmentation_data = []
-        if hasattr(self.model, 'collect_segmentation_data'):
-            segmentation_data = self.model.collect_segmentation_data(selected_paths)
-
-        total_data = len(detection_data) + len(segmentation_data)
-        log.info(f"Collected: {len(detection_data)} detection images, "
-                 f"{len(segmentation_data)} segmentation images")
-
-        if total_data < 1:
+        if n_detection + n_segmentation < 1:
             QMessageBox.warning(
                 self.view, "Insufficient Data",
                 f"Please annotate at least 1 image before training.\n\n"
                 f"Found:\n"
-                f"  - {len(detection_data)} images with geometric shapes\n"
-                f"  - {len(segmentation_data)} images with painted pixels"
+                f"  - {n_detection} images with geometric shapes\n"
+                f"  - {n_segmentation} images with painted pixels"
             )
             return
 
@@ -164,37 +127,17 @@ class MLEvents(Events):
         # always False because the attribute lives on the net.
         has_segmentation = info["can_segment"]
         has_detection    = info["can_detect"]
-        
-        predictions  = []
-        segmentation = None
-        
-        # Try detection prediction
-        if has_detection:
-            try:
-                predictions = self.ml_predictor_start(current_image_path, confidence)
-                if predictions:
-                    self.ml_predictions_current = predictions
-                    self.model.ml_visualize_predictions(predictions)
-                    log.info(f"Detection: {len(predictions)} boxes")
-                else:
-                    ml_log("No predictions after thresholding")
-            except Exception as e:
-                ml_log(f"Detection prediction failed: {e}")
-                import traceback; traceback.print_exc()
-        
-        # Try segmentation prediction
-        if has_segmentation:
-            try:
-                segmentation = self.model.predict_segmentation(
-                    current_image_path, confidence)
-                if segmentation is not None and any(
-                        np.any(mask > 0) for mask in segmentation.values()):
-                    self.model.ml_visualize_segmentation(segmentation)
-                    log.info("Segmentation: displayed on screen")
-            except Exception as e:
-                ml_log(f"Segmentation prediction failed: {e}")
-                import traceback; traceback.print_exc()
-        
+
+        # a large image takes a few seconds (one tile after another)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            predictions, segmentation = self._ml_run_predictions(
+                current_image_path, confidence, has_detection,
+                has_segmentation)
+        finally:
+            QApplication.restoreOverrideCursor()
+
         # Update status bar
         parts = []
         if predictions:
@@ -213,6 +156,42 @@ class MLEvents(Events):
                 f"No predictions found from {self._ml_model_badge(info, short=True)} "
                 f"(confidence: {confidence:.2f})")
     
+    def _ml_run_predictions(self, current_image_path, confidence,
+                            has_detection, has_segmentation):
+        """Predict and draw boxes and/or segmentation on the current image.
+        Returns (boxes, segmentation)."""
+        predictions  = []
+        segmentation = None
+
+        # Try detection prediction
+        if has_detection:
+            try:
+                predictions = self.ml_predictor_start(current_image_path, confidence)
+                if predictions:
+                    self.ml_predictions_current = predictions
+                    self.model.ml_visualize_predictions(predictions)
+                    log.info(f"Detection: {len(predictions)} boxes")
+                else:
+                    ml_log("No predictions after thresholding")
+            except Exception as e:
+                ml_log(f"Detection prediction failed: {e}")
+                import traceback; traceback.print_exc()
+
+        # Try segmentation prediction
+        if has_segmentation:
+            try:
+                segmentation = self.model.predict_segmentation(
+                    current_image_path, confidence)
+                if segmentation is not None and any(
+                        np.any(mask > 0) for mask in segmentation.values()):
+                    self.model.ml_visualize_segmentation(segmentation)
+                    log.info("Segmentation: displayed on screen")
+            except Exception as e:
+                ml_log(f"Segmentation prediction failed: {e}")
+                import traceback; traceback.print_exc()
+
+        return predictions, segmentation
+
     def ml_accept_predictions(self):
         """
         Accept both box predictions AND segmentation.
@@ -353,54 +332,14 @@ class MLEvents(Events):
         label.setStyleSheet("color: green;")
         label.setToolTip(tooltip)
     
-    def _ml_count_paint_instances(self, image_item):
-        """Connected components of the painted pixels of one image.
-
-        Costly (a full-image pass per overlay), so the result is cached and
-        only recomputed when that image's overlays actually changed.
-        """
-        cache = getattr(self, "_ml_paint_cache", None)
-        if cache is None:
-            cache = {}
-            self._ml_paint_cache = cache
-
-        key = image_item.path_image
-        stamp = tuple(
-            (label_id, id(overlay.labeling_overlay_pixmap),
-             overlay.get_is_edited())
-            for label_id, overlay in image_item.labeling_overlays.items())
-        hit = cache.get(key)
-        if hit is not None and hit[0] == stamp:
-            return hit[1]
-
-        paint_instances = 0
-        for overlay in image_item.labeling_overlays.values():
-            pixmap = overlay.labeling_overlay_pixmap
-            if pixmap is None or pixmap.isNull():
-                continue
-            qimg = pixmap.toImage().convertToFormat(
-                QImage.Format.Format_Grayscale8)
-            h, w, bpl = qimg.height(), qimg.width(), qimg.bytesPerLine()
-            ptr = qimg.bits()
-            ptr.setsize(h * bpl)
-            arr  = np.frombuffer(ptr, np.uint8).reshape((h, bpl))
-            mask = arr[:, :w]
-            if np.count_nonzero(mask) == 0:
-                continue
-            binary = (mask > 0).astype(np.uint8)
-            num_labels, _ = cv2.connectedComponents(binary)
-            paint_instances += max(0, num_labels - 1)
-
-        cache[key] = (stamp, paint_instances)
-        return paint_instances
-
     def ml_update_stats(self, immediate=False):
         """Update the ML stats label with current annotation counts.
 
         Called after every brush stroke / shape, so it must stay cheap: a
         full recount of every loaded image cost ~135 ms with 20 images in
         RAM, which made the pixel tools feel laggy. Two changes:
-        - per-image paint counts are cached (see _ml_count_paint_instances)
+        - per-image paint counts are cached (see
+          MLPredictor._painted_label_count)
         - the label refresh is coalesced on a short timer, so a burst of
           strokes triggers one recount instead of one per stroke
         """
@@ -422,7 +361,7 @@ class MLEvents(Events):
 
     def ml_invalidate_stats_cache(self, path_image=None):
         """Drop cached paint counts (all images, or one)."""
-        cache = getattr(self, "_ml_paint_cache", None)
+        cache = getattr(self.model, "_ml_label_count_cache", None)
         if not cache:
             return
         if path_image is None:
@@ -433,9 +372,10 @@ class MLEvents(Events):
     def ml_unload_image_items(self, keep=()):
         """Drop cached ImageItems (and their full-size pixmaps) from RAM.
 
-        Propagation and training load every image to paint/predict, which
-        leaves hundreds of full-resolution overlay pixmaps resident. That is
-        what made the pixel tools feel heavy afterwards.
+        Propagation loads every image to paint/predict, which leaves
+        hundreds of full-resolution overlay pixmaps resident. That is what
+        made the pixel tools feel heavy afterwards. Images holding unsaved
+        strokes are kept.
         """
         keep = set(keep)
         model = self.model
@@ -446,6 +386,14 @@ class MLEvents(Events):
                 continue
             item = model.image_items.get(path)
             if item is None or item is current:
+                continue
+            # Unsaved strokes live only in the overlays: dropping the item
+            # lost them, and the project no longer looked modified (no
+            # "save?" on closing). Keep it, as the LRU eviction does.
+            try:
+                if item.get_edited():
+                    continue
+            except Exception:
                 continue
             # Remember whether this image was annotated before dropping it:
             # an unloaded image is not an unlabeled one, and active learning
@@ -486,24 +434,11 @@ class MLEvents(Events):
         return dropped
 
     def _ml_refresh_stats(self):
-        annotated_images  = 0
-        total_annotations = 0
-
-        for file_path in self.model.file_paths:
-            image_item = self.model.image_items.get(file_path)
-            if not image_item:
-                continue
-
-            rect_count    = len(image_item.image_rectangles)
-            ellipse_count = len(image_item.image_ellipses)
-            polygon_count = len(image_item.image_polygons)
-            paint_instances = self._ml_count_paint_instances(image_item)
-
-            image_total = (rect_count + ellipse_count +
-                           polygon_count + paint_instances)
-            if image_total > 0:
-                annotated_images  += 1
-                total_annotations += image_total
+        # Every image of the project: only the loaded ones used to be
+        # counted, so the panel said 0 right after opening a project or
+        # after a training (which released the images).
+        annotated_images, total_annotations = \
+            self.model.ml_annotation_counts()
 
         model_status = self._ml_model_badge(self.model.ml_model_info())
 
@@ -623,6 +558,14 @@ class MLEvents(Events):
             self.model.pretrained           = mlsetting.pretrained_checkbox.isChecked()
             self.model.confidence_threshold = mlsetting.conf_spinbox.value()
             self.model.nms_threshold        = mlsetting.nms_spinbox.value()
+            # tiles of the next training (a trained model keeps its own)
+            from PyImageLabeling.model.ML import Tiling
+            self.model.tiling_mode  = mlsetting.tiling_combo.currentData()
+            self.model.tile_size    = Tiling.normalize_tile_size(
+                mlsetting.tile_spinbox.value())
+            self.model.tile_overlap = Tiling.normalize_overlap(
+                mlsetting.overlap_spinbox.value(), self.model.tile_size)
+            self.model.tile_scale   = mlsetting.scale_combo.currentData()
 
             self._ml_selected_image_paths = mlsetting.selected_image_paths
             log.info(f"ML settings applied. "
