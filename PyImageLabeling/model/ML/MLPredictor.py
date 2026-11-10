@@ -13,7 +13,15 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from PyImageLabeling.logging_setup import get_logger
+from PyImageLabeling.model.ML import Tiling
 log = get_logger("ml.predictor")
+
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+# Tiles drawn per unlabeled image to score its uncertainty (active learning):
+# enough to cover a slide, without predicting all of it.
+AL_MAX_TILES = 64
 
 try:
     import albumentations as A
@@ -356,6 +364,7 @@ def _build_backbone(backbone_name: str, pretrained: bool):
 
 class TrainingWorker(QThread):
     progress   = pyqtSignal(str)            # log messages  → console
+    status     = pyqtSignal(str)            # what is going on → dialog text
     epoch_done = pyqtSignal(int, int, float) # current, total, loss → progress bar
     finished   = pyqtSignal()
     error      = pyqtSignal(str)
@@ -371,6 +380,7 @@ class TrainingWorker(QThread):
                 selected_paths  = self.selected_paths,
                 epoch_callback  = self.epoch_done.emit,
                 log_callback    = self.progress.emit,
+                status_callback = self.status.emit,
             )
             self.finished.emit()
         except Exception as e:
@@ -510,6 +520,42 @@ class SegmentationDataset(Dataset):
             mask_mapped[mask == orig_id] = class_id
 
         return image, torch.from_numpy(mask_mapped).long()
+
+
+class TileDataset(Dataset):
+    """Random training tiles of large images (see Tiling).
+
+    An epoch draws Tiling.tiles_per_image() tiles from each source, half of
+    them on an annotated pixel. Masks hold class ids, and
+    Tiling.IGNORE_INDEX where a tile goes past the image.
+    """
+
+    def __init__(self, sources, tile_size, augment=True):
+        self.sources   = list(sources)
+        self.tile_size = tile_size
+        self.augment   = augment
+        counts = [Tiling.tiles_per_image(*src.shape, tile_size)
+                  for src in self.sources]
+        self.owner = np.repeat(np.arange(len(self.sources)), counts)
+        self.rng   = np.random.default_rng()
+
+    def __len__(self):
+        return len(self.owner)
+
+    def __getitem__(self, idx):
+        image, mask = self.sources[self.owner[idx]].sample(
+            self.tile_size, self.rng)
+        if self.augment and self.rng.random() > 0.5:
+            image = image[:, ::-1]
+            mask  = mask[:, ::-1]
+        if self.augment and self.rng.random() > 0.5:
+            alpha = self.rng.uniform(0.8, 1.2)
+            beta  = int(self.rng.integers(-20, 20))
+            image = cv2.convertScaleAbs(np.ascontiguousarray(image),
+                                        alpha=alpha, beta=beta)
+        image = (image.astype(np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
+        return (torch.from_numpy(np.ascontiguousarray(image.transpose(2, 0, 1))),
+                torch.from_numpy(mask.astype(np.int64)))
 
 
 # ---------------------------------------------------------------------------
@@ -675,6 +721,18 @@ class MLPredictor(Base):
         self.use_pretrained      = True
         self.seg_backbone        = "resnet"
 
+        # Tiles (segmentation on large images), as set for the next
+        # training: "auto" uses them when an image is more than twice the
+        # tile size (after scaling), "on" always, "off" never.
+        self.tiling_mode  = "auto"
+        self.tile_size    = Tiling.DEFAULT_TILE_SIZE
+        self.tile_overlap = Tiling.DEFAULT_OVERLAP
+        self.tile_scale   = 1.0
+        # ... and as used by the live model: None (whole image resized to
+        # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
+        self.tiling = None
+        self._seg_val_sources = None
+
         self.ml_predictions_current    = []
         self.ml_prediction_items       = []
         self.ml_segmentation_predictions = None
@@ -797,8 +855,11 @@ class MLPredictor(Base):
             if n:
                 out["det_loss"] = total / n
                 out["n_val_det"] = n
+        seg_sources = getattr(self, "_seg_val_sources", None)
         seg_val = getattr(self, "_seg_val_loader", None)
-        if seg_val is not None:
+        if seg_sources and getattr(self, "tiling", None) is not None:
+            out.update(self._evaluate_tiles(seg_sources, num_classes))
+        elif seg_val is not None:
             total, n = 0.0, 0
             inter = torch.zeros(num_classes)
             union = torch.zeros(num_classes)
@@ -1010,7 +1071,8 @@ class MLPredictor(Base):
     # ------------------------------------------------------------------
 
     def train_model_core(self, selected_paths=None,
-                         epoch_callback=None, log_callback=None):
+                         epoch_callback=None, log_callback=None,
+                         status_callback=None):
 
         def log(msg):
             # console echo goes through logging (DEBUG); the progress
@@ -1019,6 +1081,13 @@ class MLPredictor(Base):
             if log_callback:
                 log_callback(msg)
 
+        def status(msg):
+            # what the progress dialog shows before the first epoch
+            if status_callback:
+                status_callback(msg)
+
+        self.tiling = None
+        status("Reading the annotations…")
         # FIX: collect once, with the same selected_paths throughout
         detection_data    = self.collect_training_data(selected_paths)
         segmentation_data = self.collect_segmentation_data(selected_paths)
@@ -1149,27 +1218,59 @@ class MLPredictor(Base):
                 ds, batch_size=self.batch_size, shuffle=False,
                 num_workers=0, collate_fn=MLPredictor.detection_collate_fn)
 
-        segmentation_loader = None
-        if seg_train:
-            ds = SegmentationDataset(
-                [p for p, _ in seg_train],
-                [m for _, m in seg_train],
-                self.label_id_to_class,
-                self.image_size, augment=True)
-            segmentation_loader = DataLoader(
-                ds, batch_size=self.batch_size, shuffle=True, num_workers=0)
-            log(f"Segmentation dataloader: {len(segmentation_loader)} batches")
+        # ---- segmentation: whole images resized, or tiles of them -------
+        self.tiling = (self._resolve_tiling(segmentation_data, log)
+                       if has_segmentation else None)
+        segmentation_loader   = None
+        seg_ignore            = -100      # F.cross_entropy's default
+        tile_cache            = None
+        self._seg_val_loader  = None
+        self._seg_val_sources = None
+        try:
+            if self.tiling is not None:
+                tile_cache = Tiling.TileCache(self.tiling["scale"])
+                segmentation_loader, self._seg_val_sources = \
+                    self._tile_loaders(tile_cache, seg_train, seg_val,
+                                       log, status)
+                seg_ignore = Tiling.IGNORE_INDEX
+                # the masks are in the cache now: do not keep them in RAM
+                # (about 50 MB per 8192 px image) for the whole training
+                segmentation_data = seg_train = seg_val = None
+            else:
+                if seg_train:
+                    ds = SegmentationDataset(
+                        [p for p, _ in seg_train],
+                        [m for _, m in seg_train],
+                        self.label_id_to_class,
+                        self.image_size, augment=True)
+                    segmentation_loader = DataLoader(
+                        ds, batch_size=self.batch_size, shuffle=True,
+                        num_workers=0)
+                    log(f"Segmentation dataloader: "
+                        f"{len(segmentation_loader)} batches")
+                if seg_val:
+                    ds = SegmentationDataset(
+                        [p for p, _ in seg_val],
+                        [m for _, m in seg_val],
+                        self.label_id_to_class,
+                        self.image_size, augment=False)
+                    self._seg_val_loader = DataLoader(
+                        ds, batch_size=self.batch_size, shuffle=False,
+                        num_workers=0)
 
-        self._seg_val_loader = None
-        if seg_val:
-            ds = SegmentationDataset(
-                [p for p, _ in seg_val],
-                [m for _, m in seg_val],
-                self.label_id_to_class,
-                self.image_size, augment=False)
-            self._seg_val_loader = DataLoader(
-                ds, batch_size=self.batch_size, shuffle=False, num_workers=0)
+            self._train_network(
+                num_classes, has_segmentation, detection_loader,
+                segmentation_loader, seg_ignore, log, status,
+                epoch_callback)
+        finally:
+            self._seg_val_sources = None
+            if tile_cache is not None:
+                tile_cache.close()
 
+    def _train_network(self, num_classes, has_segmentation, detection_loader,
+                       segmentation_loader, seg_ignore, log, status,
+                       epoch_callback):
+        """Build the network, train it, evaluate it on the val split."""
         # ---- model ------------------------------------------------------
         backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
         pretrained = getattr(self, 'use_pretrained', True)
@@ -1180,6 +1281,8 @@ class MLPredictor(Base):
             enable_segmentation=has_segmentation,
             backbone_name=backbone)
         self.model = self.model.to(self.device)
+        if self.tiling is not None:
+            self._check_tile_size(self.tiling["tile_size"])
 
         optimizer = torch.optim.AdamW(
             self.model.parameters(),
@@ -1189,6 +1292,7 @@ class MLPredictor(Base):
 
         log(f"Device: {self.device} | Epochs: {self.num_epochs} | "
             f"Batch: {self.batch_size} | LR: {optimizer.param_groups[0]['lr']}")
+        status(f"Training…\nepoch 1/{self.num_epochs}")
 
         self.model.train()
         best_loss = float('inf')
@@ -1223,18 +1327,17 @@ class MLPredictor(Base):
 
             # -- segmentation batches --
             if segmentation_loader:
-                for images, masks in segmentation_loader:
-                    images = images.to(self.device)
-                    masks  = masks.to(self.device)
-                    optimizer.zero_grad()
-                    _, _, _, seg_pred = self.model(images)
-                    if seg_pred is not None:
-                        loss = F.cross_entropy(seg_pred, masks)
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
-                        optimizer.step()
-                        total_loss  += loss.item()
-                        num_batches += 1
+                loss_sum, steps, fitted = self._seg_epoch(
+                    segmentation_loader, optimizer, seg_ignore)
+                total_loss  += loss_sum
+                num_batches += steps
+                if fitted is not None:
+                    log(f"GPU out of memory with batches of "
+                        f"{segmentation_loader.batch_size}: going on with "
+                        f"batches of {fitted}")
+                    segmentation_loader = DataLoader(
+                        segmentation_loader.dataset, batch_size=fitted,
+                        shuffle=True, num_workers=0)
 
             scheduler.step()
 
@@ -1258,6 +1361,7 @@ class MLPredictor(Base):
         log(f"TRAINING COMPLETE! Best loss: {best_loss:.4f}")
 
         # ---- held-out evaluation --------------------------------------
+        status("Evaluating on the validation images…")
         try:
             self.val_metrics = self.evaluate_model()
         except Exception as e:
@@ -1277,6 +1381,263 @@ class MLPredictor(Base):
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
+
+    # ------------------------------------------------------------------
+    # Tiles (segmentation on large images)
+    # ------------------------------------------------------------------
+
+    def _resolve_tiling(self, segmentation_data, log):
+        """Tiling of the coming training, from the settings and the images:
+        None (whole images) or {"tile_size", "overlap", "scale"}."""
+        mode = str(getattr(self, "tiling_mode", "auto")).lower()
+        if mode not in ("auto", "on", "off"):
+            mode = "auto"
+        if mode == "off" or not segmentation_data:
+            return None
+        tile = Tiling.normalize_tile_size(
+            getattr(self, "tile_size", Tiling.DEFAULT_TILE_SIZE))
+        backbone = getattr(self, "backbone_name", DEFAULT_BACKBONE)
+        if backbone.startswith("ViT") and tile != 224:
+            log(f"{backbone} only takes 224 px inputs: tiles of 224 px")
+            tile = 224
+        overlap = Tiling.normalize_overlap(
+            getattr(self, "tile_overlap", Tiling.DEFAULT_OVERLAP), tile)
+        scale = Tiling.normalize_scale(getattr(self, "tile_scale", 1.0))
+        if mode == "auto":
+            largest = max(max(mask.shape[:2])
+                          for _, mask in segmentation_data) * scale
+            if largest <= 2 * tile:
+                log(f"Images up to {int(largest)} px: whole images resized "
+                    f"to {self.image_size} px (no tiles)")
+                return None
+        return {"tile_size": tile, "overlap": overlap, "scale": scale}
+
+    def _tile_loaders(self, cache, seg_train, seg_val, log, status):
+        """Decode the annotated images into `cache`. Returns (training
+        DataLoader of random tiles, validation TileSources)."""
+        lut = np.zeros(256, dtype=np.uint8)
+        for orig_id, class_id in self.label_id_to_class.items():
+            lut[int(orig_id)] = class_id
+        background = self.label_id_to_class.get(255)
+        point_classes = sorted(c for c in set(self.label_id_to_class.values())
+                               if c != background)
+
+        items = list(seg_train) + list(seg_val)
+        sources = []
+        for i, (path, mask) in enumerate(items):
+            status(f"Preparing the tiles…\nimage {i + 1}/{len(items)}")
+            source = cache.add(path, lut[mask], point_classes)
+            if source is None:
+                log(f"  cannot read {os.path.basename(path)}: skipped")
+            sources.append(source)
+        train = [s for s in sources[:len(seg_train)] if s is not None]
+        val   = [s for s in sources[len(seg_train):] if s is not None]
+        if not train:
+            raise RuntimeError("None of the annotated images could be read.")
+
+        t = self.tiling
+        ds = TileDataset(train, t["tile_size"], augment=True)
+        log(f"Tiles: {t['tile_size']} px, overlap {t['overlap']} px, "
+            f"scale {t['scale']:g} | {len(ds)} tiles per epoch")
+        loader = DataLoader(ds, batch_size=self.batch_size, shuffle=True,
+                            num_workers=0)
+        return loader, val
+
+    def _check_tile_size(self, tile):
+        """Fail early, and clearly, when the backbone refuses the tiles."""
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            with torch.no_grad():
+                self.model(torch.zeros(1, 3, tile, tile, device=self.device))
+        except torch.cuda.OutOfMemoryError:
+            raise
+        except Exception as e:
+            raise RuntimeError(
+                f"The {self.model.backbone_name} backbone does not take "
+                f"tiles of {tile} px ({e}). Choose another tile size in the "
+                f"ML settings.") from e
+        finally:
+            self.model.train(was_training)
+
+    def _seg_train_step(self, images, masks, optimizer, ignore_index):
+        optimizer.zero_grad()
+        _, _, _, seg_pred = self.model(images)
+        if seg_pred is None:
+            return None
+        loss = F.cross_entropy(seg_pred, masks, ignore_index=ignore_index)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
+        optimizer.step()
+        return loss.item()
+
+    def _seg_steps(self, images, masks, optimizer, ignore_index):
+        """Train on one batch; when the GPU runs out of memory, on its two
+        halves instead (recursively).
+
+        Returns (sum of the losses, number of steps, size of the largest
+        part that fitted).
+        """
+        try:
+            loss = self._seg_train_step(images, masks, optimizer,
+                                        ignore_index)
+            return (0.0, 0, images.size(0)) if loss is None \
+                else (loss, 1, images.size(0))
+        except torch.cuda.OutOfMemoryError:
+            if images.size(0) <= 1:
+                raise
+        # out of the except block: its traceback, which holds the graph of
+        # the failed step, is gone before the retry
+        optimizer.zero_grad(set_to_none=True)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        half = images.size(0) // 2
+        l1, n1, f1 = self._seg_steps(images[:half], masks[:half],
+                                     optimizer, ignore_index)
+        l2, n2, f2 = self._seg_steps(images[half:], masks[half:],
+                                     optimizer, ignore_index)
+        return l1 + l2, n1 + n2, min(f1, f2)
+
+    def _seg_epoch(self, loader, optimizer, ignore_index):
+        """One pass over the segmentation batches.
+
+        Returns (sum of the losses, number of steps, batch size to use from
+        now on, or None when every batch fitted in GPU memory).
+        """
+        total, steps, fitted = 0.0, 0, None
+        for images, masks in loader:
+            images = images.to(self.device)
+            masks  = masks.to(self.device)
+            loss, n, fit = self._seg_steps(images, masks, optimizer,
+                                           ignore_index)
+            total += loss
+            steps += n
+            if fit < images.size(0):
+                fitted = fit if fitted is None else min(fitted, fit)
+        return total, steps, fitted
+
+    def _seg_logits(self, tiles):
+        """Segmentation logits [B, C, t, t] of uint8 RGB tiles [B, t, t, 3],
+        split in halves when the GPU runs out of memory."""
+        try:
+            x = torch.from_numpy(np.ascontiguousarray(tiles)).to(self.device)
+            x = x.permute(0, 3, 1, 2).float().div_(255.0)
+            mean = torch.from_numpy(IMAGENET_MEAN).to(self.device)
+            std  = torch.from_numpy(IMAGENET_STD).to(self.device)
+            x = (x - mean.view(1, 3, 1, 1)) / std.view(1, 3, 1, 1)
+            _, _, _, seg = self.model(x)
+            return seg
+        except torch.cuda.OutOfMemoryError:
+            if len(tiles) <= 1:
+                raise
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        half = len(tiles) // 2
+        return torch.cat([self._seg_logits(tiles[:half]),
+                          self._seg_logits(tiles[half:])])
+
+    def _tile_batches(self, image, grid, fill=0):
+        """(tiles of the grid as a uint8 batch, their grid entries)."""
+        tile = self.tiling["tile_size"]
+        size = max(1, int(self.batch_size))
+        for i in range(0, len(grid), size):
+            batch = grid[i:i + size]
+            yield (np.stack([Tiling.crop(image, y0, x0, tile, fill)
+                             for y0, x0, _, _ in batch]), batch)
+
+    @torch.no_grad()
+    def _predict_seg_tiled(self, image_rgb):
+        """(classes, confidences) of a whole image, at its size, by a
+        sliding window of overlapping tiles."""
+        t = self.tiling
+        h0, w0 = image_rgb.shape[:2]
+        image = Tiling.rescale(image_rgb, t["scale"])
+        h, w = image.shape[:2]
+        seg_cls  = np.zeros((h, w), dtype=np.uint8)
+        seg_conf = np.zeros((h, w), dtype=np.float32)
+        grid = Tiling.tile_grid(h, w, t["tile_size"], t["overlap"])
+        for tiles, batch in self._tile_batches(image, grid):
+            probs = torch.softmax(self._seg_logits(tiles), dim=1)
+            conf, cls = torch.max(probs, dim=1)
+            conf = conf.cpu().numpy()
+            cls  = cls.to(torch.uint8).cpu().numpy()
+            for j, (y0, x0, (ky0, ky1), (kx0, kx1)) in enumerate(batch):
+                part = (j, slice(ky0 - y0, ky1 - y0), slice(kx0 - x0, kx1 - x0))
+                seg_cls[ky0:ky1, kx0:kx1]  = cls[part]
+                seg_conf[ky0:ky1, kx0:kx1] = conf[part]
+        if (h, w) != (h0, w0):
+            seg_cls  = cv2.resize(seg_cls, (w0, h0),
+                                  interpolation=cv2.INTER_NEAREST)
+            seg_conf = cv2.resize(seg_conf, (w0, h0),
+                                  interpolation=cv2.INTER_LINEAR)
+        return seg_cls, seg_conf
+
+    @torch.no_grad()
+    def _evaluate_tiles(self, sources, num_classes):
+        """Validation through the same sliding window as the prediction:
+        seg_loss (per pixel) and mIoU on the whole val images."""
+        t = self.tiling
+        ignore = Tiling.IGNORE_INDEX
+        inter = torch.zeros(num_classes, dtype=torch.float64)
+        union = torch.zeros(num_classes, dtype=torch.float64)
+        total, pixels = 0.0, 0
+        for source in sources:
+            h, w = source.shape
+            grid = Tiling.tile_grid(h, w, t["tile_size"], t["overlap"])
+            for tiles, batch in self._tile_batches(source.image, grid):
+                logits = self._seg_logits(tiles)
+                target = np.stack([
+                    Tiling.crop(source.mask, y0, x0, t["tile_size"], ignore)
+                    for y0, x0, _, _ in batch]).astype(np.int64)
+                kept = np.zeros(target.shape, dtype=bool)
+                for j, (y0, x0, (ky0, ky1), (kx0, kx1)) in enumerate(batch):
+                    kept[j, ky0 - y0:ky1 - y0, kx0 - x0:kx1 - x0] = True
+                target[~kept] = ignore
+                target = torch.from_numpy(target).to(self.device)
+                valid = target != ignore
+                total += F.cross_entropy(logits, target, ignore_index=ignore,
+                                         reduction="sum").item()
+                pixels += int(valid.sum().item())
+                pred = logits.argmax(dim=1)
+                for c in range(num_classes):
+                    pc = (pred == c) & valid
+                    mc = target == c
+                    inter[c] += (pc & mc).sum().item()
+                    union[c] += (pc | mc).sum().item()
+        out = {}
+        if pixels:
+            out["seg_loss"] = total / pixels
+            out["n_val_seg"] = len(sources)
+            ok = union > 0
+            if ok.any():
+                out["seg_miou"] = float((inter[ok] / union[ok]).mean())
+        return out
+
+    @torch.no_grad()
+    def _al_tiled_entropy(self, image_path):
+        """Normalized mean entropy of the segmentation over (at most
+        AL_MAX_TILES) tiles spread over the image, or None."""
+        import math
+        bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if bgr is None:
+            return None
+        t = self.tiling
+        image = Tiling.rescale(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB),
+                               t["scale"])
+        h, w = image.shape[:2]
+        grid = Tiling.evenly_spaced(
+            Tiling.tile_grid(h, w, t["tile_size"], t["overlap"]),
+            AL_MAX_TILES)
+        total, count, n_cls = 0.0, 0, 2
+        for tiles, batch in self._tile_batches(image, grid):
+            probs = torch.softmax(self._seg_logits(tiles), dim=1)
+            ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1)
+            total += ent.mean().item() * len(batch)
+            count += len(batch)
+            n_cls = max(probs.shape[1], 2)
+        if not count:
+            return None
+        return (total / count) / math.log(n_cls)
 
     # ------------------------------------------------------------------
     # Training — public entry point (shows modal progress dialog)
@@ -1302,6 +1663,13 @@ class MLPredictor(Base):
         self.use_pretrained       = ml.get("pretrained",           True)
         seg = ml.get("seg_backbone", "resnet")
         self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
+        tiling = str(ml.get("tiling", "auto")).lower()
+        self.tiling_mode  = tiling if tiling in ("auto", "on", "off") else "auto"
+        self.tile_size    = Tiling.normalize_tile_size(
+            ml.get("tile_size", Tiling.DEFAULT_TILE_SIZE))
+        self.tile_overlap = Tiling.normalize_overlap(
+            ml.get("tile_overlap", Tiling.DEFAULT_OVERLAP), self.tile_size)
+        self.tile_scale   = Tiling.normalize_scale(ml.get("tile_scale", 1.0))
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
         if backbone not in BACKBONE_NAMES:
             log.warning(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
@@ -1310,7 +1678,9 @@ class MLPredictor(Base):
         log.info(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
                f"seg_backbone={self.seg_backbone}, "
                f"epochs={self.num_epochs}, lr={self.learning_rate}, "
-               f"img_size={self.image_size}, pretrained={self.use_pretrained}")
+               f"img_size={self.image_size}, pretrained={self.use_pretrained}, "
+               f"tiles={self.tiling_mode} {self.tile_size}px "
+               f"overlap={self.tile_overlap}px scale={self.tile_scale:g}")
 
     def train_model(self, selected_paths=None):
         self._apply_ml_params()
@@ -1330,6 +1700,7 @@ class MLPredictor(Base):
         self._training_worker = TrainingWorker(self, selected_paths)
         self._training_worker.epoch_done.connect(self._on_epoch_done)
         self._training_worker.progress.connect(self._on_training_log)
+        self._training_worker.status.connect(self._on_training_status)
         self._training_worker.finished.connect(self._on_training_finished)
         self._training_worker.error.connect(self._on_training_error)
         self._training_worker.start()
@@ -1341,6 +1712,9 @@ class MLPredictor(Base):
 
     def _on_training_log(self, message):
         log.info(message)
+
+    def _on_training_status(self, message):
+        self._progress_dialog.setLabelText(message)
 
     def _on_training_finished(self):
         self._progress_dialog.close()
@@ -1475,19 +1849,31 @@ class MLPredictor(Base):
         if image is None:
             return None
 
-        original_h, original_w = image.shape[:2]
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        del image
+        self.model.eval()
+        if getattr(self, "tiling", None) is not None:
+            seg_cls, seg_conf = self._predict_seg_tiled(image_rgb)
+        else:
+            seg_cls, seg_conf = self._predict_seg_resized(image_rgb)
+            if seg_cls is None:
+                return None
+        return self._seg_predictions(seg_cls, seg_conf, confidence_threshold)
 
+    @torch.no_grad()
+    def _predict_seg_resized(self, image_rgb):
+        """(classes, confidences) of the whole image resized to image_size,
+        brought back to the image size; (None, None) without a seg head."""
+        original_h, original_w = image_rgb.shape[:2]
         img_r = cv2.resize(image_rgb, (self.image_size, self.image_size))
         img_n = (img_r.astype(np.float32)/255.0
                  - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
         tensor = (torch.from_numpy(img_n)
                   .permute(2,0,1).float().unsqueeze(0).to(self.device))
 
-        self.model.eval()
         _, _, _, seg_pred = self.model(tensor)
         if seg_pred is None:
-            return None
+            return None, None
 
         seg_probs  = torch.softmax(seg_pred, dim=1)
         seg_cls    = torch.argmax(seg_probs, dim=1).squeeze(0).cpu().numpy()
@@ -1499,11 +1885,19 @@ class MLPredictor(Base):
         seg_conf = cv2.resize(seg_conf,
                               (original_w, original_h),
                               interpolation=cv2.INTER_LINEAR)
+        return seg_cls, seg_conf
 
+    def _seg_predictions(self, seg_cls, seg_conf, confidence_threshold):
+        """{label id: binary mask (0/255)} of the pixels predicted with at
+        least `confidence_threshold`. The background (255) is left out:
+        nothing can be drawn or accepted with it."""
         high_conf = seg_conf >= confidence_threshold
+        original_h, original_w = seg_cls.shape
         predictions_by_label = {}
 
         for class_id, orig_lid in self.class_to_label_id.items():
+            if orig_lid == 255:
+                continue
             class_mask  = (seg_cls == class_id) & high_conf
             pixel_count = np.count_nonzero(class_mask)
             if pixel_count > 0:
@@ -1773,24 +2167,34 @@ class MLPredictor(Base):
         """
         if not self.trained or self.model is None:
             return 0.0
-        tensor = self._al_preprocess(image_path)
-        if tensor is None:
-            return 0.0
+        segmenting = self.training_mode in ("segmentation", "both")
+        detecting  = self.training_mode in ("detection", "both")
+        # with tiles, the segmentation is scored on tiles of the image
+        tiled = segmenting and getattr(self, "tiling", None) is not None
+        tensor = None
+        if detecting or not tiled:
+            tensor = self._al_preprocess(image_path)
+            if tensor is None:
+                return 0.0
         was_training = self.model.training
         self.model.eval()
         try:
             import math
-            objectness, _, _, seg_pred = self.model(tensor)
             scores = []
-            if self.training_mode in ("detection", "both"):
-                ent = self._binary_entropy(objectness).mean().item()
-                scores.append(ent / math.log(2))
-            if (self.training_mode in ("segmentation", "both")
-                    and seg_pred is not None):
-                probs = torch.softmax(seg_pred, dim=1)
-                ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean()
-                n_cls = max(seg_pred.shape[1], 2)
-                scores.append(ent.item() / math.log(n_cls))
+            if tensor is not None:
+                objectness, _, _, seg_pred = self.model(tensor)
+                if detecting:
+                    ent = self._binary_entropy(objectness).mean().item()
+                    scores.append(ent / math.log(2))
+                if segmenting and not tiled and seg_pred is not None:
+                    probs = torch.softmax(seg_pred, dim=1)
+                    ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean()
+                    n_cls = max(seg_pred.shape[1], 2)
+                    scores.append(ent.item() / math.log(n_cls))
+            if tiled:
+                score = self._al_tiled_entropy(image_path)
+                if score is not None:
+                    scores.append(score)
             if not scores:
                 return 0.0
             return float(max(0.0, min(1.0, sum(scores) / len(scores))))
@@ -1869,6 +2273,7 @@ class MLPredictor(Base):
 
             'training_mode': self.training_mode,
             'image_size': self.image_size,
+            'tiling': getattr(self, "tiling", None),
             'confidence_threshold': self.confidence_threshold,
             'nms_threshold': self.nms_threshold,
             'segmentation_threshold': self.segmentation_threshold,
@@ -1935,6 +2340,8 @@ class MLPredictor(Base):
             self.class_to_label_id = ck.get('class_to_label_id', {})
 
             self.image_size = ck.get('image_size', 416)
+            # models saved before tiles: whole image, as they were trained
+            self.tiling = self._checked_tiling(ck.get('tiling'))
             self.confidence_threshold = ck.get('confidence_threshold', 0.3)
             self.nms_threshold = ck.get('nms_threshold', 0.4)
             self.segmentation_threshold = ck.get('segmentation_threshold', 0.5)
@@ -1957,6 +2364,20 @@ class MLPredictor(Base):
             import traceback
             traceback.print_exc()
             return False
+
+    @staticmethod
+    def _checked_tiling(tiling):
+        """Tiling read from a model file, or None (whole image)."""
+        if not isinstance(tiling, dict):
+            return None
+        try:
+            tile = Tiling.normalize_tile_size(tiling["tile_size"])
+            return {"tile_size": tile,
+                    "overlap": Tiling.normalize_overlap(
+                        tiling.get("overlap", 0), tile),
+                    "scale": Tiling.normalize_scale(tiling.get("scale", 1.0))}
+        except (KeyError, TypeError, ValueError):
+            return None
 
     def load_image_for_training(self, path_image):
         if self.image_items.get(path_image) is not None:
@@ -2054,6 +2475,7 @@ class MLPredictor(Base):
         self.label_id_to_class = {}
         self.class_to_label_id = {}
         self.val_metrics       = {}
+        self.tiling            = None
         try:
             import gc
             gc.collect()

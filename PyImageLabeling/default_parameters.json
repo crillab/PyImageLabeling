@@ -60,6 +60,10 @@
         "confidence_threshold": 0.3,
         "nms_threshold": 0.4,
         "seg_backbone": "resnet",
+        "tiling": "auto",
+        "tile_size": 512,
+        "tile_overlap": 128,
+        "tile_scale": 1.0,
         "verbose": false
     },
     "labeling_opacity": 32,

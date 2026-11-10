@@ -29,6 +29,7 @@ from PyImageLabeling.model.ML.MLPredictor import (
     BACKBONE_NAMES,
     DEFAULT_BACKBONE,
 )
+from PyImageLabeling.model.ML import Tiling
 import os
 
 class MLSetting(QDialog):
@@ -145,13 +146,17 @@ class MLSetting(QDialog):
         idx = self.imgsize_combo.findData(current_size)
         if idx >= 0:
             self.imgsize_combo.setCurrentIndex(idx)
-        self.imgsize_combo.setToolTip("Resolution images are resized to for training. Larger = slower but more detail.")
+        self.imgsize_combo.setToolTip(
+            "Resolution whole images are resized to (images that are not\n"
+            "cut into tiles, and detection). Larger = slower but more detail.")
         imgsize_row.addWidget(self.imgsize_combo)
         imgsize_row.addStretch()
         train_layout.addLayout(imgsize_row)
 
         train_group.setLayout(train_layout)
         main_layout.addWidget(train_group)
+
+        main_layout.addWidget(self._build_tiles_group(ml_params))
 
         model_group = QGroupBox("Model Options")
         model_layout = QVBoxLayout()
@@ -567,6 +572,105 @@ class MLSetting(QDialog):
             if self._image_has_labels(file_path, image_item, basename):
                 item.setCheckState(Qt.CheckState.Checked)
 
+    def _build_tiles_group(self, ml_params):
+        """Segmentation on large images: tiles instead of the whole image."""
+        group = QGroupBox("Large Images (segmentation by tiles)")
+        layout = QVBoxLayout()
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Tiles:"))
+        self.tiling_combo = QComboBox()
+        for text, value in (("Auto (large images only)", "auto"),
+                            ("Always", "on"),
+                            ("Never (resize the whole image)", "off")):
+            self.tiling_combo.addItem(text, value)
+        idx = self.tiling_combo.findData(
+            str(ml_params.get("tiling", "auto")).lower())
+        self.tiling_combo.setCurrentIndex(max(0, idx))
+        self.tiling_combo.setToolTip(
+            "A segmentation model sees a fixed input size. Without tiles the\n"
+            "whole image is resized to it, and a large image loses its fine\n"
+            "details. With tiles, training and prediction work on crops of the\n"
+            "image at (or near) its own resolution, put back together.\n\n"
+            "Auto: tiles when an image is more than twice the tile size.")
+        mode_row.addWidget(self.tiling_combo)
+        mode_row.addStretch()
+        layout.addLayout(mode_row)
+
+        tile_row = QHBoxLayout()
+        tile_row.addWidget(QLabel("Tile Size:"))
+        self.tile_spinbox = QSpinBox()
+        self.tile_spinbox.setRange(Tiling.MIN_TILE_SIZE, 2048)
+        self.tile_spinbox.setSingleStep(Tiling.TILE_MULTIPLE)
+        self.tile_spinbox.setSuffix(" px")
+        self.tile_spinbox.setValue(Tiling.normalize_tile_size(
+            ml_params.get("tile_size", Tiling.DEFAULT_TILE_SIZE)))
+        self.tile_spinbox.setToolTip(
+            f"Side of the square tiles (a multiple of {Tiling.TILE_MULTIPLE}).\n"
+            "Larger tiles give more context around each pixel, but need more\n"
+            "GPU memory (if it runs out, the batches are made smaller).\n"
+            "Each epoch sees about a third of every image, whatever the size.")
+        self.tile_spinbox.editingFinished.connect(self._snap_tile_size)
+        self.tile_spinbox.valueChanged.connect(self._update_overlap_range)
+        tile_row.addWidget(self.tile_spinbox)
+        tile_row.addStretch()
+        layout.addLayout(tile_row)
+
+        overlap_row = QHBoxLayout()
+        overlap_row.addWidget(QLabel("Overlap:"))
+        self.overlap_spinbox = QSpinBox()
+        self.overlap_spinbox.setSingleStep(16)
+        self.overlap_spinbox.setSuffix(" px")
+        self._update_overlap_range()
+        self.overlap_spinbox.setValue(Tiling.normalize_overlap(
+            ml_params.get("tile_overlap", Tiling.DEFAULT_OVERLAP),
+            self.tile_spinbox.value()))
+        self.overlap_spinbox.setToolTip(
+            "Overlap between neighbouring tiles when predicting (at most half\n"
+            "a tile). The network sees less around the pixels near the edge of\n"
+            "a tile; with an overlap each pixel is taken from the tile where it\n"
+            "is the farthest from the edge, so the seams between tiles do not\n"
+            "show. More overlap = more tiles to predict.")
+        overlap_row.addWidget(self.overlap_spinbox)
+        overlap_row.addStretch()
+        layout.addLayout(overlap_row)
+
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("Resolution:"))
+        self.scale_combo = QComboBox()
+        for text, value in (("Full (1:1)", 1.0), ("Half (1:2)", 0.5),
+                            ("Quarter (1:4)", 0.25)):
+            self.scale_combo.addItem(text, value)
+        idx = self.scale_combo.findData(
+            Tiling.normalize_scale(ml_params.get("tile_scale", 1.0)))
+        self.scale_combo.setCurrentIndex(max(0, idx))
+        self.scale_combo.setToolTip(
+            "Images are downscaled by this factor before being cut into tiles.\n"
+            "Half: each tile covers 4 times more of the image (more context,\n"
+            "4 times fewer tiles), with less detail.")
+        scale_row.addWidget(self.scale_combo)
+        scale_row.addStretch()
+        layout.addLayout(scale_row)
+
+        self.tiling_combo.currentIndexChanged.connect(self._update_tiles_enabled)
+        self._update_tiles_enabled()
+        group.setLayout(layout)
+        return group
+
+    def _snap_tile_size(self):
+        value = Tiling.normalize_tile_size(self.tile_spinbox.value())
+        if value != self.tile_spinbox.value():
+            self.tile_spinbox.setValue(value)
+
+    def _update_overlap_range(self):
+        self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
+
+    def _update_tiles_enabled(self):
+        enabled = self.tiling_combo.currentData() != "off"
+        for widget in (self.tile_spinbox, self.overlap_spinbox,
+                       self.scale_combo):
+            widget.setEnabled(enabled)
+
     def _deselect_all(self):
         for row in range(self.image_list.count()):
             self.image_list.item(row).setCheckState(Qt.CheckState.Unchecked)
@@ -597,6 +701,12 @@ class MLSetting(QDialog):
         data["ml"]["seg_backbone"] = self.seg_combo.currentData()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
+        tile = Tiling.normalize_tile_size(self.tile_spinbox.value())
+        data["ml"]["tiling"] = self.tiling_combo.currentData()
+        data["ml"]["tile_size"] = tile
+        data["ml"]["tile_overlap"] = Tiling.normalize_overlap(
+            self.overlap_spinbox.value(), tile)
+        data["ml"]["tile_scale"] = self.scale_combo.currentData()
 
         Utils.save_parameters(data)
         return super().accept()

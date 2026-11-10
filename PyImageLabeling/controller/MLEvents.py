@@ -129,37 +129,17 @@ class MLEvents(Events):
         # always False because the attribute lives on the net.
         has_segmentation = info["can_segment"]
         has_detection    = info["can_detect"]
-        
-        predictions  = []
-        segmentation = None
-        
-        # Try detection prediction
-        if has_detection:
-            try:
-                predictions = self.ml_predictor_start(current_image_path, confidence)
-                if predictions:
-                    self.ml_predictions_current = predictions
-                    self.model.ml_visualize_predictions(predictions)
-                    log.info(f"Detection: {len(predictions)} boxes")
-                else:
-                    ml_log("No predictions after thresholding")
-            except Exception as e:
-                ml_log(f"Detection prediction failed: {e}")
-                import traceback; traceback.print_exc()
-        
-        # Try segmentation prediction
-        if has_segmentation:
-            try:
-                segmentation = self.model.predict_segmentation(
-                    current_image_path, confidence)
-                if segmentation is not None and any(
-                        np.any(mask > 0) for mask in segmentation.values()):
-                    self.model.ml_visualize_segmentation(segmentation)
-                    log.info("Segmentation: displayed on screen")
-            except Exception as e:
-                ml_log(f"Segmentation prediction failed: {e}")
-                import traceback; traceback.print_exc()
-        
+
+        # a large image takes a few seconds (one tile after another)
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            predictions, segmentation = self._ml_run_predictions(
+                current_image_path, confidence, has_detection,
+                has_segmentation)
+        finally:
+            QApplication.restoreOverrideCursor()
+
         # Update status bar
         parts = []
         if predictions:
@@ -178,6 +158,42 @@ class MLEvents(Events):
                 f"No predictions found from {self._ml_model_badge(info, short=True)} "
                 f"(confidence: {confidence:.2f})")
     
+    def _ml_run_predictions(self, current_image_path, confidence,
+                            has_detection, has_segmentation):
+        """Predict and draw boxes and/or segmentation on the current image.
+        Returns (boxes, segmentation)."""
+        predictions  = []
+        segmentation = None
+
+        # Try detection prediction
+        if has_detection:
+            try:
+                predictions = self.ml_predictor_start(current_image_path, confidence)
+                if predictions:
+                    self.ml_predictions_current = predictions
+                    self.model.ml_visualize_predictions(predictions)
+                    log.info(f"Detection: {len(predictions)} boxes")
+                else:
+                    ml_log("No predictions after thresholding")
+            except Exception as e:
+                ml_log(f"Detection prediction failed: {e}")
+                import traceback; traceback.print_exc()
+
+        # Try segmentation prediction
+        if has_segmentation:
+            try:
+                segmentation = self.model.predict_segmentation(
+                    current_image_path, confidence)
+                if segmentation is not None and any(
+                        np.any(mask > 0) for mask in segmentation.values()):
+                    self.model.ml_visualize_segmentation(segmentation)
+                    log.info("Segmentation: displayed on screen")
+            except Exception as e:
+                ml_log(f"Segmentation prediction failed: {e}")
+                import traceback; traceback.print_exc()
+
+        return predictions, segmentation
+
     def ml_accept_predictions(self):
         """
         Accept both box predictions AND segmentation.
@@ -588,6 +604,14 @@ class MLEvents(Events):
             self.model.pretrained           = mlsetting.pretrained_checkbox.isChecked()
             self.model.confidence_threshold = mlsetting.conf_spinbox.value()
             self.model.nms_threshold        = mlsetting.nms_spinbox.value()
+            # tiles of the next training (a trained model keeps its own)
+            from PyImageLabeling.model.ML import Tiling
+            self.model.tiling_mode  = mlsetting.tiling_combo.currentData()
+            self.model.tile_size    = Tiling.normalize_tile_size(
+                mlsetting.tile_spinbox.value())
+            self.model.tile_overlap = Tiling.normalize_overlap(
+                mlsetting.overlap_spinbox.value(), self.model.tile_size)
+            self.model.tile_scale   = mlsetting.scale_combo.currentData()
 
             self._ml_selected_image_paths = mlsetting.selected_image_paths
             log.info(f"ML settings applied. "
