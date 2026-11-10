@@ -414,9 +414,10 @@ class MLEvents(Events):
     def ml_unload_image_items(self, keep=()):
         """Drop cached ImageItems (and their full-size pixmaps) from RAM.
 
-        Propagation and training load every image to paint/predict, which
-        leaves hundreds of full-resolution overlay pixmaps resident. That is
-        what made the pixel tools feel heavy afterwards.
+        Propagation loads every image to paint/predict, which leaves
+        hundreds of full-resolution overlay pixmaps resident. That is what
+        made the pixel tools feel heavy afterwards. Images holding unsaved
+        strokes are kept.
         """
         keep = set(keep)
         model = self.model
@@ -427,6 +428,14 @@ class MLEvents(Events):
                 continue
             item = model.image_items.get(path)
             if item is None or item is current:
+                continue
+            # Unsaved strokes live only in the overlays: dropping the item
+            # lost them, and the project no longer looked modified (no
+            # "save?" on closing). Keep it, as the LRU eviction does.
+            try:
+                if item.get_edited():
+                    continue
+            except Exception:
                 continue
             # Remember whether this image was annotated before dropping it:
             # an unloaded image is not an unlabeled one, and active learning

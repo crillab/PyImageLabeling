@@ -1728,14 +1728,8 @@ class MLPredictor(Base):
             self.controller.ml_update_status()
         except Exception:
             pass
-        # training loaded every image to build the dataset: release those
-        # ImageItems so the pixel tools stay light right after
-        try:
-            dropped = self.controller.ml_unload_image_items()
-            if dropped:
-                ml_log(f"[MLPredictor] released {dropped} image item(s)")
-        except Exception:
-            pass
+        # (training reads the masks of the images that are not loaded from
+        # their files: there are no ImageItems to release afterwards)
         val_txt = ""
         try:
             vm = getattr(self, "val_metrics", {}) or {}

@@ -84,6 +84,10 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
+- Releasing the loaded images after a propagation (and, until now, after
+  every ML training) also dropped the images holding unsaved strokes: the
+  strokes were lost and the project no longer looked modified, so closing did
+  not offer to save. Those images are now kept, as the LRU eviction does.
 - `dup.png` and `dup.jpg` in one folder no longer share a single mask file:
   their masks are named after the full file name (`dup.png.label.0.png`). Every
   other mask keeps the plain name (`img.label.0.png`), read by every version.
