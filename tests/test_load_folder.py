@@ -1,4 +1,7 @@
-"""Opening a folder: one project = one folder, and never a silent no-op."""
+"""Opening a folder: one project = one folder, and never a silent no-op.
+
+Closing the window closes the project too: same save prompt.
+"""
 import os
 
 import pytest
@@ -197,3 +200,67 @@ def test_folder_without_images_leaves_the_project_open(
     assert len(shown) == 1 and "sub" in shown[0]
     assert len(model.file_paths) == 3
     assert os.path.normpath(model.save_directory) == os.path.normpath(a)
+
+
+# ----------------------------------------------------------------------
+# closing the window offers to save, like opening another folder
+# ----------------------------------------------------------------------
+from PyQt6.QtGui import QCloseEvent
+
+
+def _close(view):
+    """Run the window's close handler (the shared window stays shown)."""
+    event = QCloseEvent()
+    view.closeEvent(event)
+    return event.isAccepted()
+
+
+def test_close_without_unsaved_work_asks_nothing(two_folders, monkeypatch):
+    controller, view, model, a, a_paths, b, b_paths = two_folders
+    asked = _answer(monkeypatch, QMessageBox.StandardButton.Cancel)
+
+    assert _close(view) is True
+    assert asked == []
+
+
+def test_close_cancel_keeps_the_window_open(two_folders, monkeypatch):
+    controller, view, model, a, a_paths, b, b_paths = two_folders
+    _paint(model, model.file_paths[0])
+    asked = _answer(monkeypatch, QMessageBox.StandardButton.Cancel)
+
+    assert _close(view) is False
+    assert len(asked) == 1
+    assert "before quitting" in asked[0][2]
+    assert model.get_edited()
+    assert _masks(a) == []
+
+
+def test_close_discard_closes_without_saving(two_folders, monkeypatch):
+    controller, view, model, a, a_paths, b, b_paths = two_folders
+    _paint(model, model.file_paths[0])
+    _answer(monkeypatch, QMessageBox.StandardButton.Discard)
+
+    assert _close(view) is True
+    assert _masks(a) == []
+
+
+def test_close_save_writes_the_masks(two_folders, monkeypatch):
+    controller, view, model, a, a_paths, b, b_paths = two_folders
+    _paint(model, model.file_paths[0])
+    _answer(monkeypatch, QMessageBox.StandardButton.Save)
+
+    assert _close(view) is True
+    assert len(_masks(a)) == 1
+    assert not model.get_edited()
+
+
+def test_close_stays_open_when_the_save_does_not_go_through(
+        two_folders, monkeypatch):
+    controller, view, model, a, a_paths, b, b_paths = two_folders
+    _paint(model, model.file_paths[0])
+    _answer(monkeypatch, QMessageBox.StandardButton.Save)
+    # what a cancelled save dialog or a failed mask write leaves behind
+    monkeypatch.setattr(model, "save", lambda: None)
+
+    assert _close(view) is False
+    assert model.get_edited()

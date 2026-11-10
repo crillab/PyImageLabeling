@@ -58,6 +58,9 @@ version: the Release workflow refuses to publish a version without one.
 - Opening a folder with no image no longer returns silently: a message says so
   and, for a parent folder, lists the subfolders that do contain images
   (subfolders are not scanned). The open project is left untouched.
+- Closing the window with unsaved annotations no longer drops them silently
+  (only the auto-save snapshot, up to 5 minutes old, survived): it asks
+  Save / Discard / Cancel, and stays open if the save does not go through.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),

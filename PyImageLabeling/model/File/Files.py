@@ -300,8 +300,12 @@ class Files(Base):
             pass
         return labels_path
 
-    def confirm_close_project(self):
+    def confirm_close_project(self, before="opening the new folder"):
         """Offer to save unsaved annotations before the project is closed.
+
+        `before` ends the question ("Save them before <before>?"): the
+        project is closed when another folder is opened and when the
+        window is closed.
 
         Returns False when the project must stay open as it is: the user
         cancelled, or chose to save and the save did not go through (save
@@ -313,7 +317,7 @@ class Files(Base):
         answer = QMessageBox.question(
             self.view, "Unsaved annotations",
             "The current project has unsaved annotations.\n\n"
-            "Save them before opening the new folder?",
+            f"Save them before {before}?",
             Button.Save | Button.Discard | Button.Cancel, Button.Save)
         if answer == Button.Discard:
             return True

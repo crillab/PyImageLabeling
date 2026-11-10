@@ -64,7 +64,16 @@ class View(QMainWindow):
         
         # Display
         self.show()
-        
+
+    def closeEvent(self, event):
+        # Closing the window used to drop unsaved annotations without a word
+        # (only the auto-save snapshot, up to 5 minutes old, was left):
+        # offer to save them first, as opening another folder does.
+        if self.controller.confirm_quit():
+            event.accept()
+        else:
+            event.ignore()
+
     # Here we are sure that clicked is checkable
     def desactivate_buttons(self, clicked, list_buttons_bars):
         for buttons_bar in list_buttons_bars:

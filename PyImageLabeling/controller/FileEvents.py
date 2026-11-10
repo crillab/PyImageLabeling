@@ -36,6 +36,14 @@ class FileEvents(Events):
         self.model.save()
         self.model.save_copy()
 
+    def confirm_quit(self):
+        """True when the window may close: nothing is unsaved, or the user
+        saved it (and the save went through) or chose to discard it."""
+        model = getattr(self, "model", None)
+        if model is None:
+            return True
+        return model.confirm_close_project(before="quitting")
+
     def recover_annotations(self, info=None):
         """Restore the auto-save snapshot when it is newer than the project.
 
