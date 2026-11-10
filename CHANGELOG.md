@@ -47,9 +47,14 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
-- Basename-mask name collisions (`dirA/IMG_001.png` vs `dirB/IMG_001.png`, or
-  `dup.png` vs `dup.jpg`) no longer overwrite annotations at save time: masks
-  are now keyed by a digest of the absolute image path.
+- `dup.png` and `dup.jpg` in one folder no longer share a single mask file:
+  their masks are named after the full file name (`dup.png.label.0.png`). Every
+  other mask keeps the plain name (`img.label.0.png`), read by every version.
+  Mask names never depend on where the folder is: a project can be moved,
+  renamed or unzipped elsewhere. (Development versions since 1.0.14 named masks
+  after a digest of the absolute image path, which hid every saved annotation
+  once the folder moved; those masks are still read, and replaced at the next
+  save. When several files hold the mask of an image, the most recent wins.)
 - A corrupted image (0-byte or garbage PNG) no longer crashes `save()` and takes
   every other image's annotations down with it.
 - Mask writes are now isolated per overlay and per image; a failed write marks

@@ -118,11 +118,17 @@ def test_failed_mask_write_keeps_previous_mask(app_stack, workspace,
     before = open(mask_path, "rb").read()
 
     monkeypatch.setattr(QImage, "save", lambda *a, **k: False)
-    model.get_current_image_item().get_labeling_overlay().save(
-        str(out), paths[0])
+    item = model.get_current_image_item()
+    with pytest.raises(OSError):
+        item.get_labeling_overlay().save(str(out), paths[0])
 
     assert open(mask_path, "rb").read() == before
     assert not os.path.exists(mask_path + ".tmp")
+    # the error reaches the image: it stays marked as unsaved (a False
+    # return used to be only logged, and the image looked saved)
+    item.get_labeling_overlay().set_is_edited(True)
+    assert item.save_overlays(str(out)) == 1
+    assert item.get_edited()
 
 
 def test_mask_write_leaves_no_tmp(app_stack, workspace, tmp_path):

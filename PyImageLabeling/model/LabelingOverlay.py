@@ -395,38 +395,43 @@ class LabelingOverlay():
 
 
     def save(self, current_file_path, path_image):
-        # Late-import helpers to avoid circular import with Base (where
-        # KEYWORD_SAVE_LABEL / path_hash currently live).  Resolve after
-        # imports are complete – by call time both modules are defined.
+        # Late import: Masks is imported by Base, which imports this module.
         from PyImageLabeling.model.Masks import (
-            KEYWORD_SAVE_LABEL,
-            path_hash)
+            digest_mask_names, mask_file_name, mask_name_candidates,
+            stem_is_shared)
         name = os.path.basename(path_image)
-        if "." in name:
-            name, format = name.rsplit(".", 1)
-        else:
-            format = "png"
         format = "png"
-        h = path_hash(path_image)
-        save_file = current_file_path + os.sep + f"{name}.{h}" + KEYWORD_SAVE_LABEL + str(self.label.get_label_id()) + "." + format
+        label_id = self.label.get_label_id()
+        save_file = mask_file_name(current_file_path, path_image, label_id)
+        target = os.path.basename(save_file)
 
-        def _unmask_stale():
-            """A mask that became all-black means the user erased it: the
-            file must disappear, otherwise the stale mask would come back
-            (older format sibling included) on the next reload."""
-            stale_prefixes = (f"{name}.{h}{KEYWORD_SAVE_LABEL}",
-                              f"{name}{KEYWORD_SAVE_LABEL}")
+        def _remove_superseded(erased):
+            """Other files of (image, label) that the one just written --
+            or the erasure -- supersedes: left behind, an older one would
+            come back on the next reload (the most recent file of an image
+            wins, and an erased mask leaves none). The stem form of a
+            shared stem may be the sibling's (1.0.14 wrote one file for
+            dup.png and dup.jpg): it is left alone."""
+            full, digest, stem_form = mask_name_candidates(path_image,
+                                                           label_id)
             try:
-                for file in os.listdir(current_file_path):
-                    if any(file.startswith(p)
-                           for p in stale_prefixes) \
-                            and file.endswith(
-                                KEYWORD_SAVE_LABEL
-                                + str(self.label.get_label_id()) + ".png"):
-                        os.remove(os.path.join(current_file_path, file))
-                        log.debug(f"removed erased mask {file}")
+                names = os.listdir(current_file_path)
             except OSError as e:
-                log.warning(f"could not remove stale mask for {name}: {e}")
+                log.warning(f"could not clean old masks of {name}: {e}")
+                return
+            stale = {full, digest}
+            if not stem_is_shared(path_image):
+                stale.add(stem_form)
+                stale.update(digest_mask_names(names, path_image, label_id))
+            if not erased:
+                stale.discard(target)
+            for file in names:
+                if file in stale:
+                    try:
+                        os.remove(os.path.join(current_file_path, file))
+                        log.debug(f"removed superseded mask {file}")
+                    except OSError as e:
+                        log.warning(f"could not remove old mask {file}: {e}")
 
         # Get original image
         image = self.labeling_overlay_pixmap.toImage()
@@ -448,7 +453,7 @@ class LabelingOverlay():
 
         # In a packed 1-bit image: 0x00 = eight black pixels, 0xFF = eight white pixels.
         if all(b == 0xFF for b in packed):
-            _unmask_stale()
+            _remove_superseded(erased=True)
         else:
             # Write to a scratch file and rename: mask.save() used to target
             # the final name directly and its False return was ignored, so a
@@ -457,7 +462,11 @@ class LabelingOverlay():
             tmp_file = Utils.tmp_path(save_file)
             if mask.save(tmp_file, format.upper()):
                 Utils.commit_tmp(tmp_file, save_file)
+                # only once the new file is in place
+                _remove_superseded(erased=False)
             else:
                 Utils.discard_tmp(tmp_file)
-                log.error(f"could not write mask {os.path.basename(save_file)}")
+                # raise, so that the image stays marked as unsaved (a False
+                # return was only logged, and the image looked saved)
+                raise OSError(f"could not write mask {target}")
 

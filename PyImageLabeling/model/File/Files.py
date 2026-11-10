@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QFileDialog, QProgressDialog, QMessageBox
 from PyImageLabeling.model.Base import Base
 from PyImageLabeling.model.LabelItem import LabelItem
 from PyImageLabeling.model.Masks import (KEYWORD_SAVE_LABEL,
+                                        IMAGE_EXTENSIONS,
                                         image_base_from_mask_name)
 from PyImageLabeling.model.Utils import Utils
 
@@ -16,8 +17,6 @@ import shutil
 
 from PyImageLabeling.logging_setup import get_logger
 log = get_logger("files")
-
-IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff", ".tif")
 
 # Subfolders listed in the "nothing to load" message, at most.
 _MAX_SUBFOLDERS_LISTED = 10
