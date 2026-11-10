@@ -68,32 +68,65 @@ class Builder:
         # Store actions for potential syncing
         self.view.menu_actions = {}
         
-        # File menu
+        # File menu: one group per kind of action, separated
         file_menu = menu_bar.addMenu("&File")
-        if "file_bar" in self.view.config:
-            for button in self.view.config["file_bar"]:
-                action = QAction(button["name_view"], self.view)
-                if button.get("shortcut"):
-                    action.setShortcut(QKeySequence(button["shortcut"]))
-                action.setToolTip(button.get("tooltip", ""))
-                
-                # Create wrapper that checks button state
-                if hasattr(self.view.controller, button["name"]):
-                    action.triggered.connect(
-                        self._create_action_handler(button["name"], "file_bar")
-                    )
-                file_menu.addAction(action)
-                self.view.menu_actions[button["name"]] = action
+        file_actions = {}
+        for button in self.view.config.get("file_bar", []):
+            action = QAction(button["name_view"], self.view)
+            if button.get("shortcut"):
+                action.setShortcut(QKeySequence(button["shortcut"]))
+            action.setToolTip(button.get("tooltip", ""))
 
-        file_menu.addSeparator()
-        recover_action = file_menu.addAction(
-            "Recover Unsaved Annotations…")
-        recover_action.setToolTip(
-            "Restore the auto-save snapshot when it holds work the project "
-            "files do not have (after a crash, for instance).")
-        recover_action.triggered.connect(
-            self.view.controller.recover_annotations)
-        
+            # Create wrapper that checks button state
+            if hasattr(self.view.controller, button["name"]):
+                action.triggered.connect(
+                    self._create_action_handler(button["name"], "file_bar")
+                )
+            file_actions[button["name"]] = action
+
+        def menu_only(name, text, slot, tooltip, shortcut=None):
+            action = QAction(text, self.view)
+            if shortcut:
+                action.setShortcut(QKeySequence(shortcut))
+            action.setToolTip(tooltip)
+            action.triggered.connect(slot)
+            file_actions[name] = action
+
+        controller = self.view.controller
+        menu_only("new_project", "New Project…", controller.new_project,
+                  "Create an empty project in a folder, then fill it with "
+                  "Add Images and Import Labels.",
+                  "Ctrl+Shift+N")
+        menu_only("add_images", "Add Images…", controller.add_images,
+                  "Copy images from another folder into the open project "
+                  "folder (not their masks: use Import Labels).",
+                  "Ctrl+Shift+A")
+        menu_only("import_labels", "Import Labels…", controller.import_labels,
+                  "Import masks from another folder (binary, indexed or RGB) "
+                  "as a new label of the open project.",
+                  "Ctrl+Shift+L")
+        menu_only("recover_annotations", "Recover Unsaved Annotations…",
+                  controller.recover_annotations,
+                  "Restore the auto-save snapshot when it holds work the "
+                  "project files do not have (after a crash, for instance).")
+
+        groups = [["new_project", "load", "add_images", "import_labels"],
+                  ["save", "save_copy"],
+                  ["next_image", "previous_image"],
+                  ["recover_annotations"]]
+        # a file_bar entry added to the config later still gets a place
+        grouped = {name for group in groups for name in group}
+        groups.insert(3, [n for n in file_actions if n not in grouped])
+        for group in groups:
+            actions = [file_actions[n] for n in group if n in file_actions]
+            if not actions:
+                continue
+            if file_menu.actions():
+                file_menu.addSeparator()
+            for action in actions:
+                file_menu.addAction(action)
+        self.view.menu_actions.update(file_actions)
+
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
         if "labeling_bar" in self.view.config and "edit" in self.view.config["labeling_bar"]:
@@ -186,6 +219,24 @@ class Builder:
             "Summarise the crash logs: native faults, recent actions, "
             "environment. Copy the text into a bug report.")
         crash_action.triggered.connect(self.view.controller.crash_report)
+
+        self._show_shortcuts_in_tooltips()
+
+    def _show_shortcuts_in_tooltips(self):
+        """Append its shortcut to the tooltip of every bar button whose
+        menu action has one: the file bar buttons are icons only, and the
+        shortcuts were nowhere to be seen outside the menus. Only the
+        shortcuts actually bound (menu actions) are shown."""
+        for buttons in (self.view.buttons_file_bar,
+                        self.view.buttons_image_bar,
+                        self.view.buttons_labeling_bar):
+            for name, button in buttons.items():
+                action = self.view.menu_actions.get(name)
+                if action is None or action.shortcut().isEmpty():
+                    continue
+                keys = action.shortcut().toString(
+                    QKeySequence.SequenceFormat.NativeText)
+                button.setToolTip(f"{button.toolTip()} ({keys})")
 
     def _create_action_handler(self, action_name, source):
         def handler():

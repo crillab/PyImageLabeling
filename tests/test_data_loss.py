@@ -6,6 +6,7 @@ Each test reproduces a bug that used to destroy annotations silently.
 """
 import json
 import os
+import shutil
 
 import numpy as np
 import PIL.Image as PILImage
@@ -18,7 +19,7 @@ from PyImageLabeling.model.Base import (KEYWORD_SAVE_LABEL,
                                         image_base_from_mask_name,
                                         mask_file_name, path_hash)
 from PyImageLabeling.model.Labeling.PaintBrush import PaintBrush
-from tests.conftest import make_images, reset_app
+from tests.conftest import make_images, reset_app, write_labels_json
 
 
 # ----------------------------------------------------------------------
@@ -104,29 +105,6 @@ def _mask_annotated(image, x, y):
 # ----------------------------------------------------------------------
 # basename collisions
 # ----------------------------------------------------------------------
-def test_collision_same_basename_two_folders(app_stack, workspace, tmp_path):
-    """dirA/IMG_001.png and dirB/IMG_001.png used to overwrite each
-    other's single mask: both annotations must survive save + reload."""
-    controller, view, model = app_stack
-    pA = _make_img(os.path.join(str(workspace), "dirA"), "IMG_001.png", 1)
-    pB = _make_img(os.path.join(str(workspace), "dirB"), "IMG_001.png", 2)
-    _register(controller, view, model, [pA, pB])
-    la, _ = _setup_two_labels(model)
-
-    _paint_box(model, pA, la, 5, 5)
-    _paint_box(model, pB, la, 90, 90)
-    project = str(tmp_path / "project")
-    os.makedirs(project)
-    model.save_directory = project
-    model.save()
-
-    maskA = mask_file_name(project, pA, la.get_label_id())
-    maskB = mask_file_name(project, pB, la.get_label_id())
-    assert maskA != maskB                    # no silent overwrite
-    _assert_per_image_masks(
-        project, {pA: (5, 5), pB: (90, 90)}, [pA, pB], la.get_label_id())
-
-
 def test_collision_same_basename_different_extensions(app_stack, workspace,
                                                       tmp_path):
     """dup.png and dup.jpg: same mask name except for the path digest."""
@@ -151,25 +129,13 @@ def test_collision_same_basename_different_extensions(app_stack, workspace,
         la.get_label_id())
 
 
-def test_mask_name_collision_images_have_valid_tag(app_stack, workspace,
-                                                   tmp_path):
-    """'has annotations' tag must resolve hashed mask names back to the
-    plain image basename (cosmetic but user-facing)."""
-    controller, view, model = app_stack
-    pA = _make_img(os.path.join(str(workspace), "dA"), "IMG_001.png", 5)
-    pB = _make_img(os.path.join(str(workspace), "dB"), "IMG_001.png", 6)
-    _register(controller, view, model, [pA, pB])
-    la, _ = _setup_two_labels(model)
-    _paint_box(model, pA, la, 5, 5)
-    _paint_box(model, pB, la, 90, 90)
-    project = str(tmp_path / "project")
-    os.makedirs(project)
-    model.save_directory = project
-    model.save()
-
-    assert image_base_from_mask_name(
-        os.path.basename(mask_file_name(project, pA, la.get_label_id()))
-    ) == "IMG_001"
+def test_has_annotations_tag_reads_every_mask_name_form():
+    """The 'has annotations' tag compares image stems with the stem read
+    back from mask names, whatever wrote them."""
+    for mask in ("IMG_001.label.0.png",            # stem form (1.0.14 too)
+                 "IMG_001.png.label.0.png",        # shared stem
+                 "IMG_001.a1b2c3d4.label.0.png"):  # digest form (dev versions)
+        assert image_base_from_mask_name(mask) == "IMG_001"
 
 
 def test_legacy_mask_names_still_load(app_stack, workspace, tmp_path):
@@ -202,6 +168,115 @@ def test_legacy_mask_names_still_load(app_stack, workspace, tmp_path):
     img = overlay.labeling_overlay_pixmap.toImage()
     # legacy file = fully annotated (all white on disk)
     assert img.pixelColor(60, 60).alpha() == 255
+
+
+# ----------------------------------------------------------------------
+# mask names do not depend on where the project folder is
+# ----------------------------------------------------------------------
+# Development versions after 1.0.14 named masks after a digest of the
+# image's absolute path: moving, renaming or unzipping the project folder
+# elsewhere hid every saved annotation. One project = one folder, so two
+# images of a project cannot share a file name and the digest is not
+# needed; it is still read.
+def _saved_project(app_stack, root):
+    controller, view, model = app_stack
+    reset_app(controller, view, model)
+    folder = os.path.join(str(root), "project")
+    os.makedirs(folder)
+    make_images(folder, 2, seed=21)
+    write_labels_json(folder)
+    model.load(folder)
+    _paint_box(model, model.file_paths[0], model.get_label_items()[0], 5, 5)
+    model.save()
+    return model, folder
+
+
+def _masks(folder):
+    return sorted(n for n in os.listdir(folder) if KEYWORD_SAVE_LABEL in n)
+
+
+def _annotated(model, folder, x, y):
+    """Reopen the folder and tell whether img000 shows label 0 at (x, y)."""
+    model.load(folder)
+    first = [p for p in model.file_paths if p.endswith("img000.png")][0]
+    model.select_image(first)
+    overlay = model.get_current_image_item().labeling_overlays.get(0)
+    return overlay is not None and \
+        overlay.labeling_overlay_pixmap.toImage().pixelColor(x, y).alpha() > 0
+
+
+def _white_box_mask(path, x, y):
+    data = np.zeros((128, 128), np.uint8)
+    data[y:y + 20, x:x + 20] = 255
+    PILImage.fromarray(data).save(path)
+
+
+def test_masks_are_named_after_the_image_only(app_stack, tmp_path):
+    model, folder = _saved_project(app_stack, tmp_path)
+    # the stem form, which every version reads (1.0.14 included)
+    assert _masks(folder) == ["img000.label.0.png"]
+
+
+def test_annotations_survive_moving_the_project_folder(app_stack, tmp_path):
+    model, folder = _saved_project(app_stack, tmp_path)
+    moved = os.path.join(str(tmp_path), "elsewhere", "renamed")
+    shutil.move(folder, moved)
+
+    assert _annotated(model, moved, 10, 10)
+
+
+def test_digest_masks_of_a_moved_project_still_load(app_stack, tmp_path):
+    model, folder = _saved_project(app_stack, tmp_path)
+    # what a development version left: the digest of a former location
+    os.rename(os.path.join(folder, "img000.label.0.png"),
+              os.path.join(folder, "img000.0123abcd.label.0.png"))
+
+    assert _annotated(model, folder, 10, 10)
+
+    # the next save writes the stem form and drops the digest form
+    _paint_box(model, model.get_current_image_item().path_image,
+               model.get_label_items()[0], 90, 90)
+    model.save()
+    assert _masks(folder) == ["img000.label.0.png"]
+    assert _annotated(model, folder, 10, 10)
+    assert _annotated(model, folder, 95, 95)
+
+
+def test_the_most_recent_mask_of_an_image_wins(app_stack, tmp_path):
+    model, folder = _saved_project(app_stack, tmp_path)
+    plain = os.path.join(folder, "img000.label.0.png")
+    digest = os.path.join(folder, "img000.0123abcd.label.0.png")
+    _white_box_mask(digest, 90, 90)
+
+    os.utime(plain, (1000, 1000))
+    os.utime(digest, (2000, 2000))
+    assert _annotated(model, folder, 95, 95)
+    assert not _annotated(model, folder, 10, 10)
+
+    os.utime(plain, (3000, 3000))
+    assert _annotated(model, folder, 10, 10)
+    assert not _annotated(model, folder, 95, 95)
+
+
+def test_an_unloaded_image_finds_its_digest_mask_again(app_stack, tmp_path):
+    """Unloading re-indexes the masks of an image: the key it was read
+    from must be among them, or the image comes back blank (and a save
+    would then write a mask without the old annotations)."""
+    model, folder = _saved_project(app_stack, tmp_path)
+    os.rename(os.path.join(folder, "img000.label.0.png"),
+              os.path.join(folder, "img000.0123abcd.label.0.png"))
+    assert _annotated(model, folder, 10, 10)
+    first = model.get_current_image_item().path_image
+    other = [p for p in model.file_paths if p != first][0]
+
+    model.select_image(other)
+    model._unload_image(first)
+    model.select_image(first)
+
+    overlay = model.get_current_image_item().labeling_overlays.get(0)
+    assert overlay is not None
+    assert overlay.labeling_overlay_pixmap.toImage().pixelColor(
+        10, 10).alpha() > 0
 
 
 # ----------------------------------------------------------------------

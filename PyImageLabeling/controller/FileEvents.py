@@ -20,6 +20,15 @@ class FileEvents(Events):
     def load(self):
         self.all_events(self.load.__name__)
         self.model.load()
+        self._enable_project_buttons()
+
+    def new_project(self):
+        """File > New Project: an empty project in a folder."""
+        self.all_events(self.new_project.__name__)
+        if self.model.new_project():
+            self._enable_project_buttons()
+
+    def _enable_project_buttons(self):
         for button_names in self.view.buttons_image_bar:
             self.view.buttons_image_bar[button_names].setEnabled(True)
         for button_names in self.view.buttons_label_bar_permanent:
@@ -32,33 +41,43 @@ class FileEvents(Events):
     def save(self):
         self.model.save()
 
+    def add_images(self):
+        """File > Add Images: copy images into the open project folder."""
+        self.all_events(self.add_images.__name__)
+        self.model.add_images()
+
     def save_copy(self):
         self.model.save()
         self.model.save_copy()
 
-    def recover_annotations(self, info=None):
+    def confirm_quit(self):
+        """True when the window may close: nothing is unsaved, or the user
+        saved it (and the save went through) or chose to discard it."""
+        model = getattr(self, "model", None)
+        if model is None:
+            return True
+        return model.confirm_close_project(before="quitting")
+
+    def recover_annotations(self):
         """Restore the auto-save snapshot when it is newer than the project.
 
-        File > Recover Unsaved Annotations. Without this the snapshot
-        written every few minutes was dead weight: after a native crash the
-        only way back was to copy <project>/auto_save/ by hand.
+        File > Recover Unsaved Annotations, the only way in: the snapshot
+        is never offered at startup. Without this the snapshot written
+        every few minutes was dead weight: after a native crash the only
+        way back was to copy <project>/auto_save/ by hand.
         """
-        project_dir = ""
-        if info is None:
-            project_dir = getattr(self.model, "save_directory", "") or ""
-            if not project_dir:
-                data = Utils.load_parameters()
-                project_dir = (data.get("save", {}) or {}).get("path", "") or ""
-        else:
-            project_dir = info.get("project_dir", "")
+        project_dir = getattr(self.model, "save_directory", "") or ""
+        if not project_dir:
+            data = Utils.load_parameters()
+            project_dir = (data.get("save", {}) or {}).get("path", "") or ""
 
         if not project_dir or not Autosave.needs_recovery(project_dir):
             QMessageBox.information(
                 self.view, "Nothing to recover",
                 "No auto-save snapshot newer than the project files was "
                 "found.\n\nAuto-save writes a snapshot every few minutes; "
-                "it is offered here and at startup only when it holds work "
-                "the project files do not have yet.")
+                "it is offered here only when it holds work the project "
+                "files do not have yet.")
             return False
 
         answer = QMessageBox.question(

@@ -24,7 +24,8 @@ class ImageItem():
         self.icon_button = icon_button
         self.labeling_overview_was_loaded = labeling_overview_was_loaded
         self.labeling_overview_file_paths = labeling_overview_file_paths
-        
+        self.mask_keys_read = {}  # label_id -> key its mask was read from
+
         self.zoomable_graphics_view = view.zoomable_graphics_view
 
         self.image_pixmap = QPixmap(path_image) # The current pixmap of the image
@@ -119,26 +120,50 @@ class ImageItem():
         self.view.initial_zoom_factor = self.view.zoom_factor
 
     def _mask_key_candidates(self, label_id):
-        from PyImageLabeling.model.Masks import KEYWORD_SAVE_LABEL, path_hash
-        """Possible on-disk mask keys of (this image, label_id), most
-        specific first: the current hashed form, then the legacy
-        basename-only form (projects saved before the collision fix)."""
-        stem = os.path.basename(self.path_image)
-        if "." in stem:
-            stem = stem.rsplit(".", 1)[0]
-        hashed = f"{stem}.{path_hash(self.path_image)}{KEYWORD_SAVE_LABEL}{label_id}.png"
-        legacy = f"{stem}{KEYWORD_SAVE_LABEL}{label_id}.png"
-        return hashed, legacy
+        """Mask keys of (this image, label_id) worth re-indexing when the
+        image is unloaded: every fixed-name form, plus the key its overlay
+        was actually read from (a digest of an old path, for instance), so
+        that re-selecting the image finds that mask again."""
+        from PyImageLabeling.model.Masks import mask_name_candidates
+        keys = list(mask_name_candidates(self.path_image, label_id))
+        read_from = self.mask_keys_read.get(label_id)
+        if read_from is not None and read_from not in keys:
+            keys.append(read_from)
+        return keys
 
     def _indexed_mask_key(self, label_id):
-        """Key under which this image's disk mask was indexed, or None if
-        no disk mask exists for it in this project."""
+        """Key of this image's disk mask for label_id, or None if there is
+        none in this project.
+
+        Several files may hold it: "img.png.label.0.png", "img.label.0.png",
+        and the digest form written by development versions after 1.0.14,
+        possibly with the digest of a former location of the folder. The
+        most recent of those that belong to this image wins; the stem form
+        of a shared stem (dup.png next to dup.jpg) is ambiguous and only
+        used when nothing else is there.
+        """
+        from PyImageLabeling.model.Masks import (
+            digest_mask_names, mask_name_candidates, stem_is_shared)
         was_loaded = self.labeling_overview_was_loaded
-        hashed, legacy = self._mask_key_candidates(label_id)
-        if was_loaded.get(hashed) is False:
-            return hashed
-        if was_loaded.get(legacy) is False:
-            return legacy
+        full, digest, stem_form = mask_name_candidates(self.path_image,
+                                                       label_id)
+        shared = stem_is_shared(self.path_image)
+        own = [full, digest]
+        if not shared:
+            own += digest_mask_names(list(was_loaded), self.path_image,
+                                     label_id)
+            own.append(stem_form)
+        own = [k for k in dict.fromkeys(own) if was_loaded.get(k) is False]
+        if own:
+            def mtime(key):
+                try:
+                    return os.path.getmtime(
+                        self.labeling_overview_file_paths[key])
+                except (KeyError, OSError):
+                    return 0.0
+            return max(own, key=mtime)
+        if shared and was_loaded.get(stem_form) is False:
+            return stem_form
         return None
 
     def _create_labeling_overlay(self, label_item, label_id):
@@ -155,6 +180,7 @@ class ImageItem():
                 image_item = self
             )
             self.labeling_overview_was_loaded[basename_key] = True
+            self.mask_keys_read[label_id] = basename_key
         else:
             overlay = LabelingOverlay(
                 label_item,

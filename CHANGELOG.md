@@ -6,6 +6,17 @@ version: the Release workflow refuses to publish a version without one.
 ## Unreleased
 
 ### Added
+- *File > New Project…* (Ctrl+Shift+N): an empty project in a folder (an
+  empty `labels.json` makes it a project), to fill with *Add Images* and
+  *Import Labels*. Opening an empty folder offers the same. The title bar shows
+  the folder of the open project.
+- *File > Add Images…* (Ctrl+Shift+A): copy images from another folder into
+  the open project folder and list them, without closing the project. A file
+  of the project is never overwritten; masks are not copied (their label ids
+  belong to the other project: use *Import Labels*).
+- *File > Import Labels…* (Ctrl+Shift+L): import masks from another folder
+  (binary, indexed or RGB) as a new label of the open project. Same import as
+  *New Label > Import data*, wizard first.
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8).
 - `--sam-prefetch` CLI flag: pre-download the SAM2 checkpoints (offline-friendly,
   no GUI needed) instead of starting the download mid-labeling.
@@ -24,6 +35,24 @@ version: the Release workflow refuses to publish a version without one.
   works), full test suite green throughout.
 
 ### Changed
+- Save writes into the opened folder, also when it has no `labels.json` yet:
+  it used to ask where to save, which split the project between two folders.
+  A project with no label yet opens without the "No label definition could
+  be read" error.
+- File menu grouped (open / add / import, save, navigation, recovery) with
+  separators; *Load images and labels* is now *Open Project…*, *Save labels*
+  *Save*, *Save copy* *Save Copy…*.
+- Button tooltips rewritten: several described another tool (Paintbrush,
+  Rectangle, Contour Filling, Magic Pen, Polygon), and the tooltip of a button
+  whose action has a shortcut now shows it.
+- The auto-save snapshot is no longer offered at startup: recovering it is
+  up to the user, through *File > Recover Unsaved Annotations…*.
+- One project = one folder: opening a folder now **replaces** the open project
+  (unsaved annotations: Save / Discard / Cancel) and shows its first image.
+  It used to append the new images to the list while resetting the overlays of
+  the previous ones and redirecting every save to the new folder, so the old
+  images showed no annotation and strokes made on them were saved in the
+  wrong folder.
 - All `print()` calls in the app have been routed through the new `logging`-based
   setup (`logging_setup.py`); the `ML_VERBOSE` log level now lands in the same
   stream (stdout → stderr). `PYIMAGELABELING_LOG_LEVEL` selects the level.
@@ -35,9 +64,14 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
-- Basename-mask name collisions (`dirA/IMG_001.png` vs `dirB/IMG_001.png`, or
-  `dup.png` vs `dup.jpg`) no longer overwrite annotations at save time: masks
-  are now keyed by a digest of the absolute image path.
+- `dup.png` and `dup.jpg` in one folder no longer share a single mask file:
+  their masks are named after the full file name (`dup.png.label.0.png`). Every
+  other mask keeps the plain name (`img.label.0.png`), read by every version.
+  Mask names never depend on where the folder is: a project can be moved,
+  renamed or unzipped elsewhere. (Development versions since 1.0.14 named masks
+  after a digest of the absolute image path, which hid every saved annotation
+  once the folder moved; those masks are still read, and replaced at the next
+  save. When several files hold the mask of an image, the most recent wins.)
 - A corrupted image (0-byte or garbage PNG) no longer crashes `save()` and takes
   every other image's annotations down with it.
 - Mask writes are now isolated per overlay and per image; a failed write marks
@@ -49,6 +83,29 @@ version: the Release workflow refuses to publish a version without one.
 - Settings on a read-only installation fall back to `~/.pyimagelabeling` instead
   of crashing on the first launch with `PermissionError`; unwritable everywhere,
   the app boots on in-memory defaults.
+- Opening a folder with no image no longer returns silently: a message says so
+  and, for a parent folder, lists the subfolders that do contain images
+  (subfolders are not scanned). The open project is left untouched.
+- Closing the window with unsaved annotations no longer drops them silently
+  (only the auto-save snapshot, up to 5 minutes old, survived): it asks
+  Save / Discard / Cancel, and stays open if the save does not go through.
+- *File > Recover Unsaved Annotations…* did nothing: the menu's `checked`
+  flag reached a parameter meant for the startup offer, and the error was
+  only logged.
+- Importing masks for a new label (*New Label > Import data*) no longer
+  reopens the project: the masks show up in the open project at once.
+  Reopening it asked to save or discard the unsaved strokes, and Cancel left
+  the imported masks on disk but not shown.
+- Importing masks no longer writes the files that match no image of the
+  project: written under their own name they were masks of no image, orphans
+  in the project folder (a whole folder of slides and masks could end up
+  there, silently). A report lists what was left out; when nothing matches, no
+  label is created. When several images match a file, the longest name wins
+  (`img_2` over `img` for `img_2_mask.png`). A label name clash no longer leaves
+  the imported masks behind, under the id the next label would get.
+- Masks loaded from a file take the color of their label. The color was read
+  back from the `labels.json` next to the mask, red when the label was not in
+  it yet: masks just imported for a new label showed in red.
 
 ### Added
 - `load.memory_keep_images` parameter in `default_parameters.json` (default 8),
