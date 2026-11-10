@@ -84,6 +84,11 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
+- The ML *Statistics* panel counts every image of the project: it only
+  counted the images loaded in memory, so it showed 0 right after opening a
+  project or after a training. An annotation is a shape, or a label painted
+  on an image (counting the painted regions of the images that are not
+  loaded would decode every mask).
 - Releasing the loaded images after a propagation (and, until now, after
   every ML training) also dropped the images holding unsaved strokes: the
   strokes were lost and the project no longer looked modified, so closing did

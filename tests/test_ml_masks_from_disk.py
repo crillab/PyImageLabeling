@@ -109,3 +109,23 @@ def test_training_counts_need_no_loading(project, workspace):
     # shapes of an image that is not loaded are training data too
     det = dict(model.collect_training_data())
     assert det == {paths[4]: [(1, 2, 30, 40, 0)]}
+
+
+def test_stats_count_every_image_of_the_project(project, workspace):
+    """The ML panel only counted the images loaded in memory: 0 right after
+    opening a project, or after a training."""
+    controller, view, model, paths = project
+    painted = np.zeros((128, 128), bool)
+    painted[:9, :9] = True
+    _index_mask(model, workspace, paths[3], 0, painted)     # not loaded
+    model.left_rectangles[os.path.basename(paths[4])] = [   # not loaded
+        {"x": 1, "y": 2, "width": 3, "height": 4, "label_id": 0},
+        {"x": 5, "y": 6, "width": 7, "height": 8, "label_id": 0}]
+    _paint(model, paths[5])                                 # loaded
+
+    controller.ml_update_stats(immediate=True)
+
+    text = view.ml_stats_label.text()
+    assert "Annotated Images: 3\n" in text
+    assert "Total Annotations: 4\n" in text
+    assert model.image_items[paths[3]] is None

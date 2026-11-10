@@ -2,8 +2,6 @@ from PyQt6.QtWidgets import QMessageBox, QProgressDialog
 from PyQt6.QtCore import Qt
 import os
 import numpy as np
-import cv2
-from PyQt6.QtGui import QImage
 
 from PyImageLabeling.controller.Events import Events
 from PyImageLabeling.model.ML.MLPredictor import ml_log
@@ -334,54 +332,14 @@ class MLEvents(Events):
         label.setStyleSheet("color: green;")
         label.setToolTip(tooltip)
     
-    def _ml_count_paint_instances(self, image_item):
-        """Connected components of the painted pixels of one image.
-
-        Costly (a full-image pass per overlay), so the result is cached and
-        only recomputed when that image's overlays actually changed.
-        """
-        cache = getattr(self, "_ml_paint_cache", None)
-        if cache is None:
-            cache = {}
-            self._ml_paint_cache = cache
-
-        key = image_item.path_image
-        stamp = tuple(
-            (label_id, id(overlay.labeling_overlay_pixmap),
-             overlay.get_is_edited())
-            for label_id, overlay in image_item.labeling_overlays.items())
-        hit = cache.get(key)
-        if hit is not None and hit[0] == stamp:
-            return hit[1]
-
-        paint_instances = 0
-        for overlay in image_item.labeling_overlays.values():
-            pixmap = overlay.labeling_overlay_pixmap
-            if pixmap is None or pixmap.isNull():
-                continue
-            qimg = pixmap.toImage().convertToFormat(
-                QImage.Format.Format_Grayscale8)
-            h, w, bpl = qimg.height(), qimg.width(), qimg.bytesPerLine()
-            ptr = qimg.bits()
-            ptr.setsize(h * bpl)
-            arr  = np.frombuffer(ptr, np.uint8).reshape((h, bpl))
-            mask = arr[:, :w]
-            if np.count_nonzero(mask) == 0:
-                continue
-            binary = (mask > 0).astype(np.uint8)
-            num_labels, _ = cv2.connectedComponents(binary)
-            paint_instances += max(0, num_labels - 1)
-
-        cache[key] = (stamp, paint_instances)
-        return paint_instances
-
     def ml_update_stats(self, immediate=False):
         """Update the ML stats label with current annotation counts.
 
         Called after every brush stroke / shape, so it must stay cheap: a
         full recount of every loaded image cost ~135 ms with 20 images in
         RAM, which made the pixel tools feel laggy. Two changes:
-        - per-image paint counts are cached (see _ml_count_paint_instances)
+        - per-image paint counts are cached (see
+          MLPredictor._painted_label_count)
         - the label refresh is coalesced on a short timer, so a burst of
           strokes triggers one recount instead of one per stroke
         """
@@ -403,7 +361,7 @@ class MLEvents(Events):
 
     def ml_invalidate_stats_cache(self, path_image=None):
         """Drop cached paint counts (all images, or one)."""
-        cache = getattr(self, "_ml_paint_cache", None)
+        cache = getattr(self.model, "_ml_label_count_cache", None)
         if not cache:
             return
         if path_image is None:
@@ -476,24 +434,11 @@ class MLEvents(Events):
         return dropped
 
     def _ml_refresh_stats(self):
-        annotated_images  = 0
-        total_annotations = 0
-
-        for file_path in self.model.file_paths:
-            image_item = self.model.image_items.get(file_path)
-            if not image_item:
-                continue
-
-            rect_count    = len(image_item.image_rectangles)
-            ellipse_count = len(image_item.image_ellipses)
-            polygon_count = len(image_item.image_polygons)
-            paint_instances = self._ml_count_paint_instances(image_item)
-
-            image_total = (rect_count + ellipse_count +
-                           polygon_count + paint_instances)
-            if image_total > 0:
-                annotated_images  += 1
-                total_annotations += image_total
+        # Every image of the project: only the loaded ones used to be
+        # counted, so the panel said 0 right after opening a project or
+        # after a training (which released the images).
+        annotated_images, total_annotations = \
+            self.model.ml_annotation_counts()
 
         model_status = self._ml_model_badge(self.model.ml_model_info())
 

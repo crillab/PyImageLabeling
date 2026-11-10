@@ -152,7 +152,7 @@ def reset_app(controller, view, model):
     model.tile_size = 512
     model.tile_overlap = 128
     model.tile_scale = 1.0
-    controller._ml_paint_cache = {}
+    model._ml_label_count_cache = {}
     controller._al_ranking = None
     controller._al_pos = -1
     try:

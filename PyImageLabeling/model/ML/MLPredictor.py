@@ -1026,6 +1026,68 @@ class MLPredictor(Base):
         ml_log(f"Segmentation data: {len(segmentation_data)} images")
         return segmentation_data
 
+    def ml_annotation_counts(self):
+        """(annotated images, annotations) of the whole project.
+
+        An annotation is a shape, or a label painted on an image. Loaded
+        images are asked directly (unsaved strokes included); the others
+        are counted from what the project files gave at load time (shapes,
+        mask index), without decoding any mask: an image that is not loaded
+        is not an unannotated one.
+        """
+        from PyImageLabeling.model.Masks import (
+            IMAGE_EXTENSIONS, KEYWORD_SAVE_LABEL, image_base_from_mask_name)
+        by_name, by_stem = {}, {}
+        for key, loaded in self.labeling_overview_was_loaded.items():
+            if loaded is not False or KEYWORD_SAVE_LABEL not in key:
+                continue   # loaded masks are counted from their overlays
+            left, _, right = key.rpartition(KEYWORD_SAVE_LABEL)
+            try:
+                label_id = int(right.split(".")[0])
+            except ValueError:
+                continue
+            if label_id not in self.label_items:
+                continue
+            if left.lower().endswith(IMAGE_EXTENSIONS):
+                by_name.setdefault(left, set()).add(label_id)
+            else:
+                by_stem.setdefault(image_base_from_mask_name(key),
+                                   set()).add(label_id)
+
+        images = total = 0
+        for file_path in self.file_paths:
+            count = sum(len(shapes) for shapes in self._image_shapes(file_path))
+            image_item = self.image_items.get(file_path)
+            if image_item is not None:
+                count += self._painted_label_count(image_item)
+            else:
+                name = os.path.basename(file_path)
+                stem = name.rsplit(".", 1)[0] if "." in name else name
+                count += len(by_name.get(name) or by_stem.get(stem) or ())
+            if count:
+                images += 1
+                total  += count
+        return images, total
+
+    def _painted_label_count(self, image_item):
+        """Labels painted on a loaded image. A full pass over each overlay,
+        so cached until the overlays of that image change."""
+        stamp = tuple(
+            (label_id, id(overlay.labeling_overlay_pixmap),
+             overlay.get_is_edited(), overlay.get_is_undo_none())
+            for label_id, overlay in image_item.labeling_overlays.items())
+        cache = self.__dict__.setdefault("_ml_label_count_cache", {})
+        hit = cache.get(image_item.path_image)
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        count = 0
+        for overlay in image_item.labeling_overlays.values():
+            painted = self._overlay_painted(overlay)
+            if painted is not None and painted.any():
+                count += 1
+        cache[image_item.path_image] = (stamp, count)
+        return count
+
     def ml_training_image_counts(self, selected_paths=None):
         """(images with shapes, images with painted pixels), cheaply: no
         mask is decoded (a mask file counts as painted)."""
