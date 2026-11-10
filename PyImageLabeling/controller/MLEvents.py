@@ -51,57 +51,22 @@ class MLEvents(Events):
         selected_paths = getattr(self, '_ml_selected_image_paths', None)
 
         # ----------------------------------------------------------------
-        # Load images that are not yet in memory — with a blocking progress bar
+        # Quick data check before committing to training. Images are not
+        # loaded for it any more: the training reads the masks of the
+        # images that are not loaded from their files.
         # ----------------------------------------------------------------
-        if selected_paths:
-            paths_to_load = [p for p in selected_paths
-                             if self.model.image_items.get(p) is None]
+        n_detection, n_segmentation = self.model.ml_training_image_counts(
+            selected_paths)
+        log.info(f"Found: {n_detection} detection images, "
+                 f"{n_segmentation} segmentation images")
 
-            if paths_to_load:
-                load_progress = QProgressDialog(
-                    "Loading images into memory…", None,
-                    0, len(paths_to_load), self.view)
-                load_progress.setWindowTitle("Loading Images")
-                load_progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-                load_progress.setMinimumDuration(0)
-                load_progress.setAutoClose(False)
-                load_progress.setAutoReset(False)
-                load_progress.setCancelButton(None)
-                load_progress.resize(420, 100)
-                load_progress.show()
-
-                for i, path in enumerate(paths_to_load):
-                    fname = os.path.basename(path)
-                    load_progress.setLabelText(
-                        f"Loading image {i+1}/{len(paths_to_load)}\n{fname}")
-                    load_progress.setValue(i)
-                    # Force the dialog to repaint before the (blocking) load
-                    from PyQt6.QtWidgets import QApplication
-                    QApplication.processEvents()
-                    self.model.load_image_for_training(path)
-
-                load_progress.setValue(len(paths_to_load))
-                load_progress.close()
-
-        # ----------------------------------------------------------------
-        # Quick data check before committing to training
-        # ----------------------------------------------------------------
-        detection_data    = self.model.collect_training_data(selected_paths)
-        segmentation_data = []
-        if hasattr(self.model, 'collect_segmentation_data'):
-            segmentation_data = self.model.collect_segmentation_data(selected_paths)
-
-        total_data = len(detection_data) + len(segmentation_data)
-        log.info(f"Collected: {len(detection_data)} detection images, "
-                 f"{len(segmentation_data)} segmentation images")
-
-        if total_data < 1:
+        if n_detection + n_segmentation < 1:
             QMessageBox.warning(
                 self.view, "Insufficient Data",
                 f"Please annotate at least 1 image before training.\n\n"
                 f"Found:\n"
-                f"  - {len(detection_data)} images with geometric shapes\n"
-                f"  - {len(segmentation_data)} images with painted pixels"
+                f"  - {n_detection} images with geometric shapes\n"
+                f"  - {n_segmentation} images with painted pixels"
             )
             return
 

@@ -848,24 +848,38 @@ class MLPredictor(Base):
     # Data collection
     # ------------------------------------------------------------------
 
+    def _image_shapes(self, file_path):
+        """(rectangles, ellipses, polygons) of an image, loaded or not.
+
+        An image that is not loaded keeps the shapes read from the project
+        files in left_* (moved into its ImageItem when it is loaded).
+        """
+        image_item = self.image_items.get(file_path)
+        if image_item is not None:
+            return (image_item.image_rectangles or [],
+                    image_item.image_ellipses or [],
+                    image_item.image_polygons or [])
+        base = os.path.basename(file_path)
+        return tuple(getattr(self, store, {}).get(base) or []
+                     for store in ("left_rectangles", "left_ellipses",
+                                   "left_polygons"))
+
     def collect_training_data(self, selected_paths=None):
         training_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
 
         for file_path in paths:
-            image_item = self.image_items.get(file_path)
-            if image_item is None:
-                continue
+            rectangles, ellipses, polygons = self._image_shapes(file_path)
             annotations = []
-            for r in image_item.image_rectangles:
+            for r in rectangles:
                 annotations.append((r.get('x',0), r.get('y',0),
                                      r.get('width',0), r.get('height',0),
                                      r.get('label_id',0)))
-            for e in image_item.image_ellipses:
+            for e in ellipses:
                 annotations.append((e.get('x',0), e.get('y',0),
                                      e.get('width',0), e.get('height',0),
                                      e.get('label',0)))
-            for p in image_item.image_polygons:
+            for p in polygons:
                 pts = p.get('points', [])
                 lid = p.get('label_id', 0)
                 if pts:
@@ -878,47 +892,101 @@ class MLPredictor(Base):
 
         return training_data
 
+    def _mask_files(self, file_path):
+        """{label_id: mask path} of an image that is not loaded."""
+        from PyImageLabeling.model.Masks import indexed_mask_key
+        was_loaded = self.labeling_overview_was_loaded
+        paths = self.labeling_overview_file_paths
+        found = {}
+        for label_id in self.label_items:
+            key = indexed_mask_key(file_path, label_id, was_loaded, paths)
+            if key is not None and key in paths:
+                found[label_id] = paths[key]
+        return found
+
+    @staticmethod
+    def _overlay_painted(overlay):
+        """Painted pixels of a loaded overlay (boolean array), or None."""
+        pix = overlay.labeling_overlay_pixmap
+        if pix is None or pix.isNull():
+            return None
+        qimg = pix.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        ptr  = qimg.bits()
+        ptr.setsize(qimg.sizeInBytes())
+        arr  = np.frombuffer(ptr, dtype=np.uint8).reshape(
+                   (qimg.height(), qimg.width(), 4))
+        return arr[:, :, 3] > 30
+
+    def _painted_masks(self, file_path):
+        """[(label_id, painted boolean array)] of one image.
+
+        A loaded image is read from its overlays (they hold the strokes
+        that are not saved yet); any other image from its mask files, so
+        that training does not have to load every image (and build a
+        full-size ARGB overlay per label) just to read its masks.
+        """
+        image_item = self.image_items.get(file_path)
+        if image_item is not None:
+            if not hasattr(image_item, 'labeling_overlays'):
+                return []
+            return [(label_id, self._overlay_painted(overlay))
+                    for label_id, overlay
+                    in image_item.labeling_overlays.items()]
+        from PyImageLabeling.model.Masks import read_painted_mask
+        return [(label_id, read_painted_mask(path))
+                for label_id, path in self._mask_files(file_path).items()]
+
     def collect_segmentation_data(self, selected_paths=None):
+        """[(image path, mask)]: per pixel, the label id painted there, or
+        255 where nothing is painted."""
         segmentation_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
         ml_log("Collecting segmentation data")
 
         for file_path in paths:
-            image_item = self.image_items.get(file_path)
-            if image_item is None or not hasattr(image_item, 'labeling_overlays'):
-                continue
-            img = cv2.imread(file_path)
-            if img is None:
-                continue
-            height, width   = img.shape[:2]
-            combined_mask   = np.full((height, width), 255, dtype=np.uint8)
-            colors_found    = {}
-
-            for label_id, overlay in image_item.labeling_overlays.items():
-                pix = overlay.labeling_overlay_pixmap
-                if pix is None or pix.isNull():
+            combined_mask = None
+            for label_id, painted in self._painted_masks(file_path):
+                if painted is None:
                     continue
-                qimg = pix.toImage().convertToFormat(QImage.Format.Format_ARGB32)
-                ptr  = qimg.bits()
-                ptr.setsize(qimg.sizeInBytes())
-                arr  = np.frombuffer(ptr, dtype=np.uint8).reshape(
-                           (qimg.height(), qimg.width(), 4))
-                painted = arr[:, :, 3] > 30
-                if painted.shape != (height, width):
+                if combined_mask is None:
+                    combined_mask = np.full(painted.shape, 255, dtype=np.uint8)
+                elif painted.shape != combined_mask.shape:
+                    h, w = combined_mask.shape
                     painted = cv2.resize(
                         painted.astype(np.uint8) * 255,
-                        (width, height), interpolation=cv2.INTER_NEAREST) > 0
+                        (w, h), interpolation=cv2.INTER_NEAREST) > 0
                 cnt = np.count_nonzero(painted)
                 if cnt > 0:
                     combined_mask[painted] = label_id
-                    colors_found[label_id] = cnt
                     ml_log(f"  Label {label_id}: {cnt} painted pixels")
-
-            if colors_found:
+            if combined_mask is not None and (combined_mask != 255).any():
                 segmentation_data.append((file_path, combined_mask))
 
         ml_log(f"Segmentation data: {len(segmentation_data)} images")
         return segmentation_data
+
+    def ml_training_image_counts(self, selected_paths=None):
+        """(images with shapes, images with painted pixels), cheaply: no
+        mask is decoded (a mask file counts as painted)."""
+        paths = selected_paths if selected_paths is not None else self.file_paths
+        n_det = n_seg = 0
+        for file_path in paths:
+            if any(self._image_shapes(file_path)):
+                n_det += 1
+            image_item = self.image_items.get(file_path)
+            if image_item is None:
+                if self._mask_files(file_path):
+                    n_seg += 1
+                continue
+            has_paint = getattr(self, "_has_painted_pixels", None)
+            if has_paint is not None:
+                painted = has_paint(image_item)
+            else:
+                painted = any(p is not None and p.any()
+                              for _, p in self._painted_masks(file_path))
+            if painted:
+                n_seg += 1
+        return n_det, n_seg
 
     # ------------------------------------------------------------------
     # Label helpers
