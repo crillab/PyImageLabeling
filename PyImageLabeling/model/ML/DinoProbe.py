@@ -75,10 +75,15 @@ class DinoLinearProbe:
             self.head = torch.nn.Conv2d(
                 self.feat_dim, self.num_classes, 1).to(self.device)
 
-    def fit(self, items, epochs, lr, log=None, epoch_callback=None):
-        """items: [(image_path, mask_orig_ids)]. Returns (best_loss, history)."""
-        feats = [(self.encode_path(p), self.mask_to_target(m))
-                 for p, m in items]
+    def fit(self, items, epochs, lr, log=None, epoch_callback=None,
+            cancel_check=None):
+        """items: [(image_path, mask_orig_ids)]. Returns (best_loss, history).
+        `cancel_check`, called before each image, raises to stop."""
+        check = cancel_check or (lambda: None)
+        feats = []
+        for p, m in items:
+            check()
+            feats.append((self.encode_path(p), self.mask_to_target(m)))
         self._ensure_head()
         opt = torch.optim.AdamW(self.head.parameters(), lr=lr)
         self.head.train()
@@ -86,6 +91,7 @@ class DinoLinearProbe:
         for ep in range(epochs):
             tot = 0.0
             for f, m in feats:
+                check()
                 opt.zero_grad()
                 loss = F.cross_entropy(
                     self.head(f.unsqueeze(0).to(self.device)),
@@ -121,7 +127,7 @@ class DinoLinearProbe:
         return cls.cpu().numpy().astype(np.uint8), conf.cpu().numpy()
 
     @torch.no_grad()
-    def evaluate(self, items):
+    def evaluate(self, items, cancel_check=None):
         """Same inter/union mIoU shape as MLPredictor.evaluate_model."""
         self._ensure_head()
         out = {}
@@ -129,6 +135,8 @@ class DinoLinearProbe:
         inter = torch.zeros(self.num_classes)
         union = torch.zeros(self.num_classes)
         for p, m in items:
+            if cancel_check is not None:
+                cancel_check()
             logits = self.head(
                 self.encode_path(p).unsqueeze(0).to(self.device))
             tgt = self.mask_to_target(m).unsqueeze(0).to(self.device)

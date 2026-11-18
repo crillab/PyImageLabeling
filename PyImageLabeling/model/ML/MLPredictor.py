@@ -4,6 +4,7 @@ from PyQt6.QtGui import QPen, QColor, QBrush, QPixmap, QImage
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 import os
+import threading
 import time
 import cv2
 import re
@@ -363,20 +364,34 @@ def _build_backbone(backbone_name: str, pretrained: bool):
 # Background training thread
 # ---------------------------------------------------------------------------
 
+class TrainingCancelled(BaseException):
+    """Raised in the training thread once the user has cancelled. A
+    BaseException, like asyncio's CancelledError: the `except Exception`
+    around the validation or the stats must not swallow it."""
+
+
 class TrainingWorker(QThread):
     progress   = pyqtSignal(str)            # log messages  → console
     status     = pyqtSignal(str)            # what is going on → dialog text
     epoch_done = pyqtSignal(int, int, float) # current, total, loss → progress bar
     stats      = pyqtSignal(object)         # settings, data, epoch figures → dialog
     finished   = pyqtSignal()
+    cancelled  = pyqtSignal()
     error      = pyqtSignal(str)
 
     def __init__(self, predictor, selected_paths=None):
         super().__init__()
         self.predictor      = predictor
         self.selected_paths = selected_paths
+        self.cancel_event   = threading.Event()
+
+    def cancel(self):
+        """Ask the training to stop (it does at its next batch or image).
+        Called from the GUI thread."""
+        self.cancel_event.set()
 
     def run(self):
+        cancelled = False
         try:
             self.predictor.train_model_core(
                 selected_paths  = self.selected_paths,
@@ -384,11 +399,19 @@ class TrainingWorker(QThread):
                 log_callback    = self.progress.emit,
                 status_callback = self.status.emit,
                 stats_callback  = self.stats.emit,
+                cancel_event    = self.cancel_event,
             )
             self.finished.emit()
+        except TrainingCancelled:
+            cancelled = True
         except Exception as e:
             import traceback
             self.error.emit(f"{e}\n{traceback.format_exc()}")
+        # out of the except block: the traceback, which holds the network
+        # and the batches of the stopped training, is gone before the GUI
+        # thread releases the GPU memory
+        if cancelled:
+            self.cancelled.emit()
 
 
 # ---------------------------------------------------------------------------
@@ -840,7 +863,8 @@ class MLPredictor(Base):
         if probe is not None and getattr(self, "model", None) is None:
             try:
                 return probe.evaluate(
-                    list(getattr(self, "_probe_val_items", None) or []))
+                    list(getattr(self, "_probe_val_items", None) or []),
+                    cancel_check=self._check_cancel)
             except Exception as e:
                 ml_log(f"[eval] probe validation failed: {e}", force=True)
                 return {}
@@ -853,6 +877,7 @@ class MLPredictor(Base):
         if det_val is not None:
             total, n = 0.0, 0
             for images, targets in det_val:
+                self._check_cancel()
                 images = images.to(self.device)
                 loss, _ = self._detection_batch_loss(
                     images, targets, num_classes)
@@ -870,6 +895,7 @@ class MLPredictor(Base):
             inter = torch.zeros(num_classes)
             union = torch.zeros(num_classes)
             for images, masks in seg_val:
+                self._check_cancel()
                 images = images.to(self.device)
                 masks  = masks.to(self.device)
                 _, _, _, seg_pred = self.model(images)
@@ -1014,6 +1040,7 @@ class MLPredictor(Base):
         ml_log("Collecting segmentation data")
 
         for file_path in paths:
+            self._check_cancel()
             combined_mask = None
             for label_id, painted in self._painted_masks(file_path):
                 if painted is None:
@@ -1143,7 +1170,8 @@ class MLPredictor(Base):
 
     def train_model_core(self, selected_paths=None,
                          epoch_callback=None, log_callback=None,
-                         status_callback=None, stats_callback=None):
+                         status_callback=None, stats_callback=None,
+                         cancel_event=None):
         """Train a model on the annotated images.
 
         `stats_callback`, when given, receives dicts for the training dialog:
@@ -1151,7 +1179,28 @@ class MLPredictor(Base):
         what the train images hold) and {"kind": "epoch", ...} after each
         epoch (losses, reference loss, accuracy and IoU on the training
         batches, tiles holding each class, time, GPU memory).
+
+        Once `cancel_event` (a threading.Event) is set, the training stops
+        at its next batch or image by raising TrainingCancelled; the caller
+        then drops what was trained (ml_clear_trained_state).
         """
+        self._cancel_event = cancel_event
+        try:
+            self._train(selected_paths, epoch_callback, log_callback,
+                        status_callback, stats_callback)
+        finally:
+            # evaluate_model() and the data readers also run outside a
+            # training: they must not see this one's cancellation
+            self._cancel_event = None
+
+    def _check_cancel(self):
+        """Stop the training here if the user has cancelled it."""
+        event = getattr(self, "_cancel_event", None)
+        if event is not None and event.is_set():
+            raise TrainingCancelled()
+
+    def _train(self, selected_paths, epoch_callback, log_callback,
+               status_callback, stats_callback):
         self._stats_callback = stats_callback
 
         def log(msg):
@@ -1259,7 +1308,8 @@ class MLPredictor(Base):
             best, _ = self.probe.fit(
                 list(seg_train), self.num_epochs,
                 getattr(self, "learning_rate", 0.001),
-                log=log, epoch_callback=epoch_callback)
+                log=log, epoch_callback=epoch_callback,
+                cancel_check=self._check_cancel)
             self.model = None
             self.trained = True
             # trained in this session, so it exists in memory only
@@ -1373,6 +1423,7 @@ class MLPredictor(Base):
             enable_segmentation=has_segmentation,
             backbone_name=backbone)
         self.model = self.model.to(self.device)
+        self._check_cancel()        # loading the weights takes a moment
         if self.tiling is not None:
             self._check_tile_size(self.tiling["tile_size"])
 
@@ -1413,6 +1464,7 @@ class MLPredictor(Base):
             if detection_loader:
                 total_obj = total_bbox = total_cls = 0.0
                 for images, targets in detection_loader:
+                    self._check_cancel()
                     images = images.to(self.device)
                     optimizer.zero_grad()
 
@@ -1534,6 +1586,7 @@ class MLPredictor(Base):
             for orig, c in self.label_id_to_class.items():
                 lut[int(orig)] = c
             for _, mask in seg_train:
+                self._check_cancel()
                 counts = np.bincount(np.asarray(mask).ravel(), minlength=256)
                 for orig in np.nonzero(counts)[0]:
                     c = int(lut[orig])
@@ -1625,6 +1678,7 @@ class MLPredictor(Base):
         items = list(seg_train) + list(seg_val)
         sources = []
         for i, (path, mask) in enumerate(items):
+            self._check_cancel()
             status(f"Preparing the tiles…\nimage {i + 1}/{len(items)}")
             source = cache.add(path, lut[mask], point_classes)
             if source is None:
@@ -1729,6 +1783,7 @@ class MLPredictor(Base):
         """
         total, steps, fitted = 0.0, 0, None
         for images, masks in loader:
+            self._check_cancel()
             images = images.to(self.device)
             masks  = masks.to(self.device)
             loss, n, fit = self._seg_steps(images, masks, optimizer,
@@ -1808,6 +1863,7 @@ class MLPredictor(Base):
             h, w = source.shape
             grid = Tiling.tile_grid(h, w, t["tile_size"], t["overlap"])
             for tiles, batch in self._tile_batches(source.image, grid):
+                self._check_cancel()
                 logits = self._seg_logits(tiles)
                 target = np.stack([
                     Tiling.crop(source.mask, y0, x0, t["tile_size"], ignore)
@@ -1925,7 +1981,10 @@ class MLPredictor(Base):
         self._training_worker.progress.connect(self._on_training_log)
         self._training_worker.status.connect(self._on_training_status)
         self._training_worker.finished.connect(self._on_training_finished)
+        self._training_worker.cancelled.connect(self._on_training_cancelled)
         self._training_worker.error.connect(self._on_training_error)
+        self._progress_dialog.cancel_requested.connect(
+            self._training_worker.cancel)
         self._training_worker.start()
 
     def _on_epoch_done(self, current, total, loss):
@@ -1963,6 +2022,21 @@ class MLPredictor(Base):
         if probe is not None:
             return probe.num_classes
         return "?"
+
+    def _on_training_cancelled(self):
+        # nothing of a cancelled training is kept (the previous model was
+        # already dropped when it started); frees its GPU memory too
+        self.ml_clear_trained_state()
+        try:
+            self.controller.ml_update_status()
+        except Exception:
+            pass
+        self._progress_dialog.cancelled()
+        try:
+            self.controller.view.statusBar().showMessage(
+                "Training cancelled", 5000)
+        except Exception:
+            pass
 
     def _on_training_error(self, error_msg):
         self._progress_dialog.fail()

@@ -51,8 +51,10 @@ def test_stats_of_a_training_on_whole_images(project, workspace):
     assert epochs and all(s["inputs"] == 4 for s in epochs)
 
 
-def test_dialog_shows_the_figures_and_stays_open_at_the_end(project):
+def test_dialog_shows_the_figures_and_stays_open_at_the_end(project,
+                                                           monkeypatch):
     dialog = TrainingDialog(3)
+    monkeypatch.setattr(dialog, "_confirm_cancel", lambda: False)
     try:
         dialog.on_stats({
             "kind": "setup", "unit": "tiles", "input": "tiles of 512 px",
@@ -82,14 +84,16 @@ def test_dialog_shows_the_figures_and_stays_open_at_the_end(project):
         dialog.add_log("hello")
         assert "hello" in dialog.log_view.toPlainText()
 
-        # cannot be closed while training
-        assert not dialog.buttons.isEnabled()
+        # Cancel while training; answering "Continue" keeps it going
+        assert not dialog.cancel_button.isHidden()
+        assert dialog.close_button.isHidden()
         dialog.reject()
-        assert dialog.running
+        assert dialog.running and not dialog.cancelling
 
         dialog.finish({"seg_miou": 0.6, "seg_loss": 0.3,
                        "seg_iou": {0: 0.45, 1: 0.75}}, "segmentation", 2)
-        assert dialog.buttons.isEnabled()
+        assert dialog.cancel_button.isHidden()
+        assert not dialog.close_button.isHidden()
         assert dialog.table.item(0, 5).text() == "0.450"
         assert "mIoU <b>0.600</b>" in dialog.epoch_label.text()
         assert "on 1 image(s)" in dialog.epoch_label.text()

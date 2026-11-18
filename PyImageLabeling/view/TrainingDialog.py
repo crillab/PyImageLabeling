@@ -1,7 +1,7 @@
 """Window shown while a model trains: settings, what the training images
 hold, figures of each epoch, loss curve, and the full log on demand."""
 
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap, QIcon, QPolygonF
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QSizePolicy,
@@ -120,7 +121,13 @@ class LossCurve(QWidget):
 
 class TrainingDialog(QDialog):
     """Fed by the signals of the TrainingWorker: set_status(), add_log(),
-    on_epoch(), on_stats(); then finish() or fail()."""
+    on_epoch(), on_stats(); then finish(), cancelled() or fail().
+
+    Cancel (or Escape, or closing the window) asks for a confirmation, then
+    emits cancel_requested; the window closes once the training has
+    stopped (cancelled())."""
+
+    cancel_requested = pyqtSignal()
 
     COLUMNS = ("Label", "Train images", "Pixels", "Tiles holding it",
                "IoU (train)", "IoU (val)")
@@ -129,6 +136,7 @@ class TrainingDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Training Model")
         self.running = True
+        self.cancelling = False
         self.has_stats = False
         self.val_images = None
         self.classes = []
@@ -202,9 +210,16 @@ class TrainingDialog(QDialog):
         self.log_view.setVisible(False)
         layout.addWidget(self.log_view, 1)
 
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        # Cancel while it trains, Close once it is over
+        self.buttons = QDialogButtonBox()
+        self.cancel_button = self.buttons.addButton(
+            QDialogButtonBox.StandardButton.Cancel)
+        self.cancel_button.setToolTip(
+            "Stop the training. Nothing of it is kept.")
+        self.close_button = self.buttons.addButton(
+            QDialogButtonBox.StandardButton.Close)
+        self.close_button.setVisible(False)
         self.buttons.rejected.connect(self.reject)
-        self.buttons.setEnabled(False)
         layout.addWidget(self.buttons)
 
         self.setMinimumWidth(560)
@@ -213,7 +228,7 @@ class TrainingDialog(QDialog):
     # ---- worker signals -------------------------------------------------
 
     def set_status(self, text):
-        self.status_label.setText(text)
+        self._status(text)
 
     def add_log(self, message):
         self.log_view.appendPlainText(message)
@@ -223,7 +238,7 @@ class TrainingDialog(QDialog):
         (DINOv2 probe) gets the loss and its curve from here."""
         self.progress.setRange(0, total)
         self.progress.setValue(current)
-        self.status_label.setText(f"Epoch {current}/{total}")
+        self._status(f"Epoch {current}/{total}")
         if not self.has_stats:
             self.epoch_label.setText(f"<b>Loss</b> {loss:.4f}")
             self.curve.setVisible(True)
@@ -263,24 +278,71 @@ class TrainingDialog(QDialog):
                                  + "<br>".join(lines))
         for c, iou in (vm.get("seg_iou") or {}).items():
             self._set_cell(c, 5, f"{iou:.3f}")
-        self.buttons.setEnabled(True)
+        self._stopped()
+
+    def cancelled(self):
+        """The training has stopped after a cancel: nothing to show."""
+        self._stopped()
+        self.close()
 
     def fail(self):
-        self.running = False
-        self.buttons.setEnabled(True)
+        self._stopped()
         self.close()
 
     def closeEvent(self, event):
         if self.running:
-            event.ignore()          # the training cannot be stopped
+            event.ignore()
+            self.request_cancel()
             return
         super().closeEvent(event)
 
     def reject(self):
-        if not self.running:
+        if self.running:
+            self.request_cancel()       # Cancel button, Escape
+        else:
             super().reject()
 
+    def request_cancel(self):
+        """Ask whether to stop the training; if so, tell the worker."""
+        if not self.running or self.cancelling:
+            return
+        if not self._confirm_cancel():
+            return
+        if not self.running:            # it ended while the question was up
+            return
+        self.cancelling = True
+        self.cancel_button.setEnabled(False)
+        self.status_label.setText(
+            "Cancelling… (the current step ends first)")
+        self.progress.setRange(0, 0)
+        self.cancel_requested.emit()
+
+    def _confirm_cancel(self):
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle("Cancel Training")
+        box.setText("Stop the training?")
+        box.setInformativeText("What has been trained so far is lost.")
+        stop = box.addButton("Stop Training",
+                             QMessageBox.ButtonRole.DestructiveRole)
+        keep = box.addButton("Continue Training",
+                             QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(keep)
+        box.exec()
+        return box.clickedButton() is stop
+
     # ---- internals ------------------------------------------------------
+
+    def _stopped(self):
+        self.running = False
+        self.cancel_button.setVisible(False)
+        self.close_button.setVisible(True)
+        self.close_button.setDefault(True)
+
+    def _status(self, text):
+        # queued figures of the last steps must not hide "Cancelling…"
+        if not self.cancelling:
+            self.status_label.setText(text)
 
     def _toggle_details(self, shown):
         self.details_button.setArrowType(
@@ -354,7 +416,7 @@ class TrainingDialog(QDialog):
         epoch, total = s["epoch"], s["total"]
         self.progress.setRange(0, total)
         self.progress.setValue(epoch)
-        self.status_label.setText(f"Epoch {epoch}/{total}")
+        self._status(f"Epoch {epoch}/{total}")
 
         lines = []
         loss = s.get("loss", 0.0)
