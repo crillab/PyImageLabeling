@@ -346,7 +346,7 @@ def test_settings_dialog_saves_the_tiles(project, monkeypatch):
 
     dialog = MLSetting(view.zoomable_graphics_view, model)
     dialog.whole_radio.setChecked(True)
-    assert not dialog.tile_spinbox.isEnabled()
+    assert dialog.tiles_box.isHidden()
     assert dialog.tiling_mode() == "off"
     dialog.accept()
     assert saved["ml"]["tiling"] == "off"
@@ -366,7 +366,44 @@ def test_settings_dialog_whole_image_by_default(project, monkeypatch):
     dialog = MLSetting(view.zoomable_graphics_view, model)
     try:
         assert dialog.whole_radio.isChecked()
-        assert not dialog.tile_spinbox.isEnabled()
+        assert dialog.tiles_box.isHidden()
+    finally:
+        dialog.reject()
+
+
+def test_settings_dialog_shows_segmentation_settings_only_when_enabled(
+        project, monkeypatch):
+    """The settings of the segmentation (head, input, tiles) are under its
+    box and show only when it is checked; those of the tiles only when
+    tiles are chosen."""
+    _, view, model, _ = project
+    from PyImageLabeling.controller.settings.MLSetting import MLSetting
+    from PyImageLabeling.model.Utils import Utils
+    real = Utils.load_parameters
+
+    def params():
+        data = real()
+        data.setdefault("ml", {}).update(enable_segmentation=True,
+                                         tiling="on")
+        return data
+    monkeypatch.setattr(Utils, "load_parameters", staticmethod(params))
+    dialog = MLSetting(view.zoomable_graphics_view, model)
+    try:
+        assert not dialog.seg_options.isHidden()
+        assert not dialog.tiles_box.isHidden()
+        for widget in (dialog.seg_combo, dialog.whole_radio,
+                       dialog.tile_spinbox, dialog.image_size_hint):
+            assert dialog.seg_options.isAncestorOf(widget)
+        # shown inside the dialog, not as windows of their own
+        assert not dialog.seg_options.isWindow()
+        assert not dialog.tiles_box.isWindow()
+
+        dialog.whole_radio.setChecked(True)
+        assert dialog.tiles_box.isHidden()
+        dialog.enable_seg_checkbox.setChecked(False)
+        assert dialog.seg_options.isHidden()
+        dialog.enable_seg_checkbox.setChecked(True)
+        assert not dialog.seg_options.isHidden()
     finally:
         dialog.reject()
 

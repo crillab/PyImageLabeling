@@ -159,25 +159,8 @@ class MLSetting(QDialog):
         train_group.setLayout(train_layout)
         main_layout.addWidget(train_group)
 
-        main_layout.addWidget(self._build_tiles_group(ml_params))
-
         model_group = QGroupBox("Model Options")
         model_layout = QVBoxLayout()
-
-        self.enable_seg_checkbox = QCheckBox("Enable Segmentation Head (paintbrush labels)")
-        self.enable_seg_checkbox.setChecked(ml_params.get("enable_segmentation", True))
-        self.enable_seg_checkbox.setToolTip(
-            "Train a segmentation head using painted pixel annotations.\n"
-            "Disable if you only have geometric shapes (rectangles, ellipses, polygons)."
-        )
-        model_layout.addWidget(self.enable_seg_checkbox)
-
-        self.enable_det_checkbox = QCheckBox("Enable Detection Head (geometric shape labels)")
-        self.enable_det_checkbox.setChecked(ml_params.get("enable_detection", True))
-        self.enable_det_checkbox.setToolTip(
-            "Train an object detection head using rectangle/ellipse/polygon annotations."
-        )
-        model_layout.addWidget(self.enable_det_checkbox)
 
         self.pretrained_checkbox = QCheckBox("Use Pretrained Backbone (ImageNet weights)")
         self.pretrained_checkbox.setChecked(ml_params.get("pretrained", True))
@@ -243,6 +226,34 @@ class MLSetting(QDialog):
         backbone_row.addStretch()
         model_layout.addLayout(backbone_row)
 
+        self.enable_det_checkbox = QCheckBox("Enable Detection Head (geometric shape labels)")
+        self.enable_det_checkbox.setChecked(ml_params.get("enable_detection", True))
+        self.enable_det_checkbox.setToolTip(
+            "Train an object detection head using rectangle/ellipse/polygon annotations.\n"
+            "Unchecked: the shapes are ignored by the training."
+        )
+        model_layout.addWidget(self.enable_det_checkbox)
+
+        self.enable_seg_checkbox = QCheckBox("Enable Segmentation Head (paintbrush labels)")
+        self.enable_seg_checkbox.setChecked(ml_params.get("enable_segmentation", True))
+        self.enable_seg_checkbox.setToolTip(
+            "Train a segmentation head using painted pixel annotations.\n"
+            "Unchecked: the painted pixels are ignored by the training.\n"
+            "Its settings are shown below it when it is checked."
+        )
+        model_layout.addWidget(self.enable_seg_checkbox)
+
+        # the settings of the segmentation, under its box, only when checked
+        self.seg_options = QWidget()
+        self.seg_options.setObjectName("ml_seg_options")
+        # plain containers: the group's colour, not the dark one style.css
+        # gives every QWidget
+        self.seg_options.setStyleSheet(
+            "#ml_seg_options, #ml_tiles_box "
+            "{ background-color: transparent; }")
+        seg_layout = QVBoxLayout(self.seg_options)
+        seg_layout.setContentsMargins(24, 0, 0, 0)
+
         # Segmentation head: ResNet (default) or frozen DINOv2 + linear probe
         seg_row = QHBoxLayout()
         seg_lbl = QLabel("Segmentation Head:")
@@ -265,7 +276,11 @@ class MLSetting(QDialog):
         seg_row.addWidget(seg_lbl)
         seg_row.addWidget(self.seg_combo)
         seg_row.addStretch()
-        model_layout.addLayout(seg_row)
+        seg_layout.addLayout(seg_row)
+
+        self._build_tiles_options(seg_layout, ml_params)
+        model_layout.addWidget(self.seg_options)
+        self.enable_seg_checkbox.toggled.connect(self._update_seg_options)
 
         model_group.setLayout(model_layout)
         main_layout.addWidget(model_group)
@@ -341,6 +356,11 @@ class MLSetting(QDialog):
         dialog_layout.setContentsMargins(0, 0, 0, 0)
         dialog_layout.addWidget(scroll_area)
         self.setLayout(dialog_layout)
+
+        # only now that every widget has a parent: showing one without
+        # would open it as a window of its own
+        self._update_seg_options()
+        self._update_tiles_box()
 
     def _setup_window_size(self):
         """Configure la taille de la fenêtre en fonction de l'écran"""
@@ -575,11 +595,10 @@ class MLSetting(QDialog):
             if self._image_has_labels(file_path, image_item, basename):
                 item.setCheckState(Qt.CheckState.Checked)
 
-    def _build_tiles_group(self, ml_params):
+    def _build_tiles_options(self, seg_layout, ml_params):
         """How a segmentation model sees the images: the whole image resized
-        to the Image Size, or tiles of it. The user chooses."""
-        group = QGroupBox("Segmentation Input")
-
+        to the Image Size, or tiles of it. The user chooses. Added to
+        `seg_layout`, under the segmentation box."""
         tiles = str(ml_params.get("tiling", "off")).lower() == "on"
         self.whole_radio = QRadioButton(
             "Whole image, resized to the Image Size")
@@ -597,9 +616,10 @@ class MLSetting(QDialog):
         self.tiling_group.addButton(self.whole_radio)
         self.tiling_group.addButton(self.tiles_radio)
 
-        # the settings of the tiles, under their button
-        tiles_box = QWidget()
-        layout = QVBoxLayout(tiles_box)
+        # the settings of the tiles, under their button, only for tiles
+        self.tiles_box = QWidget()
+        self.tiles_box.setObjectName("ml_tiles_box")
+        layout = QVBoxLayout(self.tiles_box)
         layout.setContentsMargins(24, 0, 0, 0)
 
         tile_row = QHBoxLayout()
@@ -657,22 +677,26 @@ class MLSetting(QDialog):
         scale_row.addStretch()
         layout.addLayout(scale_row)
 
-        outer = QVBoxLayout()
-        outer.addWidget(self.whole_radio)
-        outer.addWidget(self.tiles_radio)
-        outer.addWidget(tiles_box)
+        input_lbl = QLabel("Segmentation Input:")
+        input_lbl.setToolTip(
+            "How the segmentation model sees the images, for training and\n"
+            "prediction: the whole image resized, or tiles of it.")
+        seg_layout.addWidget(input_lbl)
+        inputs = QVBoxLayout()
+        inputs.setContentsMargins(16, 0, 0, 0)
+        inputs.addWidget(self.whole_radio)
+        inputs.addWidget(self.tiles_radio)
+        inputs.addWidget(self.tiles_box)
         self.image_size_hint = QLabel()
         self.image_size_hint.setWordWrap(True)
-        outer.addWidget(self.image_size_hint)
-        group.setLayout(outer)
+        inputs.addWidget(self.image_size_hint)
+        seg_layout.addLayout(inputs)
 
-        self.tiles_radio.toggled.connect(self._update_tiles_enabled)
+        self.tiles_radio.toggled.connect(self._update_tiles_box)
         self.tile_spinbox.valueChanged.connect(self._update_image_size_hint)
         self.scale_combo.currentIndexChanged.connect(
             self._update_image_size_hint)
         self._largest_image = self._largest_image_size()
-        self._update_tiles_enabled()
-        return group
 
     def tiling_mode(self):
         """"on" (tiles) or "off" (whole image), as saved in the parameters."""
@@ -712,11 +736,13 @@ class MLSetting(QDialog):
     def _update_overlap_range(self):
         self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
 
-    def _update_tiles_enabled(self):
-        enabled = self.tiles_radio.isChecked()
-        for widget in (self.tile_spinbox, self.overlap_spinbox,
-                       self.scale_combo):
-            widget.setEnabled(enabled)
+    def _update_seg_options(self):
+        """The segmentation settings show only when it is enabled."""
+        self.seg_options.setVisible(self.enable_seg_checkbox.isChecked())
+
+    def _update_tiles_box(self):
+        """The tile settings show only when tiles are chosen."""
+        self.tiles_box.setVisible(self.tiles_radio.isChecked())
         self._update_image_size_hint()
 
     def _deselect_all(self):
