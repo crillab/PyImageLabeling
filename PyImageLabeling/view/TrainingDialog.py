@@ -141,6 +141,7 @@ class TrainingDialog(QDialog):
         self.cancelling = False
         self.has_stats = False
         self.val_images = None
+        self.stopped = None
         self.classes = []
         self.rows = {}
 
@@ -258,6 +259,8 @@ class TrainingDialog(QDialog):
             self._show_setup(stats)
         elif kind == "epoch":
             self._show_epoch(stats)
+        elif kind == "stopped":
+            self.stopped = stats
 
     # ---- end ------------------------------------------------------------
 
@@ -268,6 +271,14 @@ class TrainingDialog(QDialog):
         self.status_label.setText("Training complete")
         vm = val_metrics or {}
         lines = [f"Mode: {mode} · {num_classes} classes"]
+        if self.stopped:
+            st = self.stopped
+            stop = (f"Stopped at epoch {st['epoch']}/{st['total']} "
+                    f"(no progress for {st['patience']} epochs)"
+                    if st["epoch"] < st["total"] else
+                    f"All {st['total']} epochs")
+            lines.append(f"{stop}: weights of epoch <b>{st['best_epoch']}"
+                         f"</b> kept, the best on the validation")
         bits = []
         if "seg_miou" in vm:
             text = f"mIoU of the labels <b>{vm['seg_miou']:.3f}</b>"
@@ -376,7 +387,9 @@ class TrainingDialog(QDialog):
             f"<b>Loss:</b> {s.get('loss') or 'cross-entropy'}",
             f"<b>Backbone:</b> {s.get('backbone', '?')} ({pretrained}) · "
             f"{s.get('device', '?')}",
-            f"<b>Epochs</b> {s.get('epochs', '?')} · <b>Batch</b> "
+            f"<b>Epochs</b> {s.get('epochs', '?')}"
+            + (f" (patience {s['patience']})" if s.get("patience") else "")
+            + f" · <b>Batch</b> "
             f"{s.get('batch', '?')} · <b>Learning rate</b> {s.get('lr', 0):g}",
         ]
         images = (f"<b>Images:</b> {s.get('train_images', '?')} train / "
@@ -465,6 +478,17 @@ class TrainingDialog(QDialog):
         if s.get("pixel_accuracy") is not None:
             lines.append(f"Pixel accuracy (training inputs) "
                          f"{100 * s['pixel_accuracy']:.1f} %")
+        if s.get("val_score") is not None:
+            if s.get("val_metric") == "det_loss":
+                now = f"detection loss {-s['val_score']:.4f}"
+                best = f"{-s['best_score']:.4f}"
+            else:
+                now = f"mIoU of the labels {s['val_score']:.3f}"
+                best = f"{s['best_score']:.3f}"
+            lines.append(
+                f"<b>Validation</b> {now} — best {best} at epoch "
+                f"{s['best_epoch']} · {s['waited']}/{s['patience']} "
+                f"epoch(s) without progress")
         timing = [f"{format_duration(s.get('seconds', 0))} per epoch"]
         if epoch < total:
             timing.append(f"about {format_duration(s.get('seconds', 0) * (total - epoch))} left")
@@ -484,6 +508,8 @@ class TrainingDialog(QDialog):
             self._set_cell(c, self.SEEN, f"{100 * share:.1f} %")
         for c, iou in (s.get("train_iou") or {}).items():
             self._set_cell(c, self.IOU_TRAIN, f"{iou:.3f}")
+        for c, iou in (s.get("val_iou") or {}).items():
+            self._set_cell(c, self.IOU_VAL, f"{iou:.3f}")
 
         self.curve.setVisible(True)
         self.curve.add(shown if shown is not None else loss, reference)

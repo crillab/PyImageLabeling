@@ -948,6 +948,85 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 # Main predictor
 # ---------------------------------------------------------------------------
 
+class _EarlyStopping:
+    """Stops a training when the validation has not improved for
+    `patience` epochs, and keeps the weights of its best epoch. Watched:
+    the mIoU of the labels (background left out), or the detection loss
+    of a detection-only training."""
+
+    MIN_GAIN = 1e-4
+
+    def __init__(self, patience):
+        self.patience = patience
+        self.best_score = None
+        self.best_epoch = None
+        self.best_metrics = None
+        self.best_state = None
+        self.metrics = None
+        self.last_epoch = None
+        self.waited = 0
+
+    @staticmethod
+    def score(metrics):
+        if "seg_miou" in metrics:
+            return metrics["seg_miou"]
+        if "det_loss" in metrics:
+            return -metrics["det_loss"]
+        return None
+
+    def update(self, epoch, metrics, model):
+        self.metrics, self.last_epoch = metrics or {}, epoch
+        score = self.score(self.metrics)
+        if score is None:
+            return
+        if self.best_score is None or score > self.best_score + self.MIN_GAIN:
+            self.best_score, self.best_epoch = score, epoch
+            self.best_metrics = dict(self.metrics)
+            # on the CPU: the GPU memory is the training's
+            self.best_state = {k: v.detach().to("cpu", copy=True)
+                               for k, v in model.state_dict().items()}
+            self.waited = 0
+        else:
+            self.waited += 1
+
+    def should_stop(self):
+        return bool(self.patience) and self.waited >= self.patience
+
+    def restore(self, model):
+        """Put the best weights back, if they are not the last ones."""
+        if self.best_state is None or self.best_epoch == self.last_epoch:
+            return False
+        model.load_state_dict(self.best_state)
+        return True
+
+    def describe(self, best=False):
+        metrics = self.best_metrics if best else self.metrics
+        if "seg_miou" in metrics:
+            text = f"mIoU (labels) {metrics['seg_miou']:.3f}"
+        elif "det_loss" in metrics:
+            text = f"detection loss {metrics['det_loss']:.4f}"
+        else:
+            return "n/a"
+        if not best and self.best_epoch is not None:
+            text += (f" | best epoch {self.best_epoch} | "
+                     f"{self.waited}/{self.patience} without progress")
+        return text
+
+    def stats(self):
+        """For the training window."""
+        if not self.patience or self.metrics is None:
+            return {}
+        out = {"patience": self.patience, "waited": self.waited,
+               "best_epoch": self.best_epoch,
+               "val_score": self.score(self.metrics),
+               "best_score": self.best_score,
+               "val_metric": ("miou" if "seg_miou" in self.metrics
+                              else "det_loss")}
+        if self.metrics.get("seg_iou"):
+            out["val_iou"] = dict(self.metrics["seg_iou"])
+        return out
+
+
 class MLPredictor(Base):
     def __init__(self):
         super().__init__()
@@ -1015,6 +1094,9 @@ class MLPredictor(Base):
         self.seg_decoder    = DEFAULT_SEG_DECODER
         # DINOv2 backbone: number of its last blocks trained (0 = frozen)
         self.finetune_blocks = 0
+        # epochs without progress on the validation before stopping (0 =
+        # off: all the epochs, validation at the end only)
+        self.patience = 0
         # ... and as used by the live model: None (whole image resized to
         # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
         self.tiling = None
@@ -1771,6 +1853,7 @@ class MLPredictor(Base):
 
         log(f"Device: {self.device} | Epochs: {self.num_epochs} | "
             f"Batch: {self.batch_size} | LR: {optimizer.param_groups[0]['lr']}")
+        stopper = _EarlyStopping(self._patience(log))
         status(f"Training…\nepoch 1/{self.num_epochs}")
         self._emit_stats(dict(
             getattr(self, "_train_summary", None) or {},
@@ -1784,6 +1867,7 @@ class MLPredictor(Base):
             backbone=self._network_description(),
             pretrained=pretrained,
             device=str(self.device), epochs=self.num_epochs,
+            patience=stopper.patience,
             batch=self.batch_size,
             lr=optimizer.param_groups[0]['lr']))
 
@@ -1847,18 +1931,40 @@ class MLPredictor(Base):
             if avg_loss < best_loss:
                 best_loss = avg_loss
 
+            if stopper.patience:
+                status(f"Epoch {epoch + 1}/{self.num_epochs}: "
+                       f"validation…")
+                stopper.update(epoch + 1, self.evaluate_model(), self.model)
+
             if epoch_callback:
                 epoch_callback(epoch + 1, self.num_epochs, avg_loss)
-            self._emit_stats(self._epoch_stats(
+            stats = self._epoch_stats(
                 epoch + 1, avg_loss, det_loss, seg_loss, seg_acc,
                 time.monotonic() - started,
                 segmentation_loader.batch_size if segmentation_loader
-                else None))
+                else None)
+            stats.update(stopper.stats())
+            self._emit_stats(stats)
 
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 log(f"Epoch [{epoch+1}/{self.num_epochs}] "
                     f"Loss: {avg_loss:.4f} | Obj: {avg_obj:.4f} | "
                     f"BBox: {avg_bbox:.4f} | Cls: {avg_cls:.4f}")
+            if stopper.patience and stopper.metrics is not None:
+                log(f"  validation {stopper.describe()}")
+            if stopper.should_stop():
+                log(f"Early stop at epoch {epoch + 1}: no progress on the "
+                    f"validation for {stopper.patience} epochs")
+                break
+
+        if stopper.restore(self.model):
+            log(f"Weights of epoch {stopper.best_epoch} kept (best "
+                f"validation: {stopper.describe(best=True)})")
+            self._emit_stats({"kind": "stopped",
+                              "epoch": stopper.last_epoch,
+                              "best_epoch": stopper.best_epoch,
+                              "total": self.num_epochs,
+                              "patience": stopper.patience})
 
         self.trained = True
         # trained in this session, so it exists in memory only
@@ -1870,7 +1976,10 @@ class MLPredictor(Base):
         # ---- held-out evaluation --------------------------------------
         status("Evaluating on the validation images…")
         try:
-            self.val_metrics = self.evaluate_model()
+            # with a patience, the kept weights are already evaluated
+            self.val_metrics = (dict(stopper.best_metrics)
+                                if stopper.best_metrics is not None
+                                else self.evaluate_model())
         except Exception as e:
             ml_log(f"[eval] validation failed: {e}", force=True)
             self.val_metrics = {}
@@ -1891,6 +2000,24 @@ class MLPredictor(Base):
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
+
+    def _patience(self, log):
+        """Patience of this training: 0 when off, or when there is no
+        validation to watch."""
+        try:
+            patience = max(0, int(getattr(self, "patience", 0) or 0))
+        except (TypeError, ValueError):
+            patience = 0
+        if not patience:
+            return 0
+        if not (getattr(self, "_seg_val_sources", None)
+                or getattr(self, "_seg_val_loader", None) is not None
+                or getattr(self, "_det_val_loader", None) is not None):
+            log("Patience ignored: no validation images (at least 5 "
+                "annotated images are needed to keep some aside)")
+            return 0
+        log(f"Patience: {patience} epochs (validation at every epoch)")
+        return patience
 
     def _old_dinov2_setting(self, log=None):
         """The former "DINOv2-linear" segmentation head (seg_backbone =
@@ -2405,7 +2532,10 @@ class MLPredictor(Base):
             self.finetune_blocks = max(0, int(ml.get("finetune_blocks", 0)))
         except (TypeError, ValueError):
             self.finetune_blocks = 0
-
+        try:
+            self.patience = max(0, int(ml.get("patience", 0)))
+        except (TypeError, ValueError):
+            self.patience = 0
         seg_loss = ml.get("seg_loss", SEG_LOSS_CE)
         self.seg_loss = seg_loss if seg_loss in SEG_LOSSES else SEG_LOSS_CE
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)

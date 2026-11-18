@@ -154,6 +154,33 @@ class MLSetting(QDialog):
         epochs_row.addStretch()
         train_layout.addLayout(epochs_row)
 
+        # Patience (early stopping)
+        patience_row = QHBoxLayout()
+        patience_lbl = QLabel("Patience:")
+        self.patience_spinbox = QSpinBox()
+        self.patience_spinbox.setRange(0, 500)
+        self.patience_spinbox.setSpecialValueText("0 (off)")
+        try:
+            self.patience_spinbox.setValue(int(ml_params.get("patience", 0)))
+        except (TypeError, ValueError):
+            self.patience_spinbox.setValue(0)
+        tip = (
+            "Stop the training when the validation has not improved for\n"
+            "this many epochs, and keep the weights of its best epoch.\n\n"
+            "Watched: the mIoU of the labels on the validation images\n"
+            "(background left out); the detection loss for a detection-only\n"
+            "model.\n\n"
+            "• 0 (off, default): all the epochs, validation at the end only.\n"
+            "• N > 0: validation at every epoch (each epoch takes longer).\n"
+            "  Needs at least 5 annotated images (validation split),\n"
+            "  ignored otherwise.")
+        patience_lbl.setToolTip(tip)
+        self.patience_spinbox.setToolTip(tip)
+        patience_row.addWidget(patience_lbl)
+        patience_row.addWidget(self.patience_spinbox)
+        patience_row.addStretch()
+        train_layout.addLayout(patience_row)
+
         # Batch size
         batch_row = QHBoxLayout()
         batch_row.addWidget(QLabel("Batch Size:"))
@@ -1320,6 +1347,7 @@ class MLSetting(QDialog):
             data["ml"] = {}
 
         data["ml"]["num_epochs"] = self.epochs_spinbox.value()
+        data["ml"]["patience"] = self.patience_spinbox.value()
         data["ml"]["batch_size"] = self.batch_spinbox.value()
         data["ml"]["learning_rate"] = self.lr_spinbox.value()
         data["ml"]["image_size"] = self.imgsize_combo.currentData()

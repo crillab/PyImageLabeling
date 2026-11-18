@@ -145,6 +145,7 @@ def reset_app(controller, view, model):
     model.backbone_name = DEFAULT_BACKBONE
     model.seg_decoder = DEFAULT_SEG_DECODER
     model.finetune_blocks = 0
+    model.patience = 0
     model.training_mode = None
     model.val_metrics = {}
     model._det_val_loader = None

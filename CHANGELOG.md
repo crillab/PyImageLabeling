@@ -31,6 +31,11 @@ version: the Release workflow refuses to publish a version without one.
   head (frozen DINOv2-S, whole image squeezed to 448 px) is now this backbone,
   frozen, with the linear decoder (an old setting is read that way), and can
   detect too. Its model files still load and predict.
+- *Patience* in the ML settings (0 = off, the default): the validation runs
+  at every epoch, the training stops after that many epochs without progress
+  of the mIoU of the labels (the detection loss for a detection-only model),
+  and the weights of the best epoch are kept. The training window shows the
+  validation of each epoch.
 - The training window shows what the training is made of and how it goes:
   the settings used (whole image or tiles, backbone, epochs, batch, learning
   rate, train/validation images), a table of the labels (training images and
