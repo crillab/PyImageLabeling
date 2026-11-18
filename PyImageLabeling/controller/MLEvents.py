@@ -560,7 +560,7 @@ class MLEvents(Events):
             self.model.nms_threshold        = mlsetting.nms_spinbox.value()
             # tiles of the next training (a trained model keeps its own)
             from PyImageLabeling.model.ML import Tiling
-            self.model.tiling_mode  = mlsetting.tiling_combo.currentData()
+            self.model.tiling_mode  = mlsetting.tiling_mode()
             self.model.tile_size    = Tiling.normalize_tile_size(
                 mlsetting.tile_spinbox.value())
             self.model.tile_overlap = Tiling.normalize_overlap(

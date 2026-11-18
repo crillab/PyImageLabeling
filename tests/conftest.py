@@ -148,7 +148,7 @@ def reset_app(controller, view, model):
     model.class_to_label_id = {}
     model.tiling = None
     model._seg_val_sources = None
-    model.tiling_mode = "auto"
+    model.tiling_mode = "off"
     model.tile_size = 512
     model.tile_overlap = 128
     model.tile_scale = 1.0

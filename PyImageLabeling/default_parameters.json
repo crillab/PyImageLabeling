@@ -60,7 +60,7 @@
         "confidence_threshold": 0.3,
         "nms_threshold": 0.4,
         "seg_backbone": "resnet",
-        "tiling": "auto",
+        "tiling": "off",
         "tile_size": 512,
         "tile_overlap": 128,
         "tile_scale": 1.0,

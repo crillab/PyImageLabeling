@@ -200,13 +200,36 @@ def test_training_and_prediction_by_tiles(project, workspace, monkeypatch):
     assert 0.0 <= model.al_uncertainty(paths[6]) <= 1.0
 
 
-def test_small_images_stay_whole_in_auto_mode(project, workspace):
+def test_whole_images_unless_tiles_are_chosen(project, workspace):
+    """No automatic choice: without "on", whatever the image size, the
+    whole image is resized (also for "auto", an early value of the
+    setting)."""
     _, _, model, paths = project
     _labelled_project(model, workspace, paths[:2])
-    _tiny_training(model, mode="auto", tile=512)
-    model.train_model_core()
+    _tiny_training(model, mode="off", tile=64)
+    logs = []
+    model.train_model_core(log_callback=logs.append)
     assert model.is_trained()
     assert model.tiling is None
+    assert any("whole images resized to 64 px" in m for m in logs)
+
+    model.tiling_mode = "auto"
+    assert model._resolve_tiling(
+        [("x", np.zeros((4096, 4096), np.uint8))], logs.append) is None
+
+
+def test_old_auto_parameter_means_whole_images(project, monkeypatch):
+    _, _, model, _ = project
+    from PyImageLabeling.model.Utils import Utils
+    real = Utils.load_parameters
+
+    def params():
+        data = real()
+        data.setdefault("ml", {})["tiling"] = "auto"
+        return data
+    monkeypatch.setattr(Utils, "load_parameters", staticmethod(params))
+    model._apply_ml_params()
+    assert model.tiling_mode == "off"
 
 
 def test_vit_backbones_get_224_px_tiles(project):
@@ -311,7 +334,7 @@ def test_settings_dialog_saves_the_tiles(project, monkeypatch):
     monkeypatch.setattr(Utils, "save_parameters",
                         staticmethod(lambda data: saved.update(data)))
     dialog = MLSetting(view.zoomable_graphics_view, model)
-    dialog.tiling_combo.setCurrentIndex(dialog.tiling_combo.findData("on"))
+    dialog.tiles_radio.setChecked(True)
     dialog.tile_spinbox.setValue(768)
     dialog.overlap_spinbox.setValue(600)          # more than half a tile
     dialog.scale_combo.setCurrentIndex(dialog.scale_combo.findData(0.5))
@@ -322,6 +345,49 @@ def test_settings_dialog_saves_the_tiles(project, monkeypatch):
             ml["tile_scale"]) == ("on", 768, 384, 0.5)
 
     dialog = MLSetting(view.zoomable_graphics_view, model)
-    dialog.tiling_combo.setCurrentIndex(dialog.tiling_combo.findData("off"))
+    dialog.whole_radio.setChecked(True)
     assert not dialog.tile_spinbox.isEnabled()
-    dialog.reject()
+    assert dialog.tiling_mode() == "off"
+    dialog.accept()
+    assert saved["ml"]["tiling"] == "off"
+
+
+def test_settings_dialog_whole_image_by_default(project, monkeypatch):
+    _, view, model, _ = project
+    from PyImageLabeling.controller.settings.MLSetting import MLSetting
+    from PyImageLabeling.model.Utils import Utils
+    real = Utils.load_parameters
+
+    def params():
+        data = real()
+        data.setdefault("ml", {}).pop("tiling", None)
+        return data
+    monkeypatch.setattr(Utils, "load_parameters", staticmethod(params))
+    dialog = MLSetting(view.zoomable_graphics_view, model)
+    try:
+        assert dialog.whole_radio.isChecked()
+        assert not dialog.tile_spinbox.isEnabled()
+    finally:
+        dialog.reject()
+
+
+def test_settings_dialog_hint_on_the_largest_image(project):
+    """The size of the largest image is shown, and tiles are recommended
+    only above twice the tile size: the mode itself is not changed."""
+    _, view, model, paths = project
+    from PyImageLabeling.controller.settings.MLSetting import MLSetting
+    dialog = MLSetting(view.zoomable_graphics_view, model)
+    try:
+        dialog.whole_radio.setChecked(True)
+        assert dialog._largest_image == (128, 128)    # the project images
+        dialog.tile_spinbox.setValue(512)
+        assert "128 × 128" in dialog.image_size_hint.text()
+        assert "recommended" not in dialog.image_size_hint.text()
+        dialog._largest_image = (4096, 3000)
+        dialog._update_image_size_hint()
+        assert "recommended" in dialog.image_size_hint.text()
+        dialog.scale_combo.setCurrentIndex(dialog.scale_combo.findData(0.25))
+        assert "recommended" not in dialog.image_size_hint.text()  # 4096 px
+        assert dialog.whole_radio.isChecked()
+    finally:
+        dialog.reject()

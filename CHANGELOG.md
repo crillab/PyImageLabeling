@@ -12,10 +12,13 @@ version: the Release workflow refuses to publish a version without one.
   random crops of the images (half of them on an annotated pixel, so that small
   classes are seen) and prediction slides a window of overlapping tiles over
   the image, each pixel being taken from the tile where it is the farthest
-  from the edge. Validation goes through the same sliding window. New *Large
-  Images* group in the ML settings: *Tiles* (Auto: only for images more than
-  twice the tile size / Always / Never), *Tile Size* (multiple of 32, default
-  512 px), *Overlap* (default 128 px) and *Resolution* (full, half, quarter).
+  from the edge. Validation goes through the same sliding window. New
+  *Segmentation Input* group in the ML settings: the user chooses *Whole
+  image* (resized to the Image Size, the default) or *Tiles*, with *Tile
+  Size* (multiple of 32, default 512 px), *Overlap* (default 128 px) and
+  *Resolution* (full, half, quarter). The group shows the size of the largest
+  image of the project and recommends tiles above twice the tile size, without
+  choosing for the user.
   Each epoch sees about a third of every image, whatever the tile size. The
   tiling is saved with the model; models saved before predict on the whole
   image, as they were trained. Detection is unchanged (whole image).

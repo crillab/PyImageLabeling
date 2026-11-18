@@ -724,7 +724,7 @@ class MLPredictor(Base):
         # Tiles (segmentation on large images), as set for the next
         # training: "auto" uses them when an image is more than twice the
         # tile size (after scaling), "on" always, "off" never.
-        self.tiling_mode  = "auto"
+        self.tiling_mode  = "off"
         self.tile_size    = Tiling.DEFAULT_TILE_SIZE
         self.tile_overlap = Tiling.DEFAULT_OVERLAP
         self.tile_scale   = 1.0
@@ -1449,12 +1449,13 @@ class MLPredictor(Base):
     # ------------------------------------------------------------------
 
     def _resolve_tiling(self, segmentation_data, log):
-        """Tiling of the coming training, from the settings and the images:
-        None (whole images) or {"tile_size", "overlap", "scale"}."""
-        mode = str(getattr(self, "tiling_mode", "auto")).lower()
-        if mode not in ("auto", "on", "off"):
-            mode = "auto"
-        if mode == "off" or not segmentation_data:
+        """Tiling of the coming training, as chosen in the settings: None
+        (whole images resized) or {"tile_size", "overlap", "scale"}."""
+        if not segmentation_data:
+            return None
+        if str(getattr(self, "tiling_mode", "off")).lower() != "on":
+            log(f"Segmentation input: whole images resized to "
+                f"{self.image_size} px")
             return None
         tile = Tiling.normalize_tile_size(
             getattr(self, "tile_size", Tiling.DEFAULT_TILE_SIZE))
@@ -1465,13 +1466,6 @@ class MLPredictor(Base):
         overlap = Tiling.normalize_overlap(
             getattr(self, "tile_overlap", Tiling.DEFAULT_OVERLAP), tile)
         scale = Tiling.normalize_scale(getattr(self, "tile_scale", 1.0))
-        if mode == "auto":
-            largest = max(max(mask.shape[:2])
-                          for _, mask in segmentation_data) * scale
-            if largest <= 2 * tile:
-                log(f"Images up to {int(largest)} px: whole images resized "
-                    f"to {self.image_size} px (no tiles)")
-                return None
         return {"tile_size": tile, "overlap": overlap, "scale": scale}
 
     def _tile_loaders(self, cache, seg_train, seg_val, log, status):
@@ -1725,8 +1719,10 @@ class MLPredictor(Base):
         self.use_pretrained       = ml.get("pretrained",           True)
         seg = ml.get("seg_backbone", "resnet")
         self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
-        tiling = str(ml.get("tiling", "auto")).lower()
-        self.tiling_mode  = tiling if tiling in ("auto", "on", "off") else "auto"
+        # "on" = tiles; anything else (also "auto", an early value of this
+        # setting) = whole images, the default
+        self.tiling_mode  = ("on" if str(ml.get("tiling", "off")).lower()
+                             == "on" else "off")
         self.tile_size    = Tiling.normalize_tile_size(
             ml.get("tile_size", Tiling.DEFAULT_TILE_SIZE))
         self.tile_overlap = Tiling.normalize_overlap(

@@ -19,9 +19,11 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QInputDialog,
     QLineEdit,
+    QRadioButton,
+    QButtonGroup,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QScreen
+from PyQt6.QtGui import QColor, QImageReader, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
@@ -147,8 +149,9 @@ class MLSetting(QDialog):
         if idx >= 0:
             self.imgsize_combo.setCurrentIndex(idx)
         self.imgsize_combo.setToolTip(
-            "Resolution whole images are resized to (images that are not\n"
-            "cut into tiles, and detection). Larger = slower but more detail.")
+            "Square size the whole image is resized to: segmentation with\n"
+            "the Whole image input, and detection. Larger = slower but more\n"
+            "detail.")
         imgsize_row.addWidget(self.imgsize_combo)
         imgsize_row.addStretch()
         train_layout.addLayout(imgsize_row)
@@ -573,29 +576,31 @@ class MLSetting(QDialog):
                 item.setCheckState(Qt.CheckState.Checked)
 
     def _build_tiles_group(self, ml_params):
-        """Segmentation on large images: tiles instead of the whole image."""
-        group = QGroupBox("Large Images (segmentation by tiles)")
-        layout = QVBoxLayout()
+        """How a segmentation model sees the images: the whole image resized
+        to the Image Size, or tiles of it. The user chooses."""
+        group = QGroupBox("Segmentation Input")
 
-        mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel("Tiles:"))
-        self.tiling_combo = QComboBox()
-        for text, value in (("Auto (large images only)", "auto"),
-                            ("Always", "on"),
-                            ("Never (resize the whole image)", "off")):
-            self.tiling_combo.addItem(text, value)
-        idx = self.tiling_combo.findData(
-            str(ml_params.get("tiling", "auto")).lower())
-        self.tiling_combo.setCurrentIndex(max(0, idx))
-        self.tiling_combo.setToolTip(
-            "A segmentation model sees a fixed input size. Without tiles the\n"
-            "whole image is resized to it, and a large image loses its fine\n"
-            "details. With tiles, training and prediction work on crops of the\n"
-            "image at (or near) its own resolution, put back together.\n\n"
-            "Auto: tiles when an image is more than twice the tile size.")
-        mode_row.addWidget(self.tiling_combo)
-        mode_row.addStretch()
-        layout.addLayout(mode_row)
+        tiles = str(ml_params.get("tiling", "off")).lower() == "on"
+        self.whole_radio = QRadioButton(
+            "Whole image, resized to the Image Size")
+        self.whole_radio.setToolTip(
+            "The whole image is resized to the Image Size (a square) for\n"
+            "training and prediction. Fast, and fine for small images; a\n"
+            "large image loses its fine details and its aspect ratio.")
+        self.tiles_radio = QRadioButton("Tiles")
+        self.tiles_radio.setToolTip(
+            "Training and prediction work on square crops of the image at\n"
+            "(or near) its own resolution, put back together. For large\n"
+            "images: slower, but the details are kept.")
+        (self.tiles_radio if tiles else self.whole_radio).setChecked(True)
+        self.tiling_group = QButtonGroup(self)
+        self.tiling_group.addButton(self.whole_radio)
+        self.tiling_group.addButton(self.tiles_radio)
+
+        # the settings of the tiles, under their button
+        tiles_box = QWidget()
+        layout = QVBoxLayout(tiles_box)
+        layout.setContentsMargins(24, 0, 0, 0)
 
         tile_row = QHBoxLayout()
         tile_row.addWidget(QLabel("Tile Size:"))
@@ -652,10 +657,52 @@ class MLSetting(QDialog):
         scale_row.addStretch()
         layout.addLayout(scale_row)
 
-        self.tiling_combo.currentIndexChanged.connect(self._update_tiles_enabled)
+        outer = QVBoxLayout()
+        outer.addWidget(self.whole_radio)
+        outer.addWidget(self.tiles_radio)
+        outer.addWidget(tiles_box)
+        self.image_size_hint = QLabel()
+        self.image_size_hint.setWordWrap(True)
+        outer.addWidget(self.image_size_hint)
+        group.setLayout(outer)
+
+        self.tiles_radio.toggled.connect(self._update_tiles_enabled)
+        self.tile_spinbox.valueChanged.connect(self._update_image_size_hint)
+        self.scale_combo.currentIndexChanged.connect(
+            self._update_image_size_hint)
+        self._largest_image = self._largest_image_size()
         self._update_tiles_enabled()
-        group.setLayout(layout)
         return group
+
+    def tiling_mode(self):
+        """"on" (tiles) or "off" (whole image), as saved in the parameters."""
+        return "on" if self.tiles_radio.isChecked() else "off"
+
+    def _largest_image_size(self):
+        """(width, height) of the largest image of the project, read from
+        the file headers (no decode), or None."""
+        largest = None
+        for path in getattr(self.model, "file_paths", None) or []:
+            size = QImageReader(path).size()
+            if size.isValid() and (largest is None or
+                                   size.width() * size.height()
+                                   > largest[0] * largest[1]):
+                largest = (size.width(), size.height())
+        return largest
+
+    def _update_image_size_hint(self):
+        """Information only: the mode is never changed for the user."""
+        if self._largest_image is None:
+            self.image_size_hint.setText("")
+            return
+        w, h = self._largest_image
+        text = f"Largest image of the project: {w} × {h} px."
+        tile = self.tile_spinbox.value() / (self.scale_combo.currentData()
+                                            or 1.0)
+        if max(w, h) > 2 * tile:
+            text += (f" Tiles are recommended for images larger than twice "
+                     f"the tile size ({int(2 * tile)} px at this resolution).")
+        self.image_size_hint.setText(text)
 
     def _snap_tile_size(self):
         value = Tiling.normalize_tile_size(self.tile_spinbox.value())
@@ -666,10 +713,11 @@ class MLSetting(QDialog):
         self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
 
     def _update_tiles_enabled(self):
-        enabled = self.tiling_combo.currentData() != "off"
+        enabled = self.tiles_radio.isChecked()
         for widget in (self.tile_spinbox, self.overlap_spinbox,
                        self.scale_combo):
             widget.setEnabled(enabled)
+        self._update_image_size_hint()
 
     def _deselect_all(self):
         for row in range(self.image_list.count()):
@@ -702,7 +750,7 @@ class MLSetting(QDialog):
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
         tile = Tiling.normalize_tile_size(self.tile_spinbox.value())
-        data["ml"]["tiling"] = self.tiling_combo.currentData()
+        data["ml"]["tiling"] = self.tiling_mode()
         data["ml"]["tile_size"] = tile
         data["ml"]["tile_overlap"] = Tiling.normalize_overlap(
             self.overlap_spinbox.value(), tile)
