@@ -315,6 +315,7 @@ class MLEvents(Events):
                 "Train one with ML > Train Model, or load one you saved "
                 "earlier with ML > Load Model."
             )
+            self._ml_show_stats()
             return
 
         if info["origin"] == "loaded":
@@ -349,6 +350,7 @@ class MLEvents(Events):
         label.setText(text)
         label.setStyleSheet("color: green;")
         label.setToolTip(tooltip)
+        self._ml_show_stats()
     
     def ml_update_stats(self, immediate=False):
         """Update the ML stats label with current annotation counts.
@@ -452,6 +454,13 @@ class MLEvents(Events):
         return dropped
 
     def _ml_refresh_stats(self):
+        # the status badge and the Statistics panel (ml_update_status()
+        # writes both: the panel names the model too)
+        self.ml_update_status()
+
+    def _ml_show_stats(self):
+        """Write the Statistics panel: what the project holds for a
+        training, and which model is live."""
         # Every image of the project: only the loaded ones used to be
         # counted, so the panel said 0 right after opening a project or
         # after a training (which released the images).
@@ -465,9 +474,6 @@ class MLEvents(Events):
             f"Total Annotations: {total_annotations}\n"
             f"Model Status: {model_status}"
         )
-        # this ran on every file change and overwrote the status label with a
-        # bare "ML: Trained", dropping the loaded/trained distinction
-        self.ml_update_status()
 
     # ------------------------------------------------------------------
     # Active learning

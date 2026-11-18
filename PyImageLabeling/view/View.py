@@ -299,6 +299,12 @@ class View(QMainWindow):
             for button_names in self.buttons_image_bar:
                 self.buttons_image_bar[button_names].setEnabled(False)
 
+        # the Statistics panel counted that image
+        try:
+            self.controller.ml_update_stats(immediate=True)
+        except (AttributeError, RuntimeError):
+            pass
+
     def file_bar_select(self):
         """Handle selection change to update styling"""
         for i in range(self.file_bar_list.count()):

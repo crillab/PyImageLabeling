@@ -102,6 +102,11 @@ version: the Release workflow refuses to publish a version without one.
   project or after a training. An annotation is a shape, or a label painted
   on an image (counting the painted regions of the images that are not
   loaded would decode every mask).
+- The ML *Statistics* panel is refreshed when a project is opened or
+  created, images are added or removed, labels are imported or removed, and
+  its *Model Status* line follows the status bar badge (end of a training,
+  model loaded or saved). Only the labeling tools refreshed it, so it kept
+  "0 / Not trained" until the first stroke.
 - Releasing the loaded images after a propagation (and, until now, after
   every ML training) also dropped the images holding unsaved strokes: the
   strokes were lost and the project no longer looked modified, so closing did

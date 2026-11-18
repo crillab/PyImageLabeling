@@ -129,3 +129,20 @@ def test_stats_count_every_image_of_the_project(project, workspace):
     assert "Annotated Images: 3\n" in text
     assert "Total Annotations: 4\n" in text
     assert model.image_items[paths[3]] is None
+
+
+def test_stats_refreshed_when_a_project_is_opened(project, workspace,
+                                                  monkeypatch):
+    """Only the labeling tools refreshed the panel: after opening a project
+    it still showed the counts of the previous one (0 at startup)."""
+    controller, view, model, paths = project
+    painted = np.zeros((128, 128), bool)
+    painted[:9, :9] = True
+    view.ml_stats_label.setText("Annotated Images: 0\n")
+
+    def fake_open():   # the files of the opened project get indexed
+        _index_mask(model, workspace, paths[3], 0, painted)
+    monkeypatch.setattr(model, "load", fake_open)
+    controller.load()
+
+    assert "Annotated Images: 1\n" in view.ml_stats_label.text()

@@ -451,7 +451,7 @@ class Builder:
         self.view.ml_stats_label = QLabel(
             "Annotated Images: 0\n"
             "Total Annotations: 0\n"
-            "Model Status: Not trained"
+            "Model Status: no model"
         )
         self.view.ml_stats_label.setWordWrap(True)
         stats_layout.addWidget(self.view.ml_stats_label)
