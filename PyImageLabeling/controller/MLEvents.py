@@ -605,6 +605,9 @@ class MLEvents(Events):
             self.model.tile_overlap = Tiling.normalize_overlap(
                 mlsetting.overlap_spinbox.value(), self.model.tile_size)
             self.model.tile_scale   = mlsetting.scale_combo.currentData()
+            self.model.tile_sampling  = mlsetting.sampling_combo.currentData()
+            self.model.labelled_share = mlsetting.share_spinbox.value() / 100
+            self.model.seg_loss       = mlsetting.loss_combo.currentData()
 
             self._ml_selected_image_paths = mlsetting.selected_image_paths
             log.info(f"ML settings applied. "

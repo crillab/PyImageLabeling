@@ -6,9 +6,10 @@ aspect ratio. With tiles, the network works on crops of `tile_size` px of
 the image (optionally downscaled first by `scale`), at training time and at
 prediction time; the predictions of the tiles are put back together.
 
-Training samples tiles at random, half of them on an annotated pixel (so
-that the classes covering a few percent of an image are seen), half
-anywhere (so that the network learns the background too). Prediction
+Training samples tiles at random (see SAMPLINGS): by default half of them
+on an annotated pixel (so that the classes covering a few percent of an
+image are seen), half anywhere (so that the network learns the background
+too). Prediction
 slides a window over the image; neighbouring tiles overlap by `overlap` px
 and each pixel is taken from the tile where it is the farthest from the
 edge, where the network sees the least around it.
@@ -44,6 +45,20 @@ MIN_TILES_PER_IMAGE = 4
 # Share of the training tiles centred on an annotated pixel.
 LABELLED_SHARE = 0.5
 
+# How the training tiles are drawn:
+# - random: anywhere, the classes are seen as often as they are in the
+#   images;
+# - labels: a share of them centred on an annotated pixel, of a class drawn
+#   among those of the image, the others anywhere;
+# - balanced: the same, but the class of a centred tile is drawn evenly
+#   among all the classes of the training (then an image holding it): a
+#   class annotated on few images, or on few pixels, is seen as often.
+SAMPLING_RANDOM = "random"
+SAMPLING_LABELS = "labels"
+SAMPLING_BALANCED = "balanced"
+SAMPLINGS = (SAMPLING_RANDOM, SAMPLING_LABELS, SAMPLING_BALANCED)
+DEFAULT_SAMPLING = SAMPLING_LABELS
+
 
 def normalize_tile_size(size):
     """Nearest multiple of TILE_MULTIPLE, at least MIN_TILE_SIZE."""
@@ -71,6 +86,21 @@ def normalize_scale(scale):
     except (TypeError, ValueError):
         return 1.0
     return min(SCALES, key=lambda s: abs(s - scale))
+
+
+def normalize_sampling(sampling):
+    """One of SAMPLINGS (DEFAULT_SAMPLING when unknown)."""
+    sampling = str(sampling).lower()
+    return sampling if sampling in SAMPLINGS else DEFAULT_SAMPLING
+
+
+def normalize_share(share):
+    """Share of centred tiles, between 0 and 1."""
+    try:
+        share = float(share)
+    except (TypeError, ValueError):
+        return LABELLED_SHARE
+    return min(1.0, max(0.0, share))
 
 
 def scaled_size(height, width, scale):
@@ -209,13 +239,16 @@ class TileSource:
     def shape(self):
         return self.mask.shape
 
-    def sample(self, tile, rng, labelled_share=LABELLED_SHARE):
-        """(image tile, mask tile) drawn at random (see module doc)."""
+    def sample(self, tile, rng, labelled_share=LABELLED_SHARE, cls=None):
+        """(image tile, mask tile) drawn at random (see module doc); with
+        `cls`, a tile centred on a pixel of that class."""
         h, w = self.mask.shape
         point = None
-        if self.points and rng.random() < labelled_share:
+        if cls is None and self.points and rng.random() < labelled_share:
             classes = list(self.points)
-            ys, xs = self.points[classes[int(rng.integers(len(classes)))]]
+            cls = classes[int(rng.integers(len(classes)))]
+        if cls is not None and cls in self.points:
+            ys, xs = self.points[cls]
             i = int(rng.integers(len(ys)))
             point = (int(ys[i]), int(xs[i]))
         y0, x0 = sample_origin(h, w, tile, rng, point)

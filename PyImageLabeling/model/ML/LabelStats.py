@@ -169,3 +169,28 @@ def summarize(images, chosen=None, ignore_others=False, tile_px=None):
         out["tiles"] = None
         out["empty_tiles"] = None
     return out
+
+
+def iou_scores(inter, union, background=None):
+    """Validation scores of a segmentation from its per-class
+    intersections and unions (pixels):
+
+    {"seg_iou": {class: IoU}, "seg_miou": mean IoU of the classes other
+     than the background, "seg_miou_all": mean IoU of all of them}
+
+    The classes absent from both the prediction and the annotation are
+    left out. The background, most of the pixels of a large image, is
+    easy to get right: counting it in the mean hides how well the labels
+    are found, so "seg_miou" leaves it out (unless it is the only class).
+    """
+    inter = [float(v) for v in inter]
+    union = [float(v) for v in union]
+    iou = {c: inter[c] / union[c] for c in range(len(union)) if union[c] > 0}
+    out = {}
+    if iou:
+        out["seg_iou"] = iou
+        out["seg_miou_all"] = sum(iou.values()) / len(iou)
+        labels = [v for c, v in iou.items() if c != background]
+        out["seg_miou"] = (sum(labels) / len(labels) if labels
+                           else out["seg_miou_all"])
+    return out

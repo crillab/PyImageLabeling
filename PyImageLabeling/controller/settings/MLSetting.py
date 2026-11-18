@@ -33,6 +33,9 @@ from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.ML.MLPredictor import (
     BACKBONE_NAMES,
     DEFAULT_BACKBONE,
+    SEG_LOSS_CE,
+    SEG_LOSS_CE_DICE,
+    SEG_LOSSES,
 )
 from PyImageLabeling.model.ML import LabelStats, Tiling
 import os
@@ -309,6 +312,31 @@ class MLSetting(QDialog):
         seg_row.addWidget(self.seg_combo)
         seg_row.addStretch()
         seg_layout.addLayout(seg_row)
+
+        loss_row = QHBoxLayout()
+        loss_lbl = QLabel("Loss:")
+        self.loss_combo = QComboBox()
+        self.loss_combo.addItem("Cross-entropy", SEG_LOSS_CE)
+        self.loss_combo.addItem("Cross-entropy + Dice", SEG_LOSS_CE_DICE)
+        current_loss = ml_params.get("seg_loss", SEG_LOSS_CE)
+        self.loss_combo.setCurrentIndex(max(0, self.loss_combo.findData(
+            current_loss if current_loss in SEG_LOSSES else SEG_LOSS_CE)))
+        tip = (
+            "What the training minimizes.\n\n"
+            "• Cross-entropy: every pixel counts the same. When the labels\n"
+            "  cover a few percent of the images, it is mostly about the\n"
+            "  background, and a small label can be missed.\n"
+            "• Cross-entropy + Dice: adds the overlap of each label with its\n"
+            "  annotation (Dice), whatever its size, the background left\n"
+            "  out: a small label weighs as much as a large one. Common in\n"
+            "  medical image segmentation.\n\n"
+            "The DINOv2-linear head uses the cross-entropy only.")
+        loss_lbl.setToolTip(tip)
+        self.loss_combo.setToolTip(tip)
+        loss_row.addWidget(loss_lbl)
+        loss_row.addWidget(self.loss_combo)
+        loss_row.addStretch()
+        seg_layout.addLayout(loss_row)
 
         self._build_tiles_options(seg_layout, ml_params)
         model_layout.addWidget(self.seg_options)
@@ -1051,6 +1079,62 @@ class MLSetting(QDialog):
         scale_row.addStretch()
         layout.addLayout(scale_row)
 
+        sampling_row = QHBoxLayout()
+        sampling_lbl = QLabel("Tile Sampling:")
+        self.sampling_combo = QComboBox()
+        self.sampling_combo.addItem("Random", Tiling.SAMPLING_RANDOM)
+        self.sampling_combo.addItem("Centred on the labels",
+                                    Tiling.SAMPLING_LABELS)
+        self.sampling_combo.addItem("Centred on the labels, balanced",
+                                    Tiling.SAMPLING_BALANCED)
+        self.sampling_combo.setCurrentIndex(max(0, self.sampling_combo.findData(
+            Tiling.normalize_sampling(ml_params.get(
+                "tile_sampling", Tiling.DEFAULT_SAMPLING)))))
+        tip = (
+            "How the training tiles are drawn from the images.\n\n"
+            "• Random: anywhere. The labels are seen as often as they are\n"
+            "  in the images: a label of a few percent is rarely seen.\n"
+            "• Centred on the labels: a share of the tiles is centred on an\n"
+            "  annotated pixel (of a label drawn among those of the image),\n"
+            "  the others are drawn anywhere.\n"
+            "• Centred on the labels, balanced: the same, but the label of\n"
+            "  each centred tile is drawn evenly among all the labels learnt:\n"
+            "  a label annotated on few images, or on few pixels, is seen as\n"
+            "  often as the others.\n\n"
+            "The prediction always covers the whole image.")
+        sampling_lbl.setToolTip(tip)
+        self.sampling_combo.setToolTip(tip)
+        sampling_row.addWidget(sampling_lbl)
+        sampling_row.addWidget(self.sampling_combo)
+        sampling_row.addStretch()
+        layout.addLayout(sampling_row)
+
+        self.share_row = QWidget()
+        self.share_row.setObjectName("ml_share_row")
+        self.share_row.setStyleSheet(
+            "#ml_share_row { background-color: transparent; }")
+        share_layout = QHBoxLayout(self.share_row)
+        share_layout.setContentsMargins(0, 0, 0, 0)
+        share_layout.addWidget(QLabel("Centred Tiles:"))
+        self.share_spinbox = QSpinBox()
+        self.share_spinbox.setRange(0, 100)
+        self.share_spinbox.setSingleStep(5)
+        self.share_spinbox.setSuffix(" %")
+        self.share_spinbox.setValue(int(round(100 * Tiling.normalize_share(
+            ml_params.get("labelled_share", Tiling.LABELLED_SHARE)))))
+        self.share_spinbox.setToolTip(
+            "Share of the training tiles centred on a label; the others are\n"
+            "drawn anywhere, so that the network sees the background too.\n"
+            "More: the labels are seen more often, but the model learns\n"
+            "that they are more frequent than they are and marks more\n"
+            "pixels (raise the Confidence Threshold). 33 % to 50 % is usual.")
+        share_layout.addWidget(self.share_spinbox)
+        share_layout.addStretch()
+        layout.addWidget(self.share_row)
+        self.sampling_combo.currentIndexChanged.connect(
+            self._update_share_row)
+        self._update_share_row()
+
         input_lbl = QLabel("Segmentation Input:")
         input_lbl.setToolTip(
             "How the segmentation model sees the images, for training and\n"
@@ -1071,6 +1155,11 @@ class MLSetting(QDialog):
         self.scale_combo.currentIndexChanged.connect(
             self._update_image_size_hint)
         self._largest_image = self._largest_image_size()
+
+    def _update_share_row(self):
+        """The share of centred tiles shows unless they are random."""
+        self.share_row.setVisible(self.sampling_combo.currentData()
+                                  != Tiling.SAMPLING_RANDOM)
 
     def tiling_mode(self):
         """"on" (tiles) or "off" (whole image), as saved in the parameters."""
@@ -1163,6 +1252,9 @@ class MLSetting(QDialog):
         data["ml"]["tile_overlap"] = Tiling.normalize_overlap(
             self.overlap_spinbox.value(), tile)
         data["ml"]["tile_scale"] = self.scale_combo.currentData()
+        data["ml"]["tile_sampling"] = self.sampling_combo.currentData()
+        data["ml"]["labelled_share"] = self.share_spinbox.value() / 100
+        data["ml"]["seg_loss"] = self.loss_combo.currentData()
 
         Utils.save_parameters(data)
         return super().accept()

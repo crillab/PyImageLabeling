@@ -156,11 +156,11 @@ class DinoLinearProbe:
                 inter[c] += (pc & mc).sum()
                 union[c] += (pc | mc).sum()
         if n:
+            from PyImageLabeling.model.ML.LabelStats import iou_scores
             out["seg_loss"] = total / n
             out["n_val_seg"] = n
-            valid = union > 0
-            if valid.any():
-                out["seg_miou"] = float((inter[valid] / union[valid]).mean())
+            out.update(iou_scores(inter.tolist(), union.tolist(),
+                                  self.mapping.get(255)))
         return out
 
     def save_dict(self):

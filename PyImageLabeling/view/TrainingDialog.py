@@ -270,7 +270,10 @@ class TrainingDialog(QDialog):
         lines = [f"Mode: {mode} · {num_classes} classes"]
         bits = []
         if "seg_miou" in vm:
-            bits.append(f"mIoU <b>{vm['seg_miou']:.3f}</b>")
+            text = f"mIoU of the labels <b>{vm['seg_miou']:.3f}</b>"
+            if "seg_miou_all" in vm:
+                text += f" (with the background {vm['seg_miou_all']:.3f})"
+            bits.append(text)
         if "seg_loss" in vm:
             bits.append(f"segmentation loss {vm['seg_loss']:.4f}")
         if "det_loss" in vm:
@@ -370,6 +373,7 @@ class TrainingDialog(QDialog):
         lines = [
             f"<b>Labels:</b> {s.get('labels') or 'all'}",
             f"<b>Input:</b> {s.get('input', '?')}",
+            f"<b>Loss:</b> {s.get('loss') or 'cross-entropy'}",
             f"<b>Backbone:</b> {s.get('backbone', '?')} ({pretrained}) · "
             f"{s.get('device', '?')}",
             f"<b>Epochs</b> {s.get('epochs', '?')} · <b>Batch</b> "
@@ -446,7 +450,16 @@ class TrainingDialog(QDialog):
         else:
             lines.append(f"<b>Loss</b> {loss:.4f}")
             shown = loss if seg_loss is not None else None
-        if reference and shown is not None:
+        if s.get("dice") is not None and s.get("ce") is not None:
+            # the reference is a cross-entropy: compare that part with it
+            lines[-1] += (f" = cross-entropy {s['ce']:.4f} + Dice "
+                          f"{s['dice']:.4f}")
+            if reference:
+                lines[-1] += (f" — reference {reference:.4f}: cross-entropy "
+                              f"at <b>{100 * s['ce'] / reference:.0f} %</b> "
+                              f"of it")
+            reference = None        # not comparable with the total
+        elif reference and shown is not None:
             lines[-1] += (f" — reference {reference:.4f}: "
                           f"<b>{100 * shown / reference:.0f} %</b> of it")
         if s.get("pixel_accuracy") is not None:

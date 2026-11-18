@@ -92,12 +92,14 @@ def test_dialog_shows_the_figures_and_stays_open_at_the_end(project,
         dialog.reject()
         assert dialog.running and not dialog.cancelling
 
-        dialog.finish({"seg_miou": 0.6, "seg_loss": 0.3,
+        dialog.finish({"seg_miou": 0.6, "seg_miou_all": 0.7,
+                       "seg_loss": 0.3,
                        "seg_iou": {0: 0.45, 1: 0.75}}, "segmentation", 2)
         assert dialog.cancel_button.isHidden()
         assert not dialog.close_button.isHidden()
         assert dialog.table.item(0, 6).text() == "0.450"
-        assert "mIoU <b>0.600</b>" in dialog.epoch_label.text()
+        assert ("mIoU of the labels <b>0.600</b> (with the background "
+                "0.700)") in dialog.epoch_label.text()
         assert "on 1 image(s)" in dialog.epoch_label.text()
     finally:
         dialog.running = False

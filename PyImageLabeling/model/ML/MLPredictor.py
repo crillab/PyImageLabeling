@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from PyImageLabeling.logging_setup import get_logger
-from PyImageLabeling.model.ML import Tiling
+from PyImageLabeling.model.ML import LabelStats, Tiling
 log = get_logger("ml.predictor")
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -33,6 +33,39 @@ IGNORED_LABEL = 254
 # A training with no target there (segmentation masks are mapped to classes
 # with it as default): F.cross_entropy's default ignore_index.
 TORCH_IGNORE = -100
+
+# Segmentation losses (ML settings): cross-entropy, or cross-entropy + Dice
+SEG_LOSS_CE = "ce"
+SEG_LOSS_CE_DICE = "ce_dice"
+SEG_LOSSES = (SEG_LOSS_CE, SEG_LOSS_CE_DICE)
+
+
+def dice_loss(logits, target, ignore_index, background=None, smooth=1.0):
+    """1 - soft Dice of the classes other than `background`, over the whole
+    batch (per class: 2 |P.T| / (|P| + |T|), with P the predicted
+    probabilities and T the one-hot targets), averaged over the classes.
+
+    Each class weighs the same, whatever its number of pixels: with
+    labels covering a few percent of the images, the cross-entropy alone
+    is mostly about the background. Pixels at `ignore_index` (or with no
+    class) are left out.
+    """
+    c = logits.shape[1]
+    keep = [k for k in range(c) if k != background]
+    if not keep:
+        return logits.sum() * 0.0
+    probs = torch.softmax(logits.float(), dim=1)
+    valid = (target != ignore_index) & (target >= 0) & (target < c)
+    t = torch.where(valid, target, torch.zeros_like(target))
+    onehot = F.one_hot(t, c).permute(0, 3, 1, 2).to(probs.dtype)
+    v = valid.unsqueeze(1).to(probs.dtype)
+    probs = probs * v
+    onehot = onehot * v
+    dims = (0, 2, 3)
+    inter = (probs * onehot).sum(dims)
+    denom = probs.sum(dims) + onehot.sum(dims)
+    dice = (2 * inter + smooth) / (denom + smooth)
+    return 1.0 - dice[keep].mean()
 
 try:
     import albumentations as A
@@ -561,26 +594,49 @@ class SegmentationDataset(Dataset):
 class TileDataset(Dataset):
     """Random training tiles of large images (see Tiling).
 
-    An epoch draws Tiling.tiles_per_image() tiles from each source, half of
-    them on an annotated pixel. Masks hold class ids, and
-    Tiling.IGNORE_INDEX where a tile goes past the image.
+    An epoch draws Tiling.tiles_per_image() tiles per source (its area),
+    `labelled_share` of them centred on an annotated pixel, as `sampling`
+    says (Tiling.SAMPLINGS). Masks hold class ids, and Tiling.IGNORE_INDEX
+    where a tile goes past the image.
     """
 
-    def __init__(self, sources, tile_size, augment=True):
+    def __init__(self, sources, tile_size, augment=True,
+                 sampling=Tiling.DEFAULT_SAMPLING,
+                 labelled_share=Tiling.LABELLED_SHARE):
         self.sources   = list(sources)
         self.tile_size = tile_size
         self.augment   = augment
+        self.sampling  = Tiling.normalize_sampling(sampling)
+        self.labelled_share = (0.0 if self.sampling == Tiling.SAMPLING_RANDOM
+                               else Tiling.normalize_share(labelled_share))
         counts = [Tiling.tiles_per_image(*src.shape, tile_size)
                   for src in self.sources]
         self.owner = np.repeat(np.arange(len(self.sources)), counts)
         self.rng   = np.random.default_rng()
+        # balanced: the images holding each class
+        self.class_sources = {}
+        for i, src in enumerate(self.sources):
+            for c in (src.points or {}):
+                self.class_sources.setdefault(c, []).append(i)
+        self.classes = sorted(self.class_sources)
 
     def __len__(self):
         return len(self.owner)
 
+    def _draw(self, idx):
+        rng, tile = self.rng, self.tile_size
+        if self.sampling == Tiling.SAMPLING_BALANCED:
+            if self.classes and rng.random() < self.labelled_share:
+                c = self.classes[int(rng.integers(len(self.classes)))]
+                owners = self.class_sources[c]
+                source = self.sources[owners[int(rng.integers(len(owners)))]]
+                return source.sample(tile, rng, cls=c)
+            return self.sources[self.owner[idx]].sample(tile, rng, 0.0)
+        return self.sources[self.owner[idx]].sample(
+            tile, rng, self.labelled_share)
+
     def __getitem__(self, idx):
-        image, mask = self.sources[self.owner[idx]].sample(
-            self.tile_size, self.rng)
+        image, mask = self._draw(idx)
         if self.augment and self.rng.random() > 0.5:
             image = image[:, ::-1]
             mask  = mask[:, ::-1]
@@ -774,6 +830,10 @@ class MLPredictor(Base):
         self.tile_size    = Tiling.DEFAULT_TILE_SIZE
         self.tile_overlap = Tiling.DEFAULT_OVERLAP
         self.tile_scale   = 1.0
+        # how the training tiles are drawn (Tiling.SAMPLINGS), and the loss
+        self.tile_sampling  = Tiling.DEFAULT_SAMPLING
+        self.labelled_share = Tiling.LABELLED_SHARE
+        self.seg_loss       = SEG_LOSS_CE
         # ... and as used by the live model: None (whole image resized to
         # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
         self.tiling = None
@@ -930,13 +990,9 @@ class MLPredictor(Base):
             if n:
                 out["seg_loss"] = total / n
                 out["n_val_seg"] = n
-                valid = union > 0
-                if valid.any():
-                    out["seg_miou"] = float(
-                        (inter[valid] / union[valid]).mean())
-                    out["seg_iou"] = {c: float(inter[c] / union[c])
-                                      for c in range(num_classes)
-                                      if union[c] > 0}
+                out.update(LabelStats.iou_scores(
+                    inter.tolist(), union.tolist(),
+                    self.label_id_to_class.get(255)))
         if was_training:
             self.model.train()
         return out
@@ -1437,6 +1493,8 @@ class MLPredictor(Base):
                 "present, falling back to the ResNet head")
         if use_probe:
             from PyImageLabeling.model.ML.DinoProbe import DinoLinearProbe
+            if getattr(self, "seg_loss", SEG_LOSS_CE) != SEG_LOSS_CE:
+                log("DINOv2-linear trains with the cross-entropy only")
             log("Segmentation backbone: DINOv2-linear "
                 "(frozen encoder, 1x1 head)")
             self.probe = DinoLinearProbe(
@@ -1468,7 +1526,10 @@ class MLPredictor(Base):
                         f"seg loss={self.val_metrics['seg_loss']:.4f}")
                 if "seg_miou" in self.val_metrics:
                     parts.append(
-                        f"mIoU={self.val_metrics['seg_miou']:.3f}")
+                        f"mIoU (labels)={self.val_metrics['seg_miou']:.3f}")
+                if "seg_miou_all" in self.val_metrics:
+                    parts.append(f"mIoU (with background)="
+                                 f"{self.val_metrics['seg_miou_all']:.3f}")
                 log("VAL: " + (" | ".join(parts) if parts else "n/a"))
             else:
                 log("VAL: skipped (need ≥5 annotated images for a val split)")
@@ -1581,6 +1642,7 @@ class MLPredictor(Base):
             tiles_per_epoch=(len(segmentation_loader.dataset)
                              if segmentation_loader is not None else None),
             labels=getattr(self, "_labels_text", "all"),
+            loss=self._loss_description(),
             backbone=backbone, pretrained=pretrained,
             device=str(self.device), epochs=self.num_epochs,
             batch=self.batch_size,
@@ -1683,7 +1745,10 @@ class MLPredictor(Base):
                     f"seg loss={self.val_metrics['seg_loss']:.4f}")
             if "seg_miou" in self.val_metrics:
                 parts.append(
-                    f"mIoU={self.val_metrics['seg_miou']:.3f}")
+                    f"mIoU (labels)={self.val_metrics['seg_miou']:.3f}")
+            if "seg_miou_all" in self.val_metrics:
+                parts.append(f"mIoU (with background)="
+                             f"{self.val_metrics['seg_miou_all']:.3f}")
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
@@ -1749,13 +1814,31 @@ class MLPredictor(Base):
                      0.25: "quarter resolution"}.get(
                          t["scale"], f"scale {t['scale']:g}")
             text = (f"tiles of {t['tile_size']} px, overlap "
-                    f"{t['overlap']} px, {scale}")
+                    f"{t['overlap']} px, {scale}; "
+                    f"{self._sampling_description()}")
         else:
             text = f"whole images resized to {self.image_size} px"
         if getattr(self, "training_mode", "") == "both" and t is not None:
             text += (f" (detection: whole images resized to "
                      f"{self.image_size} px)")
         return text
+
+    def _sampling_description(self):
+        sampling = Tiling.normalize_sampling(
+            getattr(self, "tile_sampling", Tiling.DEFAULT_SAMPLING))
+        if sampling == Tiling.SAMPLING_RANDOM:
+            return "tiles drawn anywhere"
+        share = Tiling.normalize_share(
+            getattr(self, "labelled_share", Tiling.LABELLED_SHARE))
+        text = f"{100 * share:.0f} % of them centred on a label"
+        if sampling == Tiling.SAMPLING_BALANCED:
+            text += ", labels balanced"
+        return text
+
+    def _loss_description(self):
+        if getattr(self, "seg_loss", SEG_LOSS_CE) == SEG_LOSS_CE_DICE:
+            return "cross-entropy + Dice"
+        return "cross-entropy"
 
     def _epoch_stats(self, epoch, loss, det_loss, seg_loss, acc, seconds,
                      batch):
@@ -1784,6 +1867,10 @@ class MLPredictor(Base):
                                for c in range(len(per_class))}
             out["present"] = [int(n) for n in acc["present"].cpu().tolist()]
             out["inputs"] = int(acc["inputs"])
+        if acc and acc.get("loss_steps") and "dice_sum" in acc:
+            # the reference is a cross-entropy: compare it with that part
+            out["ce"] = acc["ce_sum"] / acc["loss_steps"]
+            out["dice"] = acc["dice_sum"] / acc["loss_steps"]
         return out
 
     # ------------------------------------------------------------------
@@ -1836,9 +1923,14 @@ class MLPredictor(Base):
             raise RuntimeError("None of the annotated images could be read.")
 
         t = self.tiling
-        ds = TileDataset(train, t["tile_size"], augment=True)
+        ds = TileDataset(train, t["tile_size"], augment=True,
+                         sampling=getattr(self, "tile_sampling",
+                                          Tiling.DEFAULT_SAMPLING),
+                         labelled_share=getattr(self, "labelled_share",
+                                                Tiling.LABELLED_SHARE))
         log(f"Tiles: {t['tile_size']} px, overlap {t['overlap']} px, "
-            f"scale {t['scale']:g} | {len(ds)} tiles per epoch")
+            f"scale {t['scale']:g} | {len(ds)} tiles per epoch | "
+            f"{self._sampling_description()}")
         loader = DataLoader(ds, batch_size=self.batch_size, shuffle=True,
                             num_workers=0)
         return loader, val
@@ -1866,13 +1958,22 @@ class MLPredictor(Base):
         _, _, _, seg_pred = self.model(images)
         if seg_pred is None:
             return None
-        loss = F.cross_entropy(seg_pred, masks, ignore_index=ignore_index)
+        ce = F.cross_entropy(seg_pred, masks, ignore_index=ignore_index)
+        loss, dice = ce, None
+        if getattr(self, "seg_loss", SEG_LOSS_CE) == SEG_LOSS_CE_DICE:
+            dice = dice_loss(seg_pred, masks, ignore_index,
+                             self.label_id_to_class.get(255))
+            loss = ce + dice
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
         optimizer.step()
         if acc is not None:
             self._accumulate_seg_stats(acc, seg_pred.detach(), masks,
                                        ignore_index)
+            acc["ce_sum"] = acc.get("ce_sum", 0.0) + ce.item()
+            acc["loss_steps"] = acc.get("loss_steps", 0) + 1
+            if dice is not None:
+                acc["dice_sum"] = acc.get("dice_sum", 0.0) + dice.item()
         return loss.item()
 
     @staticmethod
@@ -2033,12 +2134,9 @@ class MLPredictor(Base):
         if pixels:
             out["seg_loss"] = total / pixels
             out["n_val_seg"] = len(sources)
-            ok = union > 0
-            if ok.any():
-                out["seg_miou"] = float((inter[ok] / union[ok]).mean())
-                out["seg_iou"] = {c: float(inter[c] / union[c])
-                                  for c in range(num_classes)
-                                  if union[c] > 0}
+            out.update(LabelStats.iou_scores(
+                inter.tolist(), union.tolist(),
+                self.label_id_to_class.get(255)))
         return out
 
     @torch.no_grad()
@@ -2103,6 +2201,12 @@ class MLPredictor(Base):
         self.tile_overlap = Tiling.normalize_overlap(
             ml.get("tile_overlap", Tiling.DEFAULT_OVERLAP), self.tile_size)
         self.tile_scale   = Tiling.normalize_scale(ml.get("tile_scale", 1.0))
+        self.tile_sampling  = Tiling.normalize_sampling(
+            ml.get("tile_sampling", Tiling.DEFAULT_SAMPLING))
+        self.labelled_share = Tiling.normalize_share(
+            ml.get("labelled_share", Tiling.LABELLED_SHARE))
+        seg_loss = ml.get("seg_loss", SEG_LOSS_CE)
+        self.seg_loss = seg_loss if seg_loss in SEG_LOSSES else SEG_LOSS_CE
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
         if backbone not in BACKBONE_NAMES:
             log.warning(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
