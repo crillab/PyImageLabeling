@@ -391,7 +391,7 @@ def test_settings_dialog_shows_segmentation_settings_only_when_enabled(
     try:
         assert not dialog.seg_options.isHidden()
         assert not dialog.tiles_box.isHidden()
-        for widget in (dialog.seg_combo, dialog.whole_radio,
+        for widget in (dialog.decoder_combo, dialog.whole_radio,
                        dialog.tile_spinbox, dialog.image_size_hint):
             assert dialog.seg_options.isAncestorOf(widget)
         # shown inside the dialog, not as windows of their own

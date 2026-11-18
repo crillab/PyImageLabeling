@@ -35,13 +35,14 @@ from PyImageLabeling.model.ML.MLPredictor import (
     DEFAULT_BACKBONE,
     DEFAULT_SEG_DECODER,
     SEG_DECODER_FPN,
+    SEG_DECODER_LINEAR,
     SEG_DECODER_SIMPLE,
     SEG_DECODERS,
     SEG_LOSS_CE,
     SEG_LOSS_CE_DICE,
     SEG_LOSSES,
 )
-from PyImageLabeling.model.ML import LabelStats, Tiling
+from PyImageLabeling.model.ML import DinoBackbone, LabelStats, Tiling
 import os
 
 
@@ -204,7 +205,9 @@ class MLSetting(QDialog):
         self.pretrained_checkbox = QCheckBox("Use Pretrained Backbone (ImageNet weights)")
         self.pretrained_checkbox.setChecked(ml_params.get("pretrained", True))
         self.pretrained_checkbox.setToolTip(
-            "Start from ImageNet pretrained weights. Strongly recommended unless your images are very unusual."
+            "Start from ImageNet pretrained weights. Strongly recommended unless your images are very unusual.\n"
+            "DINOv2: its own self-supervised weights. Without them, the whole\n"
+            "DINOv2 encoder is trained from scratch (needs many annotations)."
         )
         model_layout.addWidget(self.pretrained_checkbox)
 
@@ -250,6 +253,12 @@ class MLSetting(QDialog):
         "=== Hybrid ===\n"
         "• MaxViT — CNN + Transformer, very powerful.\n\n"
 
+        "=== DINOv2 (self-supervised Vision Transformers) ===\n"
+        "• DINOv2-S/14, B/14 — features learnt without labels on 142M\n"
+        "  images, one per 14 x 14 px patch. Frozen by default: only the\n"
+        "  decoder learns (see Fine-tune Last Blocks). Any tile size.\n"
+        "  Downloaded on first use (S: ~90 MB, B: ~350 MB).\n\n"
+
         "⚠ Changing backbone invalidates any previously saved model.\n"
         "⚠ Large models require GPU and more memory."
     )
@@ -264,6 +273,39 @@ class MLSetting(QDialog):
         backbone_row.addWidget(self.backbone_combo)
         backbone_row.addStretch()
         model_layout.addLayout(backbone_row)
+
+        # DINOv2 only: how many of its last blocks are trained
+        self.finetune_row = QWidget()
+        self.finetune_row.setObjectName("ml_finetune_row")
+        self.finetune_row.setStyleSheet(
+            "#ml_finetune_row { background-color: transparent; }")
+        finetune_layout = QHBoxLayout(self.finetune_row)
+        finetune_layout.setContentsMargins(24, 0, 0, 0)
+        finetune_lbl = QLabel("Fine-tune Last Blocks:")
+        self.finetune_spinbox = QSpinBox()
+        self.finetune_spinbox.setRange(0, 12)
+        try:
+            self.finetune_spinbox.setValue(
+                int(ml_params.get("finetune_blocks", 0)))
+        except (TypeError, ValueError):
+            self.finetune_spinbox.setValue(0)
+        self.finetune_spinbox.setSpecialValueText("0 (frozen)")
+        tip = (
+            "Number of the last transformer blocks of DINOv2 trained with\n"
+            "the decoder (out of 12), at a tenth of the learning rate.\n\n"
+            "• 0 (frozen, default): only the decoder learns. Fast, little\n"
+            "  GPU memory, and the features stay those of DINOv2.\n"
+            "• 2 to 4: adapts the features to images unlike photos.\n"
+            "  Slower, more GPU memory, needs more annotations.")
+        finetune_lbl.setToolTip(tip)
+        self.finetune_spinbox.setToolTip(tip)
+        finetune_layout.addWidget(finetune_lbl)
+        finetune_layout.addWidget(self.finetune_spinbox)
+        finetune_layout.addStretch()
+        model_layout.addWidget(self.finetune_row)
+        self.backbone_combo.currentIndexChanged.connect(
+            self._update_finetune_row)
+        self._update_finetune_row()
 
         self.enable_det_checkbox = QCheckBox("Enable Detection Head (geometric shape labels)")
         self.enable_det_checkbox.setChecked(ml_params.get("enable_detection", True))
@@ -293,31 +335,7 @@ class MLSetting(QDialog):
         seg_layout = QVBoxLayout(self.seg_options)
         seg_layout.setContentsMargins(24, 0, 0, 0)
 
-        # Segmentation head: ResNet (default) or frozen DINOv2 + linear probe
-        seg_row = QHBoxLayout()
-        seg_lbl = QLabel("Segmentation Head:")
-        seg_lbl.setToolTip(
-            "Head used for painted pixel annotations.\n\n"
-            "• ResNet head — the default, trains detection + "
-            "segmentation jointly.\n"
-            "• DINOv2-linear — frozen DINOv2 features + a 1x1 head: "
-            "much faster to train and stronger on photos, "
-            "but segmentation-only (falls back to ResNet when "
-            "geometric shapes are present)."
-        )
-        self.seg_combo = QComboBox()
-        self.seg_combo.addItem("ResNet head", "resnet")
-        self.seg_combo.addItem("DINOv2-linear (fast, seg-only)", "dinov2")
-        current_seg = ml_params.get("seg_backbone", "resnet")
-        idx = self.seg_combo.findData(current_seg)
-        if idx >= 0:
-            self.seg_combo.setCurrentIndex(idx)
-        seg_row.addWidget(seg_lbl)
-        seg_row.addWidget(self.seg_combo)
-        seg_row.addStretch()
-        seg_layout.addLayout(seg_row)
-
-        # Decoder of the ResNet head (hidden for DINOv2-linear)
+        # Decoder of the segmentation head
         self.decoder_row = QWidget()
         self.decoder_row.setObjectName("ml_decoder_row")
         self.decoder_row.setStyleSheet(
@@ -327,6 +345,7 @@ class MLSetting(QDialog):
         decoder_lbl = QLabel("Decoder:")
         self.decoder_combo = QComboBox()
         self.decoder_combo.addItem("Multi-scale (FPN)", SEG_DECODER_FPN)
+        self.decoder_combo.addItem("Linear", SEG_DECODER_LINEAR)
         self.decoder_combo.addItem("Last layer only", SEG_DECODER_SIMPLE)
         current_decoder = ml_params.get("seg_decoder", DEFAULT_SEG_DECODER)
         self.decoder_combo.setCurrentIndex(max(0, self.decoder_combo.findData(
@@ -338,6 +357,12 @@ class MLSetting(QDialog):
             "  and 1/32 of the resolution: the last layer tells what is\n"
             "  there, the earlier ones where its edges are. Sharper edges,\n"
             "  better on small objects; a little slower.\n"
+            "  With DINOv2 (one resolution, 1/14), the levels are made from\n"
+            "  layers at 1/4, 1/2, 3/4 and the end of its depth.\n"
+            "• Linear: a single 1x1 convolution on the concatenated layers\n"
+            "  (with DINOv2, its last 4 layers, as in its paper): shows what\n"
+            "  the backbone features already tell apart. Fastest to train;\n"
+            "  coarse edges (one value per 14 x 14 px patch with DINOv2).\n"
             "• Last layer only: upsamples the last layer (1/32 of the\n"
             "  resolution, one value per 32 x 32 px block): blurred edges.\n"
             "  The head of the models trained before the FPN one.\n\n"
@@ -348,8 +373,15 @@ class MLSetting(QDialog):
         decoder_layout.addWidget(self.decoder_combo)
         decoder_layout.addStretch()
         seg_layout.addWidget(self.decoder_row)
-        self.seg_combo.currentIndexChanged.connect(self._update_decoder_row)
-        self._update_decoder_row()
+        if ml_params.get("seg_backbone") == "dinov2":
+            # the former "DINOv2-linear" segmentation head: a frozen DINOv2
+            # backbone with the linear decoder
+            if not DinoBackbone.is_dinov2(self.backbone_combo.currentText()):
+                self.backbone_combo.setCurrentIndex(self.backbone_combo.findText(
+                    DinoBackbone.DEFAULT_DINOV2))
+            self.finetune_spinbox.setValue(0)
+            self.decoder_combo.setCurrentIndex(
+                self.decoder_combo.findData(SEG_DECODER_LINEAR))
 
         loss_row = QHBoxLayout()
         loss_lbl = QLabel("Loss:")
@@ -367,8 +399,7 @@ class MLSetting(QDialog):
             "• Cross-entropy + Dice: adds the overlap of each label with its\n"
             "  annotation (Dice), whatever its size, the background left\n"
             "  out: a small label weighs as much as a large one. Common in\n"
-            "  medical image segmentation.\n\n"
-            "The DINOv2-linear head uses the cross-entropy only.")
+            "  medical image segmentation.")
         loss_lbl.setToolTip(tip)
         self.loss_combo.setToolTip(tip)
         loss_row.addWidget(loss_lbl)
@@ -1249,9 +1280,10 @@ class MLSetting(QDialog):
     def _update_overlap_range(self):
         self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
 
-    def _update_decoder_row(self):
-        """The decoder is a choice of the ResNet head only."""
-        self.decoder_row.setVisible(self.seg_combo.currentData() == "resnet")
+    def _update_finetune_row(self):
+        """Fine-tuning is a setting of the DINOv2 backbones only."""
+        self.finetune_row.setVisible(
+            DinoBackbone.is_dinov2(self.backbone_combo.currentText()))
 
     def _update_seg_options(self):
         """The segmentation settings show only when it is enabled."""
@@ -1295,7 +1327,8 @@ class MLSetting(QDialog):
         data["ml"]["enable_detection"] = self.enable_det_checkbox.isChecked()
         data["ml"]["pretrained"] = self.pretrained_checkbox.isChecked()
         data["ml"]["backbone_name"] = self.backbone_combo.currentText()
-        data["ml"]["seg_backbone"] = self.seg_combo.currentData()
+        # the former "Segmentation Head" choice, now backbone + decoder
+        data["ml"].pop("seg_backbone", None)
         data["ml"]["other_labels_background"] = \
             self.other_labels_checkbox.isChecked()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
@@ -1310,6 +1343,7 @@ class MLSetting(QDialog):
         data["ml"]["labelled_share"] = self.share_spinbox.value() / 100
         data["ml"]["seg_loss"] = self.loss_combo.currentData()
         data["ml"]["seg_decoder"] = self.decoder_combo.currentData()
+        data["ml"]["finetune_blocks"] = self.finetune_spinbox.value()
 
         Utils.save_parameters(data)
         return super().accept()

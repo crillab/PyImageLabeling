@@ -107,10 +107,6 @@ def test_settings_dialog_chooses_the_decoder(project, monkeypatch):
                         staticmethod(lambda data: saved.update(data)))
     dialog = MLSetting(view.zoomable_graphics_view, model)
     assert dialog.decoder_combo.currentData() == SEG_DECODER_FPN
-    # a choice of the ResNet head only
-    dialog.seg_combo.setCurrentIndex(dialog.seg_combo.findData("dinov2"))
-    assert dialog.decoder_row.isHidden()
-    dialog.seg_combo.setCurrentIndex(dialog.seg_combo.findData("resnet"))
     assert not dialog.decoder_row.isHidden()
     dialog.decoder_combo.setCurrentIndex(
         dialog.decoder_combo.findData(SEG_DECODER_SIMPLE))

@@ -22,6 +22,15 @@ version: the Release workflow refuses to publish a version without one.
   Each epoch sees about a third of every image, whatever the tile size. The
   tiling is saved with the model; models saved before predict on the whole
   image, as they were trained. Detection is unchanged (whole image).
+- DINOv2 backbones (*DINOv2-S/14*, *DINOv2-B/14*) in *Backbone Architecture*,
+  for tiles of any size: the encoder is frozen by default, *Fine-tune Last
+  Blocks* trains its last blocks at a tenth of the learning rate. New *Linear*
+  decoder (a 1x1 convolution on the last 4 layers, as in the DINOv2 paper),
+  next to *Multi-scale (FPN)*, whose levels are then made from 4 depths of the
+  encoder. The *Segmentation Head* choice is gone: the former *DINOv2-linear*
+  head (frozen DINOv2-S, whole image squeezed to 448 px) is now this backbone,
+  frozen, with the linear decoder (an old setting is read that way), and can
+  detect too. Its model files still load and predict.
 - The training window shows what the training is made of and how it goes:
   the settings used (whole image or tiles, backbone, epochs, batch, learning
   rate, train/validation images), a table of the labels (training images and

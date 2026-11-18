@@ -140,6 +140,11 @@ def reset_app(controller, view, model):
         if hasattr(model, attr):
             setattr(model, attr, value)
     model.seg_backbone = "resnet"
+    from PyImageLabeling.model.ML.MLPredictor import (
+        DEFAULT_BACKBONE, DEFAULT_SEG_DECODER)
+    model.backbone_name = DEFAULT_BACKBONE
+    model.seg_decoder = DEFAULT_SEG_DECODER
+    model.finetune_blocks = 0
     model.training_mode = None
     model.val_metrics = {}
     model._det_val_loader = None

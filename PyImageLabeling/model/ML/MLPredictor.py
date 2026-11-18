@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from PyImageLabeling.logging_setup import get_logger
-from PyImageLabeling.model.ML import LabelStats, Tiling
+from PyImageLabeling.model.ML import DinoBackbone, LabelStats, Tiling
 log = get_logger("ml.predictor")
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -159,7 +159,7 @@ BACKBONE_REGISTRY = {
     "MaxViT-Tiny":     ("maxvit_t",           "MaxVit_T_Weights"),
 }
 
-BACKBONE_NAMES = list(BACKBONE_REGISTRY.keys())
+BACKBONE_NAMES = list(BACKBONE_REGISTRY.keys()) + DinoBackbone.DINOV2_NAMES
 DEFAULT_BACKBONE = "ResNet18"
  
  
@@ -207,6 +207,10 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
         return model_constructor(weights=weights)
  
 def _build_backbone(backbone_name: str, pretrained: bool):
+    if DinoBackbone.is_dinov2(backbone_name):
+        ext = DinoBackbone.DinoV2Extractor(backbone_name, pretrained)
+        return _measured_backbone(backbone_name, ext)
+
     bb = _load_backbone_dynamically(backbone_name, pretrained)
 
     # ── ResNet / Wide-ResNet / ResNeXt ──────────────────────────────────
@@ -414,7 +418,12 @@ def _build_backbone(backbone_name: str, pretrained: bool):
     else:
         raise ValueError(f"Unhandled backbone: {backbone_name}")
 
-    # ── Measure output channels with a dummy forward ─────────────────────
+    return _measured_backbone(backbone_name, ext)
+
+
+def _measured_backbone(backbone_name, ext):
+    """(ext, channels of its last layer), with the channels of the maps
+    each decoder gets measured by a dummy forward."""
     ext.eval()
     with torch.no_grad():
         dummy  = torch.zeros(1, 3, 224, 224)
@@ -422,6 +431,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
         feat_ch = output.shape[1]
 
         ext.pyramid_channels = [f.shape[1] for f in backbone_pyramid(ext, dummy)]
+        ext.linear_channels = [f.shape[1]
+                               for f in backbone_linear_inputs(ext, dummy)]
 
     log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, "
               f"output_shape={output.shape}, "
@@ -433,7 +444,9 @@ def backbone_pyramid(ext, x):
     """Feature maps of the backbone from fine to coarse: the last one of
     each resolution, from 1/4 of the input down to the last layer (whose
     map is exactly ext(x)). A backbone without stages (ViT: a single
-    resolution) gives [ext(x)]."""
+    resolution) gives [ext(x)]; DINOv2 builds its own levels."""
+    if hasattr(ext, "pyramid"):
+        return ext.pyramid(x)
     if not hasattr(ext, "stages"):
         return [ext(x)]
     height = x.shape[-2]
@@ -454,6 +467,15 @@ def backbone_pyramid(ext, x):
     # 1/2 maps are left out: large, and little use with a 1/4 level
     keep = [f for f, h in zip(feats, sizes) if height / h >= 3.5]
     return keep or feats[-1:]
+
+
+def backbone_linear_inputs(ext, x):
+    """Maps the linear decoder concatenates, the last one being the last
+    layer of the backbone: the last 4 layers of DINOv2 (as in its paper),
+    the pyramid of the other backbones."""
+    if hasattr(ext, "last_layers"):
+        return ext.last_layers(x)
+    return backbone_pyramid(ext, x)
 
 # ---------------------------------------------------------------------------
 # Background training thread
@@ -731,9 +753,12 @@ class SegmentationHead(nn.Module):
 
 SEG_DECODER_SIMPLE = "simple"   # upsamples the last layer only (1/32)
 SEG_DECODER_FPN    = "fpn"      # combines the 1/4 … 1/32 layers
-SEG_DECODERS       = (SEG_DECODER_SIMPLE, SEG_DECODER_FPN)
+SEG_DECODER_LINEAR = "linear"   # 1x1 conv on the concatenated layers
+SEG_DECODERS       = (SEG_DECODER_SIMPLE, SEG_DECODER_FPN,
+                      SEG_DECODER_LINEAR)
 SEG_DECODER_NAMES  = {SEG_DECODER_SIMPLE: "last layer only",
-                      SEG_DECODER_FPN:    "multi-scale (FPN)"}
+                      SEG_DECODER_FPN:    "multi-scale (FPN)",
+                      SEG_DECODER_LINEAR: "linear"}
 DEFAULT_SEG_DECODER = SEG_DECODER_FPN
 
 
@@ -774,6 +799,30 @@ class FPNSegmentationHead(nn.Module):
                              align_corners=False)
 
 
+class LinearSegmentationHead(nn.Module):
+    """Linear decoder (the linear evaluation of the DINOv2 paper): the
+    maps, brought to the size of the finest, are concatenated, then batch
+    norm and a 1x1 convolution give the classes, upsampled to the input
+    size. Nothing is learnt but this projection: it shows what the
+    backbone features already tell apart."""
+
+    def __init__(self, in_channels_list, num_classes=2):
+        super().__init__()
+        channels = sum(in_channels_list)
+        self.bn = nn.BatchNorm2d(channels)
+        self.classifier = nn.Conv2d(channels, num_classes, 1)
+
+    def forward(self, feats, out_size):
+        size = feats[0].shape[-2:]
+        x = torch.cat([f if f.shape[-2:] == size else
+                       F.interpolate(f, size=size, mode="bilinear",
+                                     align_corners=False)
+                       for f in feats], dim=1)
+        x = self.classifier(self.bn(x))
+        return F.interpolate(x, size=out_size, mode="bilinear",
+                             align_corners=False)
+
+
 class FastObjectDetectorWithSegmentation(nn.Module):
     def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True,
                  enable_detection=True, backbone_name=DEFAULT_BACKBONE,
@@ -802,6 +851,9 @@ class FastObjectDetectorWithSegmentation(nn.Module):
             if self.seg_decoder == SEG_DECODER_FPN:
                 self.segmentation_head = FPNSegmentationHead(
                     self.backbone.pyramid_channels, num_classes)
+            elif self.seg_decoder == SEG_DECODER_LINEAR:
+                self.segmentation_head = LinearSegmentationHead(
+                    self.backbone.linear_channels, num_classes)
             else:
                 self.segmentation_head = SegmentationHead(
                     feat_ch, num_classes)
@@ -811,10 +863,13 @@ class FastObjectDetectorWithSegmentation(nn.Module):
         self.enable_detection = enable_detection 
         
     def forward(self, x):
-        fpn = (self.enable_segmentation
-               and self.seg_decoder == SEG_DECODER_FPN)
-        if fpn:
-            feats = backbone_pyramid(self.backbone, x)
+        multi = (self.enable_segmentation
+                 and self.seg_decoder in (SEG_DECODER_FPN,
+                                          SEG_DECODER_LINEAR))
+        if multi:
+            feats = (backbone_pyramid(self.backbone, x)
+                     if self.seg_decoder == SEG_DECODER_FPN
+                     else backbone_linear_inputs(self.backbone, x))
             x4 = feats[-1]
         else:
             x4 = self.backbone(x)
@@ -834,10 +889,15 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 
         if not self.enable_segmentation:
             seg = None
-        elif fpn:
+        elif multi:
             seg = self.segmentation_head(feats, x.shape[-2:])
         else:
             seg = self.segmentation_head(x4)
+            # x32 of the last layer is the input size at 1/32 only (not
+            # with the 1/14 of DINOv2 or the 1/16 of ViT-B/16)
+            if seg.shape[-2:] != x.shape[-2:]:
+                seg = F.interpolate(seg, size=x.shape[-2:], mode="bilinear",
+                                    align_corners=False)
         return obj, bbox, cls, seg
 
     def predict_boxes(self, objectness, bbox_pred, class_pred,
@@ -953,6 +1013,8 @@ class MLPredictor(Base):
         self.labelled_share = Tiling.LABELLED_SHARE
         self.seg_loss       = SEG_LOSS_CE
         self.seg_decoder    = DEFAULT_SEG_DECODER
+        # DINOv2 backbone: number of its last blocks trained (0 = frozen)
+        self.finetune_blocks = 0
         # ... and as used by the live model: None (whole image resized to
         # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
         self.tiling = None
@@ -1604,55 +1666,7 @@ class MLPredictor(Base):
         self._train_summary = self._data_summary(
             num_classes, det_train, det_val, seg_train, seg_val, status)
 
-        seg_backbone = getattr(self, "seg_backbone", "resnet")
-        use_probe = (seg_backbone == "dinov2" and has_segmentation
-                     and not has_detection)
-        if seg_backbone == "dinov2" and has_detection:
-            log("DINOv2 probe is segmentation-only: geometric shapes "
-                "present, falling back to the ResNet head")
-        if use_probe:
-            from PyImageLabeling.model.ML.DinoProbe import DinoLinearProbe
-            if getattr(self, "seg_loss", SEG_LOSS_CE) != SEG_LOSS_CE:
-                log("DINOv2-linear trains with the cross-entropy only")
-            log("Segmentation backbone: DINOv2-linear "
-                "(frozen encoder, 1x1 head)")
-            self.probe = DinoLinearProbe(
-                num_classes, self.label_id_to_class, device=self.device)
-            self._probe_val_items = list(seg_val)
-            best, _ = self.probe.fit(
-                list(seg_train), self.num_epochs,
-                getattr(self, "learning_rate", 0.001),
-                log=log, epoch_callback=epoch_callback,
-                cancel_check=self._check_cancel)
-            self.model = None
-            self.trained = True
-            # trained in this session, so it exists in memory only
-            self._model_origin = "trained"
-            self._model_saved  = False
-            self._model_path   = None
-            log(f"TRAINING COMPLETE! Best loss: {best:.4f}")
-
-            # ---- held-out evaluation ----------------------------------
-            try:
-                self.val_metrics = self.evaluate_model()
-            except Exception as e:
-                ml_log(f"[eval] validation failed: {e}", force=True)
-                self.val_metrics = {}
-            if self.val_metrics:
-                parts = []
-                if "seg_loss" in self.val_metrics:
-                    parts.append(
-                        f"seg loss={self.val_metrics['seg_loss']:.4f}")
-                if "seg_miou" in self.val_metrics:
-                    parts.append(
-                        f"mIoU (labels)={self.val_metrics['seg_miou']:.3f}")
-                if "seg_miou_all" in self.val_metrics:
-                    parts.append(f"mIoU (with background)="
-                                 f"{self.val_metrics['seg_miou_all']:.3f}")
-                log("VAL: " + (" | ".join(parts) if parts else "n/a"))
-            else:
-                log("VAL: skipped (need ≥5 annotated images for a val split)")
-            return
+        self._old_dinov2_setting(log)
 
         detection_loader = None
         if det_train:
@@ -1734,6 +1748,7 @@ class MLPredictor(Base):
         backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
         pretrained = getattr(self, 'use_pretrained', True)
         decoder    = getattr(self, 'seg_decoder', DEFAULT_SEG_DECODER)
+        finetune   = getattr(self, 'finetune_blocks', 0)
         log(f"Backbone: {backbone} | Pretrained: {pretrained}"
             + (f" | Decoder: {SEG_DECODER_NAMES[decoder]}"
                if has_segmentation else ""))
@@ -1749,7 +1764,7 @@ class MLPredictor(Base):
             self._check_tile_size(self.tiling["tile_size"])
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(),
+            self._param_groups(finetune, pretrained, log),
             lr=getattr(self, 'learning_rate', 0.001))
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=self.num_epochs)
@@ -1766,9 +1781,7 @@ class MLPredictor(Base):
                              if segmentation_loader is not None else None),
             labels=getattr(self, "_labels_text", "all"),
             loss=self._loss_description(),
-            backbone=(f"{backbone}, {SEG_DECODER_NAMES[self.model.seg_decoder]}"
-                      f" decoder" if self.model.enable_segmentation
-                      else backbone),
+            backbone=self._network_description(),
             pretrained=pretrained,
             device=str(self.device), epochs=self.num_epochs,
             batch=self.batch_size,
@@ -1878,6 +1891,60 @@ class MLPredictor(Base):
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
+
+    def _old_dinov2_setting(self, log=None):
+        """The former "DINOv2-linear" segmentation head (seg_backbone =
+        "dinov2": frozen DINOv2-S, 1x1 conv on the whole image squeezed to
+        448 px) is now a case of the network: a DINOv2 backbone, frozen,
+        with the linear decoder."""
+        if getattr(self, "seg_backbone", "resnet") != "dinov2":
+            return
+        if not DinoBackbone.is_dinov2(getattr(self, "backbone_name", "")):
+            self.backbone_name = DinoBackbone.DEFAULT_DINOV2
+        self.seg_decoder = SEG_DECODER_LINEAR
+        self.finetune_blocks = 0
+        self.seg_backbone = "resnet"
+        if log:
+            log(f"DINOv2-linear setting: {self.backbone_name} backbone, "
+                f"frozen, linear decoder")
+
+    def _param_groups(self, finetune, pretrained, log):
+        """Parameters of the optimizer. A DINOv2 encoder is frozen but its
+        last `finetune` blocks, trained at a lower rate (all of them,
+        without the pretrained weights: random features are no use)."""
+        ext = self.model.backbone
+        if not hasattr(ext, "set_trainable_blocks"):
+            return self.model.parameters()
+        if not pretrained:
+            finetune = len(ext.dino.encoder.layer)
+            log("DINOv2 without its pretrained weights: the whole encoder "
+                "is trained")
+        n = ext.set_trainable_blocks(finetune)
+        encoder = ext.encoder_parameters()
+        ids = {id(p) for p in encoder}
+        rest = [p for p in self.model.parameters()
+                if p.requires_grad and id(p) not in ids]
+        lr = getattr(self, 'learning_rate', 0.001)
+        log("DINOv2 encoder: frozen" if n == 0 else
+            f"DINOv2 encoder: last {n} block(s) fine-tuned at "
+            f"lr {lr * DinoBackbone.FINETUNE_LR_FACTOR:g}")
+        groups = [{"params": rest}]
+        if encoder:
+            groups.append({"params": encoder,
+                           "lr": lr * DinoBackbone.FINETUNE_LR_FACTOR})
+        return groups
+
+    def _network_description(self):
+        """Backbone and decoder of the live network, in words."""
+        net = self.model
+        text = getattr(net, "backbone_name", DEFAULT_BACKBONE)
+        blocks = getattr(net.backbone, "trainable_blocks", None)
+        if blocks is not None:
+            text += (", frozen" if blocks == 0
+                     else f", last {blocks} block(s) fine-tuned")
+        if net.enable_segmentation:
+            text += f", {SEG_DECODER_NAMES[net.seg_decoder]} decoder"
+        return text
 
     # ------------------------------------------------------------------
     # Figures for the training dialog
@@ -2334,6 +2401,11 @@ class MLPredictor(Base):
         decoder = ml.get("seg_decoder", DEFAULT_SEG_DECODER)
         self.seg_decoder = (decoder if decoder in SEG_DECODERS
                             else DEFAULT_SEG_DECODER)
+        try:
+            self.finetune_blocks = max(0, int(ml.get("finetune_blocks", 0)))
+        except (TypeError, ValueError):
+            self.finetune_blocks = 0
+
         seg_loss = ml.get("seg_loss", SEG_LOSS_CE)
         self.seg_loss = seg_loss if seg_loss in SEG_LOSSES else SEG_LOSS_CE
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
@@ -2341,6 +2413,7 @@ class MLPredictor(Base):
             log.warning(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
             backbone = DEFAULT_BACKBONE
         self.backbone_name = backbone
+        self._old_dinov2_setting()
         log.info(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
                f"seg_backbone={self.seg_backbone}, "
                f"epochs={self.num_epochs}, lr={self.learning_rate}, "
@@ -3112,6 +3185,8 @@ class MLPredictor(Base):
                 decoder = getattr(net, "seg_decoder", SEG_DECODER_SIMPLE)
                 kind = (f"ResNet head ({backbone}, "
                         f"{SEG_DECODER_NAMES[decoder]} decoder)")
+            if DinoBackbone.is_dinov2(backbone):
+                kind = kind.replace("ResNet head", "Network", 1)
             can_segment = (bool(getattr(net, "enable_segmentation", False))
                            and mode in ("segmentation", "both"))
             can_detect  = (bool(getattr(net, "enable_detection", False))
