@@ -130,3 +130,30 @@ def test_update_color_recolors_and_keeps_shape(project):
     for entry in overlay.undo_deque:
         a, rgb = _alpha_rgb(entry.to_pixmap())
         assert (rgb[a > 0] == [10, 20, 200]).all()
+
+
+def test_accepting_a_segmentation_keeps_every_label(project):
+    # A prediction with two labels: both must be shown, marked as edited
+    # (so they are saved), not only the one of the selected label.
+    _, _, model, paths = project
+    _add_labels(model, 1)
+    model.select_image(paths[0])
+    item = model.get_current_image_item()
+    h, w = item.get_height(), item.get_width()
+    mask0 = np.zeros((h, w), np.uint8)
+    mask0[5:25, 5:25] = 1
+    mask1 = np.zeros((h, w), np.uint8)
+    mask1[60:90, 60:90] = 1
+    model.ml_segmentation_predictions = {0: mask0, 1: mask1}
+
+    item.update_scene()  # as the app does after selecting the image
+    assert model.ml_accept_segmentation()
+
+    for label_id, (y, x) in ((0, (10, 10)), (1, (70, 70))):
+        overlay = item.labeling_overlays[label_id]
+        assert overlay.get_is_edited(), label_id
+        alpha, _ = _alpha_rgb(overlay.labeling_overlay_pixmap)
+        assert alpha[y, x] > 0, label_id
+        # the image shown in the scene is refreshed too
+        shown, _ = _alpha_rgb(overlay.labeling_overlay_item.pixmap())
+        assert shown[y, x] > 0, label_id

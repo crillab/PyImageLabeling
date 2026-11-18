@@ -2653,10 +2653,19 @@ class MLPredictor(Base):
 
             painter = overlay.get_painter()
             painter.drawPixmap(0, 0, pixmap)
+            # refresh THIS overlay (display, "edited" flag, undo): the
+            # image's update_labeling_overlay() only refreshes the overlay
+            # of the selected label, so the other labels were drawn in
+            # their pixmap but never shown nor saved
+            overlay.update()
             ml_log(f"  Painted {pix_count} pixels → label {label_id} "
                   f"('{self._get_label_name(label_id)}')")
 
-        current_image.update_labeling_overlay()
+        current_image.update_icon_file()
+        try:
+            self.ml_invalidate_caches(current_image.path_image)
+        except AttributeError:
+            pass
         self.ml_segmentation_predictions = None
         self.ml_clear_predictions_visual()
         return True
