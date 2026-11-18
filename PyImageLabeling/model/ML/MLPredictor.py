@@ -234,6 +234,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.layer2(x)
                 x = self.layer3(x)
                 return self.layer4(x)
+            def stages(self):
+                return [self.layer1, self.layer2, self.layer3, self.layer4]
 
         ext = _ResNetExtractor()
 
@@ -247,6 +249,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _MobileNetExtractor()
 
@@ -263,6 +267,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _EfficientNetExtractor()
 
@@ -319,6 +325,12 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.permute(x)    # [B, C, H, W]
                 return x
 
+            channels_last = True
+            def stages(self):
+                return list(self.features)
+            def finish(self, x):
+                return self.norm(x)
+
         ext = _SwinExtractor(bb)
 
     # ── ConvNeXt ─────────────────────────────────────────────────────────
@@ -332,6 +344,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _ConvNeXtExtractor()
 
@@ -353,6 +367,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
             def forward(self, x):
                 x = self.stem(x)
                 return self.trunk_output(x)
+            def stages(self):
+                return [self.stem, *self.trunk_output]
 
         ext = _RegNetExtractor()
 
@@ -368,6 +384,10 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return F.relu(self.features(x), inplace=True)
+            def stages(self):
+                return list(self.features)
+            def finish(self, x):
+                return F.relu(x)
 
         ext = _DenseNetExtractor()
 
@@ -386,6 +406,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 for block in self.blocks:  # iterate instead of calling directly
                     x = block(x)
                 return x
+            def stages(self):
+                return [self.stem, *self.blocks]
 
         ext = _MaxViTExtractor()
 
@@ -399,8 +421,39 @@ def _build_backbone(backbone_name: str, pretrained: bool):
         output = ext(dummy)
         feat_ch = output.shape[1]
 
-    log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
+        ext.pyramid_channels = [f.shape[1] for f in backbone_pyramid(ext, dummy)]
+
+    log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, "
+              f"output_shape={output.shape}, "
+              f"pyramid_channels={ext.pyramid_channels}")
     return ext, feat_ch
+
+
+def backbone_pyramid(ext, x):
+    """Feature maps of the backbone from fine to coarse: the last one of
+    each resolution, from 1/4 of the input down to the last layer (whose
+    map is exactly ext(x)). A backbone without stages (ViT: a single
+    resolution) gives [ext(x)]."""
+    if not hasattr(ext, "stages"):
+        return [ext(x)]
+    height = x.shape[-2]
+    channels_last = getattr(ext, "channels_last", False)
+    feats, sizes = [], []
+    for stage in ext.stages():
+        x = stage(x)
+        h = x.shape[1] if channels_last else x.shape[2]
+        if sizes and sizes[-1] == h:
+            feats[-1] = x
+        else:
+            feats.append(x)
+            sizes.append(h)
+    if hasattr(ext, "finish"):
+        feats[-1] = ext.finish(feats[-1])
+    if channels_last:
+        feats = [f.permute(0, 3, 1, 2) for f in feats]
+    # 1/2 maps are left out: large, and little use with a 1/4 level
+    keep = [f for f, h in zip(feats, sizes) if height / h >= 3.5]
+    return keep or feats[-1:]
 
 # ---------------------------------------------------------------------------
 # Background training thread
@@ -676,11 +729,60 @@ class SegmentationHead(nn.Module):
         return F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
 
 
+SEG_DECODER_SIMPLE = "simple"   # upsamples the last layer only (1/32)
+SEG_DECODER_FPN    = "fpn"      # combines the 1/4 … 1/32 layers
+SEG_DECODERS       = (SEG_DECODER_SIMPLE, SEG_DECODER_FPN)
+SEG_DECODER_NAMES  = {SEG_DECODER_SIMPLE: "last layer only",
+                      SEG_DECODER_FPN:    "multi-scale (FPN)"}
+DEFAULT_SEG_DECODER = SEG_DECODER_FPN
+
+
+class FPNSegmentationHead(nn.Module):
+    """Feature-pyramid decoder (as in Panoptic FPN / U-Net).
+
+    The last layer of the backbone knows *what* is there but only at 1/32
+    of the resolution: a 32 x 32 px block per value, so the edges of small
+    objects are lost. The earlier layers still have the fine detail. Each
+    level is brought to `channels` by a 1x1 conv, then from the coarsest
+    to the finest: upsample, add the next finer level, 3x3 conv. The
+    classes are predicted on the finest level (1/4) and upsampled to the
+    input size.
+    """
+
+    def __init__(self, in_channels_list, num_classes=2, channels=128):
+        super().__init__()
+        self.lateral = nn.ModuleList(
+            nn.Conv2d(c, channels, 1) for c in in_channels_list)
+        self.smooth = nn.ModuleList(
+            nn.Sequential(nn.Conv2d(channels, channels, 3, padding=1,
+                                    bias=False),
+                          nn.BatchNorm2d(channels), nn.ReLU(inplace=True))
+            for _ in in_channels_list)
+        self.final = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels), nn.ReLU(inplace=True),
+            nn.Conv2d(channels, num_classes, 1))
+
+    def forward(self, feats, out_size):
+        x = self.smooth[-1](self.lateral[-1](feats[-1]))
+        for i in range(len(feats) - 2, -1, -1):
+            x = F.interpolate(x, size=feats[i].shape[-2:], mode="bilinear",
+                              align_corners=False)
+            x = self.smooth[i](x + self.lateral[i](feats[i]))
+        x = self.final(x)
+        return F.interpolate(x, size=out_size, mode="bilinear",
+                             align_corners=False)
+
+
 class FastObjectDetectorWithSegmentation(nn.Module):
     def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True,
-                 enable_detection=True, backbone_name=DEFAULT_BACKBONE):
+                 enable_detection=True, backbone_name=DEFAULT_BACKBONE,
+                 seg_decoder=SEG_DECODER_SIMPLE):
         super().__init__()
         self.backbone_name = backbone_name
+        # SIMPLE by default: what the models saved before the FPN head use
+        self.seg_decoder = (seg_decoder if seg_decoder in SEG_DECODERS
+                            else SEG_DECODER_SIMPLE)
 
         # Build backbone and measure its output channels automatically
         self.backbone, feat_ch = _build_backbone(backbone_name, pretrained)
@@ -697,14 +799,25 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 
         self.enable_segmentation = enable_segmentation
         if enable_segmentation:
-            self.segmentation_head = SegmentationHead(feat_ch, num_classes)
+            if self.seg_decoder == SEG_DECODER_FPN:
+                self.segmentation_head = FPNSegmentationHead(
+                    self.backbone.pyramid_channels, num_classes)
+            else:
+                self.segmentation_head = SegmentationHead(
+                    feat_ch, num_classes)
 
         self.grid_size   = 13
         self.num_classes = num_classes
         self.enable_detection = enable_detection 
         
     def forward(self, x):
-        x4 = self.backbone(x)
+        fpn = (self.enable_segmentation
+               and self.seg_decoder == SEG_DECODER_FPN)
+        if fpn:
+            feats = backbone_pyramid(self.backbone, x)
+            x4 = feats[-1]
+        else:
+            x4 = self.backbone(x)
 
         det = F.relu(self.bn1(self.conv1(x4)))
         det = F.relu(self.bn2(self.conv2(det)))
@@ -719,7 +832,12 @@ class FastObjectDetectorWithSegmentation(nn.Module):
         bbox = bbox.permute(0, 2, 3, 1).contiguous()
         cls  = cls.permute(0, 2, 3, 1).contiguous()
 
-        seg = self.segmentation_head(x4) if self.enable_segmentation else None
+        if not self.enable_segmentation:
+            seg = None
+        elif fpn:
+            seg = self.segmentation_head(feats, x.shape[-2:])
+        else:
+            seg = self.segmentation_head(x4)
         return obj, bbox, cls, seg
 
     def predict_boxes(self, objectness, bbox_pred, class_pred,
@@ -834,6 +952,7 @@ class MLPredictor(Base):
         self.tile_sampling  = Tiling.DEFAULT_SAMPLING
         self.labelled_share = Tiling.LABELLED_SHARE
         self.seg_loss       = SEG_LOSS_CE
+        self.seg_decoder    = DEFAULT_SEG_DECODER
         # ... and as used by the live model: None (whole image resized to
         # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
         self.tiling = None
@@ -1614,12 +1733,16 @@ class MLPredictor(Base):
         # ---- model ------------------------------------------------------
         backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
         pretrained = getattr(self, 'use_pretrained', True)
-        log(f"Backbone: {backbone} | Pretrained: {pretrained}")
+        decoder    = getattr(self, 'seg_decoder', DEFAULT_SEG_DECODER)
+        log(f"Backbone: {backbone} | Pretrained: {pretrained}"
+            + (f" | Decoder: {SEG_DECODER_NAMES[decoder]}"
+               if has_segmentation else ""))
         self.model = FastObjectDetectorWithSegmentation(
             num_classes=num_classes,
             pretrained=pretrained,
             enable_segmentation=has_segmentation,
-            backbone_name=backbone)
+            backbone_name=backbone,
+            seg_decoder=decoder)
         self.model = self.model.to(self.device)
         self._check_cancel()        # loading the weights takes a moment
         if self.tiling is not None:
@@ -1643,7 +1766,10 @@ class MLPredictor(Base):
                              if segmentation_loader is not None else None),
             labels=getattr(self, "_labels_text", "all"),
             loss=self._loss_description(),
-            backbone=backbone, pretrained=pretrained,
+            backbone=(f"{backbone}, {SEG_DECODER_NAMES[self.model.seg_decoder]}"
+                      f" decoder" if self.model.enable_segmentation
+                      else backbone),
+            pretrained=pretrained,
             device=str(self.device), epochs=self.num_epochs,
             batch=self.batch_size,
             lr=optimizer.param_groups[0]['lr']))
@@ -2205,6 +2331,9 @@ class MLPredictor(Base):
             ml.get("tile_sampling", Tiling.DEFAULT_SAMPLING))
         self.labelled_share = Tiling.normalize_share(
             ml.get("labelled_share", Tiling.LABELLED_SHARE))
+        decoder = ml.get("seg_decoder", DEFAULT_SEG_DECODER)
+        self.seg_decoder = (decoder if decoder in SEG_DECODERS
+                            else DEFAULT_SEG_DECODER)
         seg_loss = ml.get("seg_loss", SEG_LOSS_CE)
         self.seg_loss = seg_loss if seg_loss in SEG_LOSSES else SEG_LOSS_CE
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
@@ -2783,12 +2912,15 @@ class MLPredictor(Base):
             backbone_name = getattr(self.model, "backbone_name", "resnet18")
             enable_seg = self.model.enable_segmentation
             enable_det = getattr(self.model, "enable_detection", True)
+            seg_decoder = getattr(self.model, "seg_decoder",
+                                  SEG_DECODER_SIMPLE)
             state = self.model.state_dict()
         elif probe is not None:
             num_classes = probe.num_classes
             backbone_name = "dinov2-linear"
             enable_seg = True
             enable_det = False
+            seg_decoder = None
             state = None
         else:
             raise RuntimeError("nothing trained to save")
@@ -2800,6 +2932,7 @@ class MLPredictor(Base):
             'backbone_name': backbone_name,
             'enable_segmentation': enable_seg,
             'enable_detection': enable_det,
+            'seg_decoder': seg_decoder,
             'seg_backbone': getattr(self, "seg_backbone", "resnet"),
             'probe': probe.save_dict() if probe is not None else None,
 
@@ -2860,7 +2993,9 @@ class MLPredictor(Base):
                     pretrained=False,
                     enable_segmentation=enable_seg,
                     enable_detection=enable_det,
-                    backbone_name=backbone
+                    backbone_name=backbone,
+                    # saved before the FPN head: the last-layer head
+                    seg_decoder=ck.get('seg_decoder') or SEG_DECODER_SIMPLE,
                 )
 
                 # Charger les poids
@@ -2973,6 +3108,10 @@ class MLPredictor(Base):
         elif net is not None:
             backbone = getattr(net, "backbone_name", DEFAULT_BACKBONE)
             kind     = f"ResNet head ({backbone})"
+            if getattr(net, "enable_segmentation", False):
+                decoder = getattr(net, "seg_decoder", SEG_DECODER_SIMPLE)
+                kind = (f"ResNet head ({backbone}, "
+                        f"{SEG_DECODER_NAMES[decoder]} decoder)")
             can_segment = (bool(getattr(net, "enable_segmentation", False))
                            and mode in ("segmentation", "both"))
             can_detect  = (bool(getattr(net, "enable_detection", False))

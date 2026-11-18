@@ -33,6 +33,10 @@ from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.ML.MLPredictor import (
     BACKBONE_NAMES,
     DEFAULT_BACKBONE,
+    DEFAULT_SEG_DECODER,
+    SEG_DECODER_FPN,
+    SEG_DECODER_SIMPLE,
+    SEG_DECODERS,
     SEG_LOSS_CE,
     SEG_LOSS_CE_DICE,
     SEG_LOSSES,
@@ -312,6 +316,40 @@ class MLSetting(QDialog):
         seg_row.addWidget(self.seg_combo)
         seg_row.addStretch()
         seg_layout.addLayout(seg_row)
+
+        # Decoder of the ResNet head (hidden for DINOv2-linear)
+        self.decoder_row = QWidget()
+        self.decoder_row.setObjectName("ml_decoder_row")
+        self.decoder_row.setStyleSheet(
+            "#ml_decoder_row { background-color: transparent; }")
+        decoder_layout = QHBoxLayout(self.decoder_row)
+        decoder_layout.setContentsMargins(0, 0, 0, 0)
+        decoder_lbl = QLabel("Decoder:")
+        self.decoder_combo = QComboBox()
+        self.decoder_combo.addItem("Multi-scale (FPN)", SEG_DECODER_FPN)
+        self.decoder_combo.addItem("Last layer only", SEG_DECODER_SIMPLE)
+        current_decoder = ml_params.get("seg_decoder", DEFAULT_SEG_DECODER)
+        self.decoder_combo.setCurrentIndex(max(0, self.decoder_combo.findData(
+            current_decoder if current_decoder in SEG_DECODERS
+            else DEFAULT_SEG_DECODER)))
+        tip = (
+            "How the mask is rebuilt from the backbone.\n\n"
+            "• Multi-scale (FPN): combines the layers at 1/4, 1/8, 1/16\n"
+            "  and 1/32 of the resolution: the last layer tells what is\n"
+            "  there, the earlier ones where its edges are. Sharper edges,\n"
+            "  better on small objects; a little slower.\n"
+            "• Last layer only: upsamples the last layer (1/32 of the\n"
+            "  resolution, one value per 32 x 32 px block): blurred edges.\n"
+            "  The head of the models trained before the FPN one.\n\n"
+            "A loaded model keeps the decoder it was trained with.")
+        decoder_lbl.setToolTip(tip)
+        self.decoder_combo.setToolTip(tip)
+        decoder_layout.addWidget(decoder_lbl)
+        decoder_layout.addWidget(self.decoder_combo)
+        decoder_layout.addStretch()
+        seg_layout.addWidget(self.decoder_row)
+        self.seg_combo.currentIndexChanged.connect(self._update_decoder_row)
+        self._update_decoder_row()
 
         loss_row = QHBoxLayout()
         loss_lbl = QLabel("Loss:")
@@ -1211,6 +1249,10 @@ class MLSetting(QDialog):
     def _update_overlap_range(self):
         self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
 
+    def _update_decoder_row(self):
+        """The decoder is a choice of the ResNet head only."""
+        self.decoder_row.setVisible(self.seg_combo.currentData() == "resnet")
+
     def _update_seg_options(self):
         """The segmentation settings show only when it is enabled."""
         self.seg_options.setVisible(self.enable_seg_checkbox.isChecked())
@@ -1267,6 +1309,7 @@ class MLSetting(QDialog):
         data["ml"]["tile_sampling"] = self.sampling_combo.currentData()
         data["ml"]["labelled_share"] = self.share_spinbox.value() / 100
         data["ml"]["seg_loss"] = self.loss_combo.currentData()
+        data["ml"]["seg_decoder"] = self.decoder_combo.currentData()
 
         Utils.save_parameters(data)
         return super().accept()
