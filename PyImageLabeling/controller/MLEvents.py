@@ -26,6 +26,47 @@ class MLEvents(Events):
             log_state("ml_train_model: start")
         except Exception:
             pass
+
+        # Use paths chosen in settings, fallback to all paths
+        selected_paths = getattr(self, '_ml_selected_image_paths', None)
+
+        # ----------------------------------------------------------------
+        # Quick data check before committing to training, and before
+        # dropping the current model (a refused training keeps it). Images
+        # are not loaded for it any more: the training reads the masks of
+        # the images that are not loaded from their files.
+        # ----------------------------------------------------------------
+        n_detection, n_segmentation = self.model.ml_training_image_counts(
+            selected_paths)
+        log.info(f"Found: {n_detection} detection images, "
+                 f"{n_segmentation} segmentation images")
+
+        # the heads enabled in ML > Settings (read as train_model will)
+        self.model._apply_ml_params()
+        use_detection    = self.model.enable_detection
+        use_segmentation = self.model.enable_segmentation
+        if not (use_detection or use_segmentation):
+            QMessageBox.warning(
+                self.view, "Nothing to Train",
+                "Both the detection and the segmentation heads are disabled."
+                "\n\nEnable at least one in ML > Settings.")
+            return
+
+        usable = ((n_detection if use_detection else 0)
+                  + (n_segmentation if use_segmentation else 0))
+        if usable < 1:
+            off = " (head disabled in ML > Settings)"
+            QMessageBox.warning(
+                self.view, "Insufficient Data",
+                f"Please annotate at least 1 image before training.\n\n"
+                f"Found:\n"
+                f"  - {n_detection} images with geometric shapes"
+                f"{'' if use_detection else off}\n"
+                f"  - {n_segmentation} images with painted pixels"
+                f"{'' if use_segmentation else off}"
+            )
+            return
+
         # uncertainties depend on weights: drop cached active-learning ranking
         try:
             self._al_ranking = None
@@ -44,29 +85,6 @@ class MLEvents(Events):
         # reflect "training, no model yet" immediately instead of leaving a
         # stale green badge from the model that was there before
         self.ml_update_status()
-
-        # Use paths chosen in settings, fallback to all paths
-        selected_paths = getattr(self, '_ml_selected_image_paths', None)
-
-        # ----------------------------------------------------------------
-        # Quick data check before committing to training. Images are not
-        # loaded for it any more: the training reads the masks of the
-        # images that are not loaded from their files.
-        # ----------------------------------------------------------------
-        n_detection, n_segmentation = self.model.ml_training_image_counts(
-            selected_paths)
-        log.info(f"Found: {n_detection} detection images, "
-                 f"{n_segmentation} segmentation images")
-
-        if n_detection + n_segmentation < 1:
-            QMessageBox.warning(
-                self.view, "Insufficient Data",
-                f"Please annotate at least 1 image before training.\n\n"
-                f"Found:\n"
-                f"  - {n_detection} images with geometric shapes\n"
-                f"  - {n_segmentation} images with painted pixels"
-            )
-            return
 
         # Training progress is handled inside model.train_model() via its
         # own modal QProgressDialog + QThread — just call it directly.

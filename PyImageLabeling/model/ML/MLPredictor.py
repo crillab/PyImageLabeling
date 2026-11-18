@@ -716,7 +716,10 @@ class MLPredictor(Base):
 
         # FIX: training_mode must survive save/load
         self.training_mode       = None
-        self.enable_segmentation = False
+        # heads the next training may use (ML settings); each one is
+        # trained only if the annotations it learns from exist
+        self.enable_segmentation = True
+        self.enable_detection    = True
         self.batch_size          = 8
         self.num_epochs          = 50
         self.learning_rate       = 0.001
@@ -1165,9 +1168,19 @@ class MLPredictor(Base):
 
         self.tiling = None
         status("Reading the annotations…")
-        # FIX: collect once, with the same selected_paths throughout
-        detection_data    = self.collect_training_data(selected_paths)
-        segmentation_data = self.collect_segmentation_data(selected_paths)
+        # FIX: collect once, with the same selected_paths throughout. A head
+        # disabled in the ML settings gets no data, so it is not trained.
+        use_detection    = getattr(self, "enable_detection", True)
+        use_segmentation = getattr(self, "enable_segmentation", True)
+        detection_data    = (self.collect_training_data(selected_paths)
+                             if use_detection else [])
+        segmentation_data = (self.collect_segmentation_data(selected_paths)
+                             if use_segmentation else [])
+        if not use_detection:
+            log("Detection head disabled in the settings: shapes ignored")
+        if not use_segmentation:
+            log("Segmentation head disabled in the settings: painted "
+                "pixels ignored")
 
         has_detection    = len(detection_data)    > 0
         has_segmentation = len(segmentation_data) > 0
@@ -1871,6 +1884,7 @@ class MLPredictor(Base):
         self.learning_rate       = ml.get("learning_rate",        self.learning_rate)
         self.image_size          = ml.get("image_size",           self.image_size)
         self.enable_segmentation = ml.get("enable_segmentation",  self.enable_segmentation)
+        self.enable_detection    = ml.get("enable_detection",     self.enable_detection)
         self.confidence_threshold = ml.get("confidence_threshold", self.confidence_threshold)
         self.nms_threshold        = ml.get("nms_threshold",        self.nms_threshold)
         self.use_pretrained       = ml.get("pretrained",           True)
