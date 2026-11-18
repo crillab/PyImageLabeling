@@ -22,6 +22,16 @@ version: the Release workflow refuses to publish a version without one.
   Each epoch sees about a third of every image, whatever the tile size. The
   tiling is saved with the model; models saved before predict on the whole
   image, as they were trained. Detection is unchanged (whole image).
+- The training window shows what the training is made of and how it goes:
+  the settings used (whole image or tiles, backbone, epochs, batch, learning
+  rate, train/validation images), a table of the labels (training images and
+  share of the pixels of each label, inputs of the epoch holding it, IoU on
+  the training inputs, then on the validation images), and for each epoch
+  the loss next to a reference loss (a model that only knows the proportions
+  of the labels: 100 % of it = nothing learnt from the image), the pixel
+  accuracy, the time per epoch and left, the GPU memory, and a loss curve.
+  The training log can be unfolded. The window stays open at the end with the
+  validation results, instead of a message box.
 - *File > New Project…* (Ctrl+Shift+N): an empty project in a folder (an
   empty `labels.json` makes it a project), to fill with *Add Images* and
   *Import Labels*. Opening an empty folder offers the same. The title bar shows

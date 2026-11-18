@@ -1,9 +1,10 @@
 from PyImageLabeling.model.Base import Base
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsPixmapItem, QProgressDialog, QMessageBox
+from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsPixmapItem, QMessageBox
 from PyQt6.QtGui import QPen, QColor, QBrush, QPixmap, QImage
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 import os
+import time
 import cv2
 import re
 import numpy as np
@@ -366,6 +367,7 @@ class TrainingWorker(QThread):
     progress   = pyqtSignal(str)            # log messages  → console
     status     = pyqtSignal(str)            # what is going on → dialog text
     epoch_done = pyqtSignal(int, int, float) # current, total, loss → progress bar
+    stats      = pyqtSignal(object)         # settings, data, epoch figures → dialog
     finished   = pyqtSignal()
     error      = pyqtSignal(str)
 
@@ -381,6 +383,7 @@ class TrainingWorker(QThread):
                 epoch_callback  = self.epoch_done.emit,
                 log_callback    = self.progress.emit,
                 status_callback = self.status.emit,
+                stats_callback  = self.stats.emit,
             )
             self.finished.emit()
         except Exception as e:
@@ -884,6 +887,9 @@ class MLPredictor(Base):
                 if valid.any():
                     out["seg_miou"] = float(
                         (inter[valid] / union[valid]).mean())
+                    out["seg_iou"] = {c: float(inter[c] / union[c])
+                                      for c in range(num_classes)
+                                      if union[c] > 0}
         if was_training:
             self.model.train()
         return out
@@ -1134,7 +1140,16 @@ class MLPredictor(Base):
 
     def train_model_core(self, selected_paths=None,
                          epoch_callback=None, log_callback=None,
-                         status_callback=None):
+                         status_callback=None, stats_callback=None):
+        """Train a model on the annotated images.
+
+        `stats_callback`, when given, receives dicts for the training dialog:
+        {"kind": "setup", ...} once the network is built (settings, classes,
+        what the train images hold) and {"kind": "epoch", ...} after each
+        epoch (losses, reference loss, accuracy and IoU on the training
+        batches, tiles holding each class, time, GPU memory).
+        """
+        self._stats_callback = stats_callback
 
         def log(msg):
             # console echo goes through logging (DEBUG); the progress
@@ -1212,6 +1227,8 @@ class MLPredictor(Base):
         seg_train, seg_val = self._split_train_val(segmentation_data)
         log(f"Train: {len(det_train)} det + {len(seg_train)} seg | "
             f"Val: {len(det_val)} det + {len(seg_val)} seg")
+        self._train_summary = self._data_summary(
+            num_classes, det_train, det_val, seg_train, seg_val, status)
 
         seg_backbone = getattr(self, "seg_backbone", "resnet")
         use_probe = (seg_backbone == "dinov2" and has_segmentation
@@ -1355,6 +1372,17 @@ class MLPredictor(Base):
         log(f"Device: {self.device} | Epochs: {self.num_epochs} | "
             f"Batch: {self.batch_size} | LR: {optimizer.param_groups[0]['lr']}")
         status(f"Training…\nepoch 1/{self.num_epochs}")
+        self._emit_stats(dict(
+            getattr(self, "_train_summary", None) or {},
+            kind="setup",
+            input=self._input_description(),
+            unit="tiles" if self.tiling is not None else "images",
+            tiles_per_epoch=(len(segmentation_loader.dataset)
+                             if segmentation_loader is not None else None),
+            backbone=backbone, pretrained=pretrained,
+            device=str(self.device), epochs=self.num_epochs,
+            batch=self.batch_size,
+            lr=optimizer.param_groups[0]['lr']))
 
         self.model.train()
         best_loss = float('inf')
@@ -1362,6 +1390,11 @@ class MLPredictor(Base):
         for epoch in range(self.num_epochs):
             total_loss = num_batches = 0
             avg_obj = avg_bbox = avg_cls = 0.0
+            started = time.monotonic()
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+            det_loss = seg_loss = None
+            seg_acc = None
 
             # -- detection batches --
             if detection_loader:
@@ -1386,13 +1419,16 @@ class MLPredictor(Base):
                 avg_obj  = total_obj  / n
                 avg_bbox = total_bbox / n
                 avg_cls  = total_cls  / n
+                det_loss = (total_loss / num_batches) if num_batches else None
 
             # -- segmentation batches --
             if segmentation_loader:
+                seg_acc = {}
                 loss_sum, steps, fitted = self._seg_epoch(
-                    segmentation_loader, optimizer, seg_ignore)
+                    segmentation_loader, optimizer, seg_ignore, seg_acc)
                 total_loss  += loss_sum
                 num_batches += steps
+                seg_loss = loss_sum / steps if steps else None
                 if fitted is not None:
                     log(f"GPU out of memory with batches of "
                         f"{segmentation_loader.batch_size}: going on with "
@@ -1409,6 +1445,11 @@ class MLPredictor(Base):
 
             if epoch_callback:
                 epoch_callback(epoch + 1, self.num_epochs, avg_loss)
+            self._emit_stats(self._epoch_stats(
+                epoch + 1, avg_loss, det_loss, seg_loss, seg_acc,
+                time.monotonic() - started,
+                segmentation_loader.batch_size if segmentation_loader
+                else None))
 
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 log(f"Epoch [{epoch+1}/{self.num_epochs}] "
@@ -1443,6 +1484,96 @@ class MLPredictor(Base):
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
+
+    # ------------------------------------------------------------------
+    # Figures for the training dialog
+    # ------------------------------------------------------------------
+
+    def _emit_stats(self, stats):
+        callback = getattr(self, "_stats_callback", None)
+        if callback is None or not stats:
+            return
+        try:
+            callback(stats)
+        except Exception as e:
+            ml_log(f"[train] stats callback failed: {e}")
+
+    def _data_summary(self, num_classes, det_train, det_val, seg_train,
+                      seg_val, status):
+        """Classes of the training (name, colour) and what the training
+        images hold: number of images and of pixels of each class."""
+        classes = []
+        for c in range(num_classes):
+            orig = self.class_to_label_id.get(c)
+            item = self.label_items.get(orig) if orig is not None else None
+            if item is not None:
+                color = item.get_color()
+                classes.append({"cls": c, "name": item.get_name(),
+                                "color": (color.red(), color.green(),
+                                          color.blue())})
+            else:
+                classes.append({"cls": c, "name": "Background",
+                                "color": None})
+        images, pixels = {}, {}
+        if seg_train:
+            status("Counting the annotated pixels…")
+            lut = np.full(256, -1, dtype=np.int64)
+            for orig, c in self.label_id_to_class.items():
+                lut[int(orig)] = c
+            for _, mask in seg_train:
+                counts = np.bincount(np.asarray(mask).ravel(), minlength=256)
+                for orig in np.nonzero(counts)[0]:
+                    c = int(lut[orig])
+                    if c < 0:
+                        continue
+                    images[c] = images.get(c, 0) + 1
+                    pixels[c] = pixels.get(c, 0) + int(counts[orig])
+        return {"classes": classes,
+                "train_images": len(seg_train) + len(det_train),
+                "val_images": len(seg_val) + len(det_val),
+                "images_per_class": images, "pixels_per_class": pixels}
+
+    def _input_description(self):
+        """How the network sees the images, in words."""
+        t = getattr(self, "tiling", None)
+        if t is not None:
+            scale = {1.0: "full resolution", 0.5: "half resolution",
+                     0.25: "quarter resolution"}.get(
+                         t["scale"], f"scale {t['scale']:g}")
+            text = (f"tiles of {t['tile_size']} px, overlap "
+                    f"{t['overlap']} px, {scale}")
+        else:
+            text = f"whole images resized to {self.image_size} px"
+        if getattr(self, "training_mode", "") == "both" and t is not None:
+            text += (f" (detection: whole images resized to "
+                     f"{self.image_size} px)")
+        return text
+
+    def _epoch_stats(self, epoch, loss, det_loss, seg_loss, acc, seconds,
+                     batch):
+        """Figures of an epoch. The reference loss is the cross-entropy of a
+        model that answers the class proportions of the epoch's pixels for
+        every pixel, without looking at the image (their entropy)."""
+        out = {"kind": "epoch", "epoch": epoch, "total": self.num_epochs,
+               "loss": loss, "det_loss": det_loss, "seg_loss": seg_loss,
+               "seconds": seconds, "batch": batch}
+        if torch.cuda.is_available():
+            out["gpu_bytes"] = int(torch.cuda.max_memory_allocated())
+        if acc and "conf" in acc:
+            conf = acc["conf"].double().cpu().numpy()
+            per_class = conf.sum(axis=1)
+            total = per_class.sum()
+            if total > 0:
+                p = per_class[per_class > 0] / total
+                out["reference"] = float(-(p * np.log(p)).sum())
+                diag = np.diag(conf)
+                out["pixel_accuracy"] = float(diag.sum() / total)
+                union = conf.sum(axis=0) + per_class - diag
+                out["train_iou"] = {c: float(diag[c] / union[c])
+                                    for c in range(len(diag)) if union[c] > 0}
+            out["present"] = [int(n) for n in acc["present"].cpu().tolist()]
+            out["inputs"] = int(acc["inputs"])
+        return out
 
     # ------------------------------------------------------------------
     # Tiles (segmentation on large images)
@@ -1516,7 +1647,8 @@ class MLPredictor(Base):
         finally:
             self.model.train(was_training)
 
-    def _seg_train_step(self, images, masks, optimizer, ignore_index):
+    def _seg_train_step(self, images, masks, optimizer, ignore_index,
+                        acc=None):
         optimizer.zero_grad()
         _, _, _, seg_pred = self.model(images)
         if seg_pred is None:
@@ -1525,9 +1657,31 @@ class MLPredictor(Base):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
         optimizer.step()
+        if acc is not None:
+            self._accumulate_seg_stats(acc, seg_pred.detach(), masks,
+                                       ignore_index)
         return loss.item()
 
-    def _seg_steps(self, images, masks, optimizer, ignore_index):
+    @staticmethod
+    @torch.no_grad()
+    def _accumulate_seg_stats(acc, logits, masks, ignore_index):
+        """Add a training batch to `acc`: confusion matrix (target × pred,
+        pixels), number of inputs holding each class, number of inputs."""
+        c = logits.shape[1]
+        pred = logits.argmax(dim=1)
+        valid = (masks != ignore_index) & (masks >= 0) & (masks < c)
+        conf = torch.bincount(masks[valid] * c + pred[valid],
+                              minlength=c * c).reshape(c, c)
+        present = torch.stack([((masks == k) & valid).flatten(1).any(1).sum()
+                               for k in range(c)])
+        if "conf" in acc:
+            acc["conf"] += conf
+            acc["present"] += present
+        else:
+            acc["conf"], acc["present"] = conf, present
+        acc["inputs"] = acc.get("inputs", 0) + masks.size(0)
+
+    def _seg_steps(self, images, masks, optimizer, ignore_index, acc=None):
         """Train on one batch; when the GPU runs out of memory, on its two
         halves instead (recursively).
 
@@ -1536,7 +1690,7 @@ class MLPredictor(Base):
         """
         try:
             loss = self._seg_train_step(images, masks, optimizer,
-                                        ignore_index)
+                                        ignore_index, acc)
             return (0.0, 0, images.size(0)) if loss is None \
                 else (loss, 1, images.size(0))
         except torch.cuda.OutOfMemoryError:
@@ -1549,12 +1703,12 @@ class MLPredictor(Base):
             torch.cuda.empty_cache()
         half = images.size(0) // 2
         l1, n1, f1 = self._seg_steps(images[:half], masks[:half],
-                                     optimizer, ignore_index)
+                                     optimizer, ignore_index, acc)
         l2, n2, f2 = self._seg_steps(images[half:], masks[half:],
-                                     optimizer, ignore_index)
+                                     optimizer, ignore_index, acc)
         return l1 + l2, n1 + n2, min(f1, f2)
 
-    def _seg_epoch(self, loader, optimizer, ignore_index):
+    def _seg_epoch(self, loader, optimizer, ignore_index, acc=None):
         """One pass over the segmentation batches.
 
         Returns (sum of the losses, number of steps, batch size to use from
@@ -1565,7 +1719,7 @@ class MLPredictor(Base):
             images = images.to(self.device)
             masks  = masks.to(self.device)
             loss, n, fit = self._seg_steps(images, masks, optimizer,
-                                           ignore_index)
+                                           ignore_index, acc)
             total += loss
             steps += n
             if fit < images.size(0):
@@ -1667,6 +1821,9 @@ class MLPredictor(Base):
             ok = union > 0
             if ok.any():
                 out["seg_miou"] = float((inter[ok] / union[ok]).mean())
+                out["seg_iou"] = {c: float(inter[c] / union[c])
+                                  for c in range(num_classes)
+                                  if union[c] > 0}
         return out
 
     @torch.no_grad()
@@ -1743,20 +1900,14 @@ class MLPredictor(Base):
     def train_model(self, selected_paths=None):
         self._apply_ml_params()
         n_images = len(selected_paths) if selected_paths else len(self.file_paths)
-        self._progress_dialog = QProgressDialog(
-            f"Initializing training…\n{n_images} image(s) selected",
-            None, 0, self.num_epochs)
-        self._progress_dialog.setWindowTitle("Training Model")
+        from PyImageLabeling.view.TrainingDialog import TrainingDialog
+        self._progress_dialog = TrainingDialog(n_images)
         self._progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self._progress_dialog.setMinimumDuration(0)
-        self._progress_dialog.setAutoClose(False)
-        self._progress_dialog.setAutoReset(False)
-        self._progress_dialog.setCancelButton(None)
-        self._progress_dialog.resize(420, 120)
         self._progress_dialog.show()
 
         self._training_worker = TrainingWorker(self, selected_paths)
         self._training_worker.epoch_done.connect(self._on_epoch_done)
+        self._training_worker.stats.connect(self._progress_dialog.on_stats)
         self._training_worker.progress.connect(self._on_training_log)
         self._training_worker.status.connect(self._on_training_status)
         self._training_worker.finished.connect(self._on_training_finished)
@@ -1764,18 +1915,16 @@ class MLPredictor(Base):
         self._training_worker.start()
 
     def _on_epoch_done(self, current, total, loss):
-        self._progress_dialog.setValue(current)
-        self._progress_dialog.setLabelText(
-            f"Epoch {current}/{total}  —  Loss: {loss:.4f}")
+        self._progress_dialog.on_epoch(current, total, loss)
 
     def _on_training_log(self, message):
         log.info(message)
+        self._progress_dialog.add_log(message)
 
     def _on_training_status(self, message):
-        self._progress_dialog.setLabelText(message)
+        self._progress_dialog.set_status(message)
 
     def _on_training_finished(self):
-        self._progress_dialog.close()
         # The model just replaced whatever was loaded/trained before, and it
         # only exists in memory: say so, so nobody mistakes it for the file
         # they loaded at startup.
@@ -1788,25 +1937,10 @@ class MLPredictor(Base):
             pass
         # (training reads the masks of the images that are not loaded from
         # their files: there are no ImageItems to release afterwards)
-        val_txt = ""
-        try:
-            vm = getattr(self, "val_metrics", {}) or {}
-            bits = []
-            if "det_loss" in vm:
-                bits.append(f"Val det loss: {vm['det_loss']:.4f}")
-            if "seg_loss" in vm:
-                bits.append(f"Val seg loss: {vm['seg_loss']:.4f}")
-            if "seg_miou" in vm:
-                bits.append(f"Val mIoU: {vm['seg_miou']:.3f}")
-            if bits:
-                val_txt = "\n" + "\n".join(bits)
-        except Exception:
-            pass
-        QMessageBox.information(
-            None, "Training Complete",
-            f"Model trained successfully!\n"
-            f"Mode: {self.training_mode}\n"
-            f"Classes: {self._display_num_classes()}{val_txt}")
+        # the dialog stays open with the results, until the user closes it
+        self._progress_dialog.finish(getattr(self, "val_metrics", {}) or {},
+                                     self.training_mode,
+                                     self._display_num_classes())
 
     def _display_num_classes(self):
         if getattr(self, "model", None) is not None:
@@ -1817,7 +1951,7 @@ class MLPredictor(Base):
         return "?"
 
     def _on_training_error(self, error_msg):
-        self._progress_dialog.close()
+        self._progress_dialog.fail()
         # the previous model was already dropped when training started
         try:
             self.controller.ml_update_status()
