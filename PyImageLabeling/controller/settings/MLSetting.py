@@ -25,8 +25,8 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QIcon, QImageReader, QPixmap, QScreen
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QIcon, QImageReader, QPixmap, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
@@ -34,8 +34,35 @@ from PyImageLabeling.model.ML.MLPredictor import (
     BACKBONE_NAMES,
     DEFAULT_BACKBONE,
 )
-from PyImageLabeling.model.ML import Tiling
+from PyImageLabeling.model.ML import LabelStats, Tiling
 import os
+
+
+class LabelStatsWorker(QThread):
+    """Reads mask files for the label statistics, off the GUI thread:
+    a large mask takes a fraction of a second to decode."""
+
+    mask_done = pyqtSignal(str, int, object)   # image, label id, MaskStats
+
+    def __init__(self, jobs, cache, parent=None):
+        super().__init__(parent)
+        self.jobs = list(jobs)       # [(image path, label id, mask file)]
+        self.cache = cache
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        for path, label_id, mask_path in self.jobs:
+            if self._stop:
+                return
+            try:
+                stats = LabelStats.file_stats(mask_path, self.cache)
+            except Exception:
+                stats = None
+            self.mask_done.emit(path, label_id, stats)
+
 
 class MLSetting(QDialog):
     def __init__(self, zoomable_graphic_view, model):
@@ -367,6 +394,15 @@ class MLSetting(QDialog):
         self._update_seg_options()
         self._update_tiles_box()
         self._update_label_choice()
+        # the figures follow the images, the labels and the tiles chosen
+        self.image_list.itemChanged.connect(self._schedule_stats_refresh)
+        self.other_labels_checkbox.toggled.connect(
+            self._schedule_stats_refresh)
+        self.tiles_radio.toggled.connect(self._schedule_stats_refresh)
+        self.tile_spinbox.valueChanged.connect(self._schedule_stats_refresh)
+        self.scale_combo.currentIndexChanged.connect(
+            self._schedule_stats_refresh)
+        self._start_label_stats()
 
     # ------------------------------------------------------------------
     # Labels to learn
@@ -378,8 +414,8 @@ class MLSetting(QDialog):
         group = QGroupBox("Labels to Learn")
         layout = QVBoxLayout(group)
 
-        self.labels_table = QTableWidget(0, 1)
-        self.labels_table.setHorizontalHeaderLabels(["Label"])
+        self.labels_table = QTableWidget(0, len(self.LABEL_COLUMNS))
+        self.labels_table.setHorizontalHeaderLabels(self.LABEL_COLUMNS)
         self.labels_table.verticalHeader().setVisible(False)
         self.labels_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -388,12 +424,13 @@ class MLSetting(QDialog):
         self.labels_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.labels_table.verticalHeader().setDefaultSectionSize(
             self.labels_table.fontMetrics().height() + 8)
-        self.labels_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.Stretch)
-        self.labels_table.horizontalHeaderItem(0).setToolTip(
-            "Check the labels the model learns; every other pixel is the\n"
-            "background. One label checked: a binary model (that label\n"
-            "against the background).")
+        header = self.labels_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in range(1, len(self.LABEL_COLUMNS)):
+            header.setSectionResizeMode(
+                col, QHeaderView.ResizeMode.ResizeToContents)
+        for col, tip in enumerate(self.LABEL_TOOLTIPS):
+            self.labels_table.horizontalHeaderItem(col).setToolTip(tip)
 
         chosen = (self.model.ml_chosen_label_ids()
                   if hasattr(self.model, "ml_chosen_label_ids") else None)
@@ -413,6 +450,39 @@ class MLSetting(QDialog):
             self.labels_table.insertRow(row)
             self.labels_table.setItem(row, 0, cell)
             self._label_row_ids.append(label_id)
+        # the classes that are not labels: background, ignored pixels
+        italic = QFont(self.labels_table.font())
+        italic.setItalic(True)
+        for key, text, tip in (
+                (LabelStats.BACKGROUND, "Background",
+                 "Pixels of no checked label: those painted with nothing,\n"
+                 "and those of the other labels when they count as\n"
+                 "background."),
+                (LabelStats.IGNORED, "Other labels (ignored)",
+                 "Pixels of the unchecked labels on the training images,\n"
+                 "left out of the training.")):
+            cell = QTableWidgetItem(text)
+            cell.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            cell.setFont(italic)
+            cell.setToolTip(tip)
+            row = self.labels_table.rowCount()
+            self.labels_table.insertRow(row)
+            self.labels_table.setItem(row, 0, cell)
+            self._label_row_ids.append(None)
+            setattr(self, f"_{key}_row", row)
+        self._label_names = {
+            label_id: self.model.label_items[label_id].get_name()
+            for label_id in self._label_row_ids if label_id is not None}
+        self._label_stats = {}       # image path -> {label id: MaskStats}
+        self._stats_pending = 0
+        self._stats_worker = None
+        self._closed = False
+        # one refresh for a burst of changes (Select All, masks read); a
+        # child of the dialog, so that it never fires once it is gone
+        self._stats_timer = QTimer(self)
+        self._stats_timer.setSingleShot(True)
+        self._stats_timer.setInterval(0)
+        self._stats_timer.timeout.connect(self._refresh_label_stats)
         self._fit_labels_table()
         self.labels_table.itemChanged.connect(self._update_label_choice)
         layout.addWidget(self.labels_table)
@@ -435,11 +505,28 @@ class MLSetting(QDialog):
         layout.addWidget(self.other_labels_checkbox)
         main_layout.addWidget(group)
 
+    LABEL_COLUMNS = ("Label", "Images", "Where painted", "Share", "Tiles")
+    LABEL_TOOLTIPS = (
+        "Check the labels the model learns; every other pixel is the\n"
+        "background. One label checked: a binary model (that label against\n"
+        "the background).",
+        "Checked training images where the label is painted.",
+        "Share of the pixels of those images painted with the label: how\n"
+        "small the label is where it is annotated.",
+        "Share of the pixels of the training images (those holding a\n"
+        "checked label, validation included) of each class the model\n"
+        "learns. A class of a few percent is easily drowned by the\n"
+        "background: see the Tile Sampling and the Loss settings.",
+        "Share of the tiles of the training images (Tile Size, at the\n"
+        "Resolution chosen, on a grid) holding at least one pixel of the\n"
+        "label.")
+
     def _fit_labels_table(self):
         """As high as its rows (up to 8 of them), no inner scroll bar
         before that."""
         table = self.labels_table
-        rows = min(table.rowCount(), 8)
+        rows = min(sum(not table.isRowHidden(r)
+                       for r in range(table.rowCount())), 8)
         height = (table.horizontalHeader().sizeHint().height()
                   + rows * table.verticalHeader().defaultSectionSize()
                   + 2 * table.frameWidth() + 2)
@@ -448,19 +535,21 @@ class MLSetting(QDialog):
     def chosen_label_ids(self):
         """Label ids checked in Labels to Learn, or None when all of them
         are (a label created later is then learnt too)."""
-        ids = [label_id for row, label_id in enumerate(self._label_row_ids)
+        rows = [(row, label_id)
+                for row, label_id in enumerate(self._label_row_ids)
+                if label_id is not None]
+        ids = [label_id for row, label_id in rows
                if self.labels_table.item(row, 0).checkState()
                == Qt.CheckState.Checked]
-        if len(ids) == len(self._label_row_ids):
+        if len(ids) == len(rows):
             return None
         return ids
 
-    def _update_label_choice(self, *_):
-        """Say what the checked labels make, and refuse none."""
-        names = {label_id: self.model.label_items[label_id].get_name()
-                 for label_id in self._label_row_ids}
+    def _choice_text(self):
+        """What the checked labels make, in words."""
+        names = self._label_names
         chosen = self.chosen_label_ids()
-        n_all = len(self._label_row_ids)
+        n_all = len(names)
         ids = list(names) if chosen is None else chosen
         if not n_all:
             text = "The project has no label yet."
@@ -475,15 +564,177 @@ class MLSetting(QDialog):
         else:
             text = f"{len(ids)} of the {n_all} labels + the background."
         if chosen is not None and ids:
-            text += (" Images where none of them is painted are left out "
+            text += (" Images where it is not painted are left out of the "
+                     "training." if len(ids) == 1 else
+                     " Images where none of them is painted are left out "
                      "of the training.")
-        self.labels_summary.setText(text)
+        return text
+
+    def _update_label_choice(self, item=None):
+        """Say what the checked labels make, and refuse none."""
+        if item is not None and item.column() != 0:
+            return                   # a figure, not a check box
+        chosen = self.chosen_label_ids()
+        n_all = sum(i is not None for i in self._label_row_ids)
         self.other_labels_checkbox.setEnabled(
-            chosen is not None and bool(ids))
+            chosen is not None and bool(chosen))
         if hasattr(self, "buttons"):
             self.buttons.button(
                 QDialogButtonBox.StandardButton.Ok).setEnabled(
-                    not n_all or bool(ids))
+                    not n_all or chosen is None or bool(chosen))
+        self._refresh_label_stats()
+
+    # ---- figures of the labels -------------------------------------------
+
+    def _checked_image_paths(self):
+        return [self._item_path_map[row]
+                for row in range(self.image_list.count())
+                if self.image_list.item(row).checkState()
+                == Qt.CheckState.Checked and row in self._item_path_map]
+
+    def _start_label_stats(self):
+        """Read what each mask holds: loaded images with unsaved strokes
+        here (their overlays live on the GUI thread), mask files in a
+        thread (cached by file and date, so mostly instant the next
+        time)."""
+        if not self.model.label_items or not hasattr(
+                self.model, "ml_label_stat_sources"):
+            self._refresh_label_stats()
+            return
+        files, overlays = self.model.ml_label_stat_sources(
+            list(self.model.file_paths))
+        for path, per_label in overlays.items():
+            for label_id, overlay in per_label.items():
+                try:
+                    stats = self.model.ml_overlay_stats(overlay)
+                except Exception:
+                    stats = None
+                self._label_stats.setdefault(path, {})[label_id] = stats
+        jobs = [(path, label_id, mask_path)
+                for path, per_label in files.items()
+                for label_id, mask_path in per_label.items()
+                if label_id not in overlays.get(path, {})]
+        self._stats_pending = len(jobs)
+        if jobs:
+            cache = self.model.__dict__.setdefault(
+                "_ml_label_stats_cache", {})
+            self._stats_worker = LabelStatsWorker(jobs, cache, self)
+            self._stats_worker.mask_done.connect(self._on_mask_stats)
+            self._stats_worker.start()
+        self._refresh_label_stats()
+
+    def _on_mask_stats(self, path, label_id, stats):
+        if self._closed:
+            return
+        self._label_stats.setdefault(path, {})[label_id] = stats
+        self._stats_pending = max(0, self._stats_pending - 1)
+        self._schedule_stats_refresh()
+
+    def wait_for_label_stats(self):
+        """Block until every mask is read and shown (tests)."""
+        from PyQt6.QtWidgets import QApplication
+        if self._stats_worker is not None:
+            self._stats_worker.wait()
+        QApplication.processEvents()
+        self._refresh_label_stats()
+
+    def _stop_label_stats(self):
+        worker = self._stats_worker
+        if worker is not None:
+            worker.stop()
+            worker.wait()
+            self._stats_worker = None
+
+    def _schedule_stats_refresh(self, *_):
+        """One refresh for a burst of changes (Select All, masks read)."""
+        if not self._closed:
+            self._stats_timer.start()
+
+    def _tile_px(self):
+        """Side of a tile in image pixels, or None for whole images."""
+        if not hasattr(self, "tiles_radio") or not self.tiles_radio.isChecked():
+            return None
+        return self.tile_spinbox.value() / (self.scale_combo.currentData()
+                                            or 1.0)
+
+    def _refresh_label_stats(self):
+        self._stats_timer.stop()
+        if self._closed or not hasattr(self, "labels_table"):
+            return
+        chosen = self.chosen_label_ids()
+        chosen = None if chosen is None else set(chosen)
+        others = chosen is not None and any(
+            i is not None and i not in chosen for i in self._label_row_ids)
+        ignore = others and not self.other_labels_checkbox.isChecked()
+        tile_px = self._tile_px()
+        checked = set(self._checked_image_paths())
+        images = {path: per_label for path, per_label
+                  in self._label_stats.items() if path in checked}
+        summary = LabelStats.summarize(images, chosen, ignore, tile_px)
+
+        table = self.labels_table
+        was_blocked = table.blockSignals(True)
+        try:
+            for row, label_id in enumerate(self._label_row_ids):
+                if label_id is None:
+                    continue
+                learnt = chosen is None or label_id in chosen
+                figures = summary["labels"].get(label_id)
+                share = summary["share"].get(label_id)
+                tiles = (summary["tiles"] or {}).get(label_id)
+                self._set_stat(row, 1, str(figures["images"])
+                               if figures else "0", not learnt)
+                self._set_stat(row, 2, self._percent(figures["density"])
+                               if figures else "–", not learnt)
+                self._set_stat(row, 3, self._percent(share)
+                               if learnt and share is not None else "–",
+                               not learnt)
+                self._set_stat(row, 4, self._percent(tiles)
+                               if learnt and tiles is not None else "–",
+                               not learnt)
+            for key in (LabelStats.BACKGROUND, LabelStats.IGNORED):
+                row = getattr(self, f"_{key}_row")
+                share = summary["share"].get(key)
+                for col in (1, 2, 4):
+                    self._set_stat(row, col, "")
+                self._set_stat(row, 3, self._percent(share)
+                               if share is not None else "–")
+            table.setRowHidden(self._ignored_row, not ignore)
+            table.setColumnHidden(4, tile_px is None)
+        finally:
+            table.blockSignals(was_blocked)
+        self._fit_labels_table()
+
+        lines = [self._choice_text()]
+        if self._label_names:
+            if self._stats_pending:
+                lines.append(f"<i>Reading the masks… "
+                             f"{self._stats_pending} left</i>")
+            training = (f"Training images: {summary['training_images']} of "
+                        f"the {len(checked)} checked (validation included)")
+            if summary["empty_tiles"] is not None:
+                training += (f" · {self._percent(summary['empty_tiles'])} "
+                             f"of their tiles hold none of the checked "
+                             f"labels")
+            lines.append(training + ".")
+        self.labels_summary.setText("<br>".join(lines))
+
+    @staticmethod
+    def _percent(value):
+        if value is None:
+            return "–"
+        if 0 < value < 0.001:
+            return "< 0.1 %"
+        return f"{100 * value:.1f} %"
+
+    def _set_stat(self, row, col, text, dim=False):
+        item = QTableWidgetItem(text)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight
+                              | Qt.AlignmentFlag.AlignVCenter)
+        if dim:
+            item.setForeground(QColor("#7f8c8d"))
+        self.labels_table.setItem(row, col, item)
 
     def _setup_window_size(self):
         """Configure la taille de la fenêtre en fonction de l'écran"""
@@ -871,6 +1122,12 @@ class MLSetting(QDialog):
     def _deselect_all(self):
         for row in range(self.image_list.count()):
             self.image_list.item(row).setCheckState(Qt.CheckState.Unchecked)
+
+    def done(self, result):
+        self._closed = True
+        self._stats_timer.stop()
+        self._stop_label_stats()
+        super().done(result)
 
     def accept(self):
         # Collect checked image paths

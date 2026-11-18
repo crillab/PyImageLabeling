@@ -73,12 +73,14 @@ def test_dialog_shows_the_figures_and_stays_open_at_the_end(project,
             "kind": "epoch", "epoch": 1, "total": 2, "loss": 0.5,
             "seg_loss": 0.5, "det_loss": None, "reference": 0.5623,
             "pixel_accuracy": 0.9, "train_iou": {0: 0.4, 1: 0.8},
-            "present": [6, 10], "inputs": 10, "seconds": 70, "batch": 8})
+            "present": [6, 10], "inputs": 10, "seconds": 70, "batch": 8,
+            "seen": {0: 0.4, 1: 0.6}})
         text = dialog.epoch_label.text()
         assert "0.5000" in text and "0.5623" in text and "89 %" in text
         assert "1 min 10 s left" in text
-        assert dialog.table.item(0, 3).text() == "6 (60 %)"
-        assert dialog.table.item(1, 4).text() == "0.800"
+        assert dialog.table.item(0, 3).text() == "40.0 %"
+        assert dialog.table.item(0, 4).text() == "6 (60 %)"
+        assert dialog.table.item(1, 5).text() == "0.800"
         assert len(dialog.curve.losses) == 1
 
         dialog.add_log("hello")
@@ -94,7 +96,7 @@ def test_dialog_shows_the_figures_and_stays_open_at_the_end(project,
                        "seg_iou": {0: 0.45, 1: 0.75}}, "segmentation", 2)
         assert dialog.cancel_button.isHidden()
         assert not dialog.close_button.isHidden()
-        assert dialog.table.item(0, 5).text() == "0.450"
+        assert dialog.table.item(0, 6).text() == "0.450"
         assert "mIoU <b>0.600</b>" in dialog.epoch_label.text()
         assert "on 1 image(s)" in dialog.epoch_label.text()
     finally:

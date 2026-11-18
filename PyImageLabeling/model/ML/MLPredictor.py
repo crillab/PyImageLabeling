@@ -764,6 +764,8 @@ class MLPredictor(Base):
         # ignored by the loss.
         self.train_label_ids            = None
         self.other_labels_as_background = True
+        # label statistics of the mask files (LabelStats), by file and date
+        self._ml_label_stats_cache = {}
 
         # Tiles (segmentation on large images), as set for the next
         # training: "auto" uses them when an image is more than twice the
@@ -1201,6 +1203,40 @@ class MLPredictor(Base):
             if painted:
                 n_seg += 1
         return n_det, n_seg
+
+    def ml_label_stat_sources(self, paths):
+        """What the label statistics of `paths` are read from:
+        ({path: {label id: mask file}}, {path: {label id: overlay}}).
+
+        The overlays are those of loaded images holding strokes that are
+        not saved (they must be read on the GUI thread); everything else
+        comes from the mask files, which a thread can read.
+        """
+        files, overlays = {}, {}
+        for path in paths:
+            item = self.image_items.get(path)
+            if item is None:
+                found = self._mask_files(path)
+                if found:
+                    files[path] = found
+                continue
+            read_from = getattr(item, "mask_keys_read", {}) or {}
+            for label_id, overlay in getattr(
+                    item, "labeling_overlays", {}).items():
+                key = read_from.get(label_id)
+                mask_path = (self.labeling_overview_file_paths.get(key)
+                             if key else None)
+                if (not overlay.get_is_edited() and mask_path
+                        and os.path.exists(mask_path)):
+                    files.setdefault(path, {})[label_id] = mask_path
+                elif overlay.get_is_edited() or not overlay.get_is_undo_none():
+                    overlays.setdefault(path, {})[label_id] = overlay
+        return files, overlays
+
+    def ml_overlay_stats(self, overlay):
+        """LabelStats.MaskStats of a loaded overlay (GUI thread), or None."""
+        painted = self._overlay_painted(overlay)
+        return None if painted is None else LabelStats.painted_stats(painted)
 
     def ml_chosen_label_ids(self):
         """Labels the next training learns, as chosen in the ML settings
@@ -1743,6 +1779,9 @@ class MLPredictor(Base):
                 union = conf.sum(axis=0) + per_class - diag
                 out["train_iou"] = {c: float(diag[c] / union[c])
                                     for c in range(len(diag)) if union[c] > 0}
+                # what the network learnt from (after the tile sampling)
+                out["seen"] = {c: float(per_class[c] / total)
+                               for c in range(len(per_class))}
             out["present"] = [int(n) for n in acc["present"].cpu().tolist()]
             out["inputs"] = int(acc["inputs"])
         return out

@@ -201,7 +201,9 @@ def test_settings_dialog_chooses_the_labels(project, workspace, monkeypatch):
     dialog = MLSetting(view.zoomable_graphics_view, model)
     table = dialog.labels_table
     ok = dialog.buttons.button(QDialogButtonBox.StandardButton.Ok)
-    assert table.rowCount() == 2
+    # the two labels, then the background and the ignored pixels
+    assert table.rowCount() == 4
+    assert table.item(2, 0).text() == "Background"
     assert dialog.chosen_label_ids() is None          # all of them
     assert not dialog.other_labels_checkbox.isEnabled()
 

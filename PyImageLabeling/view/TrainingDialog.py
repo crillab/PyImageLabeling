@@ -129,8 +129,10 @@ class TrainingDialog(QDialog):
 
     cancel_requested = pyqtSignal()
 
-    COLUMNS = ("Label", "Train images", "Pixels", "Tiles holding it",
-               "IoU (train)", "IoU (val)")
+    COLUMNS = ("Label", "Train images", "Pixels", "Pixels seen",
+               "Tiles holding it", "IoU (train)", "IoU (val)")
+    # columns filled after the setup
+    SEEN, HOLDING, IOU_TRAIN, IOU_VAL = 3, 4, 5, 6
 
     def __init__(self, n_images, parent=None):
         super().__init__(parent)
@@ -171,13 +173,19 @@ class TrainingDialog(QDialog):
         for col in range(1, len(self.COLUMNS)):
             header.setSectionResizeMode(
                 col, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeaderItem(4).setToolTip(TRAIN_IOU_TOOLTIP)
+        self.table.horizontalHeaderItem(self.IOU_TRAIN).setToolTip(
+            TRAIN_IOU_TOOLTIP)
         self.table.horizontalHeaderItem(2).setToolTip(
-            "Share of the pixels of the training images.")
-        self.table.horizontalHeaderItem(3).setToolTip(
+            "Share of the pixels of the training images (ignored pixels\n"
+            "left out).")
+        self.table.horizontalHeaderItem(self.SEEN).setToolTip(
+            "Share of the pixels of the last epoch's inputs: what the\n"
+            "network actually learnt from. With tiles, the Tile Sampling\n"
+            "(ML settings) makes it differ from the share in the images.")
+        self.table.horizontalHeaderItem(self.HOLDING).setToolTip(
             "Inputs of the last epoch holding at least one pixel of the\n"
-            "label. With tiles, half of them are centred on an annotated\n"
-            "pixel, so that small labels are seen.")
+            "label. With tiles centred on the labels (Tile Sampling), small\n"
+            "labels are seen more often.")
         self.table.setVisible(False)
         layout.addWidget(self.table)
 
@@ -277,7 +285,7 @@ class TrainingDialog(QDialog):
         self.epoch_label.setText(self.epoch_label.text() + "<br><br>"
                                  + "<br>".join(lines))
         for c, iou in (vm.get("seg_iou") or {}).items():
-            self._set_cell(c, 5, f"{iou:.3f}")
+            self._set_cell(c, self.IOU_VAL, f"{iou:.3f}")
         self._stopped()
 
     def cancelled(self):
@@ -378,7 +386,8 @@ class TrainingDialog(QDialog):
         if not self.classes:
             return
         if not self._uses_tiles():
-            self.table.horizontalHeaderItem(3).setText("Images holding it")
+            self.table.horizontalHeaderItem(self.HOLDING).setText(
+                "Images holding it")
         self.table.setRowCount(len(self.classes))
         images = s.get("images_per_class") or {}
         pixels = s.get("pixels_per_class") or {}
@@ -402,7 +411,7 @@ class TrainingDialog(QDialog):
             self._set_cell(c, 1, str(images.get(c, 0)) if images else "–")
             self._set_cell(c, 2, f"{100 * pixels.get(c, 0) / total:.1f} %"
                            if total else "–")
-            for col in (3, 4, 5):
+            for col in range(self.SEEN, len(self.COLUMNS)):
                 self._set_cell(c, col, "–")
         self.table.setVisible(True)
         height = (self.table.horizontalHeader().height()
@@ -456,9 +465,12 @@ class TrainingDialog(QDialog):
         present, inputs = s.get("present"), s.get("inputs")
         if present and inputs:
             for c, n in enumerate(present):
-                self._set_cell(c, 3, f"{n} ({100 * n / inputs:.0f} %)")
+                self._set_cell(c, self.HOLDING,
+                               f"{n} ({100 * n / inputs:.0f} %)")
+        for c, share in (s.get("seen") or {}).items():
+            self._set_cell(c, self.SEEN, f"{100 * share:.1f} %")
         for c, iou in (s.get("train_iou") or {}).items():
-            self._set_cell(c, 4, f"{iou:.3f}")
+            self._set_cell(c, self.IOU_TRAIN, f"{iou:.3f}")
 
         self.curve.setVisible(True)
         self.curve.add(shown if shown is not None else loss, reference)
