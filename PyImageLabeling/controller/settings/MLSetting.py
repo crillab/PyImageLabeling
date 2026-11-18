@@ -377,8 +377,7 @@ class MLSetting(QDialog):
         self.save_model_btn = QPushButton("Save Trained Model")
         self.load_model_btn = QPushButton("Load Existing Model")
 
-        if self.loaded_model_name:
-            self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+        self._refresh_load_button()
 
         self.save_model_btn.clicked.connect(self._save_model)
         self.load_model_btn.clicked.connect(self._load_model)
@@ -882,6 +881,19 @@ class MLSetting(QDialog):
 
         return False
     
+    def _refresh_load_button(self):
+        """"Loaded: <name>" only when a model loaded from a file is the one
+        in memory now. The name saved in parameters.json is only the last
+        file loaded: no model is loaded when the app starts."""
+        info = (self.model.ml_model_info()
+                if hasattr(self.model, "ml_model_info") else None)
+        if info and info["trained"] and info["origin"] == "loaded" \
+                and info["path"]:
+            name = os.path.splitext(os.path.basename(info["path"]))[0]
+            self.load_model_btn.setText(f"Loaded: {name}")
+        else:
+            self.load_model_btn.setText("Load Existing Model")
+
     def _refresh_active_model_label(self):
         """Describe the model that would predict right now."""
         if not hasattr(self, "active_model_label"):
@@ -967,7 +979,7 @@ class MLSetting(QDialog):
             success = self.model.load_model_file(file_path)
             if success:
                 self.loaded_model_name = os.path.splitext(os.path.basename(file_path))[0]
-                self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+                self._refresh_load_button()
                 # loading replaces whatever was live, and predictions now come
                 # from this file: say so on screen right away
                 self._refresh_active_model_label()
