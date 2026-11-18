@@ -21,9 +21,12 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QRadioButton,
     QButtonGroup,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QImageReader, QScreen
+from PyQt6.QtGui import QColor, QIcon, QImageReader, QPixmap, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
@@ -99,6 +102,8 @@ class MLSetting(QDialog):
 
         img_group.setLayout(img_group_layout)
         main_layout.addWidget(img_group)
+
+        self._build_labels_group(main_layout, ml_params)
 
         train_group = QGroupBox("Training Parameters")
         train_layout = QVBoxLayout()
@@ -361,6 +366,124 @@ class MLSetting(QDialog):
         # would open it as a window of its own
         self._update_seg_options()
         self._update_tiles_box()
+        self._update_label_choice()
+
+    # ------------------------------------------------------------------
+    # Labels to learn
+    # ------------------------------------------------------------------
+
+    def _build_labels_group(self, main_layout, ml_params):
+        """The labels the next training learns. One label = a binary model
+        (the label against the background)."""
+        group = QGroupBox("Labels to Learn")
+        layout = QVBoxLayout(group)
+
+        self.labels_table = QTableWidget(0, 1)
+        self.labels_table.setHorizontalHeaderLabels(["Label"])
+        self.labels_table.verticalHeader().setVisible(False)
+        self.labels_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.labels_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection)
+        self.labels_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.labels_table.verticalHeader().setDefaultSectionSize(
+            self.labels_table.fontMetrics().height() + 8)
+        self.labels_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch)
+        self.labels_table.horizontalHeaderItem(0).setToolTip(
+            "Check the labels the model learns; every other pixel is the\n"
+            "background. One label checked: a binary model (that label\n"
+            "against the background).")
+
+        chosen = (self.model.ml_chosen_label_ids()
+                  if hasattr(self.model, "ml_chosen_label_ids") else None)
+        self._label_row_ids = []
+        for label_id in sorted(self.model.label_items):
+            label = self.model.label_items[label_id]
+            cell = QTableWidgetItem(label.get_name())
+            cell.setFlags(Qt.ItemFlag.ItemIsEnabled
+                          | Qt.ItemFlag.ItemIsUserCheckable)
+            cell.setCheckState(
+                Qt.CheckState.Checked if chosen is None or label_id in chosen
+                else Qt.CheckState.Unchecked)
+            swatch = QPixmap(12, 12)
+            swatch.fill(label.get_color())
+            cell.setIcon(QIcon(swatch))
+            row = self.labels_table.rowCount()
+            self.labels_table.insertRow(row)
+            self.labels_table.setItem(row, 0, cell)
+            self._label_row_ids.append(label_id)
+        self._fit_labels_table()
+        self.labels_table.itemChanged.connect(self._update_label_choice)
+        layout.addWidget(self.labels_table)
+
+        self.labels_summary = QLabel()
+        self.labels_summary.setWordWrap(True)
+        layout.addWidget(self.labels_summary)
+
+        self.other_labels_checkbox = QCheckBox(
+            "Count the pixels of the other labels as background")
+        self.other_labels_checkbox.setChecked(
+            bool(ml_params.get("other_labels_background", True)))
+        self.other_labels_checkbox.setToolTip(
+            "On the training images, the pixels painted with a label that\n"
+            "is not checked:\n"
+            "• checked: are background — examples of what the model must\n"
+            "  not mark;\n"
+            "• unchecked: are left out of the training (neither the label\n"
+            "  nor the background).")
+        layout.addWidget(self.other_labels_checkbox)
+        main_layout.addWidget(group)
+
+    def _fit_labels_table(self):
+        """As high as its rows (up to 8 of them), no inner scroll bar
+        before that."""
+        table = self.labels_table
+        rows = min(table.rowCount(), 8)
+        height = (table.horizontalHeader().sizeHint().height()
+                  + rows * table.verticalHeader().defaultSectionSize()
+                  + 2 * table.frameWidth() + 2)
+        table.setFixedHeight(max(height, 40))
+
+    def chosen_label_ids(self):
+        """Label ids checked in Labels to Learn, or None when all of them
+        are (a label created later is then learnt too)."""
+        ids = [label_id for row, label_id in enumerate(self._label_row_ids)
+               if self.labels_table.item(row, 0).checkState()
+               == Qt.CheckState.Checked]
+        if len(ids) == len(self._label_row_ids):
+            return None
+        return ids
+
+    def _update_label_choice(self, *_):
+        """Say what the checked labels make, and refuse none."""
+        names = {label_id: self.model.label_items[label_id].get_name()
+                 for label_id in self._label_row_ids}
+        chosen = self.chosen_label_ids()
+        n_all = len(self._label_row_ids)
+        ids = list(names) if chosen is None else chosen
+        if not n_all:
+            text = "The project has no label yet."
+        elif not ids:
+            text = ("<span style='color:#e74c3c'>Check at least one "
+                    "label.</span>")
+        elif len(ids) == 1:
+            text = (f"Binary model: <b>{names[ids[0]]}</b> against the "
+                    f"background.")
+        elif chosen is None:
+            text = f"{n_all} labels + the background."
+        else:
+            text = f"{len(ids)} of the {n_all} labels + the background."
+        if chosen is not None and ids:
+            text += (" Images where none of them is painted are left out "
+                     "of the training.")
+        self.labels_summary.setText(text)
+        self.other_labels_checkbox.setEnabled(
+            chosen is not None and bool(ids))
+        if hasattr(self, "buttons"):
+            self.buttons.button(
+                QDialogButtonBox.StandardButton.Ok).setEnabled(
+                    not n_all or bool(ids))
 
     def _setup_window_size(self):
         """Configure la taille de la fenêtre en fonction de l'écran"""
@@ -773,6 +896,8 @@ class MLSetting(QDialog):
         data["ml"]["pretrained"] = self.pretrained_checkbox.isChecked()
         data["ml"]["backbone_name"] = self.backbone_combo.currentText()
         data["ml"]["seg_backbone"] = self.seg_combo.currentData()
+        data["ml"]["other_labels_background"] = \
+            self.other_labels_checkbox.isChecked()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
         tile = Tiling.normalize_tile_size(self.tile_spinbox.value())

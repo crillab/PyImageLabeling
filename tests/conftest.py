@@ -153,6 +153,8 @@ def reset_app(controller, view, model):
     model.tile_overlap = 128
     model.tile_scale = 1.0
     model._ml_label_count_cache = {}
+    model.train_label_ids = None
+    model.other_labels_as_background = True
     controller._al_ranking = None
     controller._al_pos = -1
     try:

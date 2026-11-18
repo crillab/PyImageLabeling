@@ -54,11 +54,22 @@ class MLEvents(Events):
 
         usable = ((n_detection if use_detection else 0)
                   + (n_segmentation if use_segmentation else 0))
+        chosen = self.model.ml_chosen_label_ids()
+        if chosen is not None and not chosen:
+            QMessageBox.warning(
+                self.view, "Nothing to Train",
+                "No label is chosen.\n\nChoose at least one in ML > "
+                "Settings (Labels to Learn).")
+            return
         if usable < 1:
             off = " (head disabled in ML > Settings)"
+            first = ("None of the labels chosen in ML > Settings is "
+                     "annotated on the selected images."
+                     if chosen is not None else
+                     "Please annotate at least 1 image before training.")
             QMessageBox.warning(
                 self.view, "Insufficient Data",
-                f"Please annotate at least 1 image before training.\n\n"
+                f"{first}\n\n"
                 f"Found:\n"
                 f"  - {n_detection} images with geometric shapes"
                 f"{'' if use_detection else off}\n"
@@ -582,6 +593,10 @@ class MLEvents(Events):
             self.model.pretrained           = mlsetting.pretrained_checkbox.isChecked()
             self.model.confidence_threshold = mlsetting.conf_spinbox.value()
             self.model.nms_threshold        = mlsetting.nms_spinbox.value()
+            # labels of the next training: None = all of them
+            self.model.train_label_ids = mlsetting.chosen_label_ids()
+            self.model.other_labels_as_background = \
+                mlsetting.other_labels_checkbox.isChecked()
             # tiles of the next training (a trained model keeps its own)
             from PyImageLabeling.model.ML import Tiling
             self.model.tiling_mode  = mlsetting.tiling_mode()

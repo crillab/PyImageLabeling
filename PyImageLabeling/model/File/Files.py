@@ -401,6 +401,8 @@ class Files(Base):
             cache = getattr(self, name, None)
             if isinstance(cache, dict):
                 cache.clear()
+        # the labels chosen for the next training are those of this project
+        self.train_label_ids = None
         self._last_batch = []
         self._last_batch_idx = -1
         controller = self.controller

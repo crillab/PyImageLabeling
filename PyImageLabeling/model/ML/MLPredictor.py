@@ -25,6 +25,15 @@ IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 # enough to cover a slide, without predicting all of it.
 AL_MAX_TILES = 64
 
+# In the masks collected for a training (label ids, 255 = nothing painted),
+# the pixels of a label that is not learnt and is ignored by the loss
+# (ML > Settings: the other labels are not counted as background).
+IGNORED_LABEL = 254
+
+# A training with no target there (segmentation masks are mapped to classes
+# with it as default): F.cross_entropy's default ignore_index.
+TORCH_IGNORE = -100
+
 try:
     import albumentations as A
     from albumentations.pytorch import ToTensorV2
@@ -541,11 +550,12 @@ class SegmentationDataset(Dataset):
         image = (image - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
         image = torch.from_numpy(image).permute(2, 0, 1).float()
 
-        mask_mapped = np.zeros_like(mask, dtype=np.uint8)
+        # a value with no class (IGNORED_LABEL) is left out of the loss
+        mask_mapped = np.full(mask.shape, TORCH_IGNORE, dtype=np.int64)
         for orig_id, class_id in self.label_id_to_class.items():
             mask_mapped[mask == orig_id] = class_id
 
-        return image, torch.from_numpy(mask_mapped).long()
+        return image, torch.from_numpy(mask_mapped)
 
 
 class TileDataset(Dataset):
@@ -749,6 +759,11 @@ class MLPredictor(Base):
         self.backbone_name       = DEFAULT_BACKBONE
         self.use_pretrained      = True
         self.seg_backbone        = "resnet"
+        # labels the next training learns (ML settings): None = all of
+        # them. The pixels of the others count as background, or are
+        # ignored by the loss.
+        self.train_label_ids            = None
+        self.other_labels_as_background = True
 
         # Tiles (segmentation on large images), as set for the next
         # training: "auto" uses them when an image is more than twice the
@@ -904,8 +919,9 @@ class MLPredictor(Base):
                 total += F.cross_entropy(seg_pred, masks).item()
                 n += 1
                 pred = seg_pred.argmax(dim=1)
+                valid = masks != TORCH_IGNORE
                 for c in range(num_classes):
-                    pc = (pred == c)
+                    pc = (pred == c) & valid
                     mc = (masks == c)
                     inter[c] += (pc & mc).sum().cpu()
                     union[c] += (pc | mc).sum().cpu()
@@ -960,7 +976,14 @@ class MLPredictor(Base):
                      for store in ("left_rectangles", "left_ellipses",
                                    "left_polygons"))
 
-    def collect_training_data(self, selected_paths=None):
+    @staticmethod
+    def _shape_label(shape):
+        """Label id of a shape (ellipses keep it under "label")."""
+        return shape.get('label_id', shape.get('label', 0))
+
+    def collect_training_data(self, selected_paths=None, label_ids=None):
+        """[(image path, [(x, y, w, h, label id)])]; with `label_ids`, only
+        the shapes of those labels (and the images holding one)."""
         training_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
 
@@ -983,6 +1006,8 @@ class MLPredictor(Base):
                     ys = [pt['y'] for pt in pts]
                     annotations.append((min(xs), min(ys),
                                          max(xs)-min(xs), max(ys)-min(ys), lid))
+            if label_ids is not None:
+                annotations = [a for a in annotations if a[-1] in label_ids]
             if annotations:
                 training_data.append((file_path, annotations))
 
@@ -1013,8 +1038,9 @@ class MLPredictor(Base):
                    (qimg.height(), qimg.width(), 4))
         return arr[:, :, 3] > 30
 
-    def _painted_masks(self, file_path):
-        """[(label_id, painted boolean array)] of one image.
+    def _painted_masks(self, file_path, label_ids=None):
+        """[(label_id, painted boolean array)] of one image (with
+        `label_ids`, of those labels only: the others are not read).
 
         A loaded image is read from its overlays (they hold the strokes
         that are not saved yet); any other image from its mask files, so
@@ -1027,22 +1053,39 @@ class MLPredictor(Base):
                 return []
             return [(label_id, self._overlay_painted(overlay))
                     for label_id, overlay
-                    in image_item.labeling_overlays.items()]
+                    in image_item.labeling_overlays.items()
+                    if label_ids is None or label_id in label_ids]
         from PyImageLabeling.model.Masks import read_painted_mask
         return [(label_id, read_painted_mask(path))
-                for label_id, path in self._mask_files(file_path).items()]
+                for label_id, path in self._mask_files(file_path).items()
+                if label_ids is None or label_id in label_ids]
 
-    def collect_segmentation_data(self, selected_paths=None):
+    def collect_segmentation_data(self, selected_paths=None, label_ids=None,
+                                  ignored_ids=None):
         """[(image path, mask)]: per pixel, the label id painted there, or
-        255 where nothing is painted."""
+        255 where nothing is painted.
+
+        With `label_ids` (the labels learnt), only the images where one of
+        them is painted are kept. The labels of `ignored_ids` are read too,
+        their pixels set to IGNORED_LABEL (the loss leaves them out); any
+        other label is not read: its pixels are background. Where a learnt
+        label is painted over an ignored one, the learnt one wins.
+        """
         segmentation_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
+        ignored_ids = set(ignored_ids or ()) if label_ids is not None else set()
+        wanted = (None if label_ids is None
+                  else set(label_ids) | ignored_ids)
         ml_log("Collecting segmentation data")
 
         for file_path in paths:
             self._check_cancel()
             combined_mask = None
-            for label_id, painted in self._painted_masks(file_path):
+            learnt = False
+            # ignored labels first: a learnt label painted over them wins
+            masks = sorted(self._painted_masks(file_path, wanted),
+                           key=lambda lp: lp[0] not in ignored_ids)
+            for label_id, painted in masks:
                 if painted is None:
                     continue
                 if combined_mask is None:
@@ -1054,9 +1097,13 @@ class MLPredictor(Base):
                         (w, h), interpolation=cv2.INTER_NEAREST) > 0
                 cnt = np.count_nonzero(painted)
                 if cnt > 0:
-                    combined_mask[painted] = label_id
+                    if label_id in ignored_ids:
+                        combined_mask[painted] = IGNORED_LABEL
+                    else:
+                        combined_mask[painted] = label_id
+                        learnt = True
                     ml_log(f"  Label {label_id}: {cnt} painted pixels")
-            if combined_mask is not None and (combined_mask != 255).any():
+            if combined_mask is not None and learnt:
                 segmentation_data.append((file_path, combined_mask))
 
         ml_log(f"Segmentation data: {len(segmentation_data)} images")
@@ -1126,26 +1173,69 @@ class MLPredictor(Base):
 
     def ml_training_image_counts(self, selected_paths=None):
         """(images with shapes, images with painted pixels), cheaply: no
-        mask is decoded (a mask file counts as painted)."""
+        mask is decoded (a mask file counts as painted). Only the labels
+        the next training learns count (ML settings)."""
         paths = selected_paths if selected_paths is not None else self.file_paths
+        chosen = self.ml_chosen_label_ids()
         n_det = n_seg = 0
         for file_path in paths:
-            if any(self._image_shapes(file_path)):
+            if any(chosen is None or self._shape_label(shape) in chosen
+                   for shapes in self._image_shapes(file_path)
+                   for shape in shapes):
                 n_det += 1
             image_item = self.image_items.get(file_path)
             if image_item is None:
-                if self._mask_files(file_path):
+                files = self._mask_files(file_path)
+                if chosen is not None:
+                    files = set(files) & chosen
+                if files:
                     n_seg += 1
                 continue
             has_paint = getattr(self, "_has_painted_pixels", None)
-            if has_paint is not None:
+            if has_paint is not None and chosen is None:
                 painted = has_paint(image_item)
             else:
                 painted = any(p is not None and p.any()
-                              for _, p in self._painted_masks(file_path))
+                              for _, p in self._painted_masks(file_path,
+                                                              chosen))
             if painted:
                 n_seg += 1
         return n_det, n_seg
+
+    def ml_chosen_label_ids(self):
+        """Labels the next training learns, as chosen in the ML settings
+        (those that still exist), or None: all of them."""
+        chosen = getattr(self, "train_label_ids", None)
+        if chosen is None:
+            return None
+        return {int(i) for i in chosen if int(i) in self.label_items}
+
+    def _label_choice(self):
+        """(learnt label ids or None, ignored label ids) of the next
+        training, and its description for the log and the dialog."""
+        chosen = self.ml_chosen_label_ids()
+        if chosen is None:
+            return None, set(), "all"
+        if not chosen:
+            raise RuntimeError(
+                "No label is chosen in ML > Settings (Labels to Learn).")
+        names = ", ".join(self._get_label_name(i) for i in sorted(chosen))
+        others = set(self.label_items) - chosen
+        ignored = set()
+        if others and not getattr(self, "other_labels_as_background", True):
+            if IGNORED_LABEL in self.label_items:
+                raise RuntimeError(
+                    f"Label id {IGNORED_LABEL} is reserved when the other "
+                    f"labels are ignored: count them as background.")
+            ignored = others
+        if len(chosen) == 1:
+            text = f"{names} against the background (binary)"
+        else:
+            text = names
+        if others:
+            text += (" · other labels: "
+                     + ("ignored" if ignored else "background"))
+        return chosen, ignored, text
 
     # ------------------------------------------------------------------
     # Label helpers
@@ -1221,9 +1311,14 @@ class MLPredictor(Base):
         # disabled in the ML settings gets no data, so it is not trained.
         use_detection    = getattr(self, "enable_detection", True)
         use_segmentation = getattr(self, "enable_segmentation", True)
-        detection_data    = (self.collect_training_data(selected_paths)
+        label_ids, ignored_ids, self._labels_text = self._label_choice()
+        if label_ids is not None:
+            log(f"Labels learnt: {self._labels_text}")
+        detection_data    = (self.collect_training_data(selected_paths,
+                                                        label_ids)
                              if use_detection else [])
-        segmentation_data = (self.collect_segmentation_data(selected_paths)
+        segmentation_data = (self.collect_segmentation_data(
+                                 selected_paths, label_ids, ignored_ids)
                              if use_segmentation else [])
         if not use_detection:
             log("Detection head disabled in the settings: shapes ignored")
@@ -1243,6 +1338,10 @@ class MLPredictor(Base):
             self.training_mode = "detection"
         elif has_segmentation:
             self.training_mode = "segmentation"
+        elif label_ids is not None:
+            raise RuntimeError(
+                "No training data available: none of the labels chosen in "
+                "ML > Settings is annotated on the selected images.")
         else:
             raise RuntimeError(
                 "No training data available. Please annotate at least 1 image.")
@@ -1256,6 +1355,8 @@ class MLPredictor(Base):
                 all_label_ids.add(label_id)
         for _, mask in segmentation_data:
             for lid in np.unique(mask).tolist():
+                if ignored_ids and lid == IGNORED_LABEL:
+                    continue        # no class: left out of the loss
                 all_label_ids.add(int(lid))
 
         if not all_label_ids:
@@ -1443,6 +1544,7 @@ class MLPredictor(Base):
             unit="tiles" if self.tiling is not None else "images",
             tiles_per_epoch=(len(segmentation_loader.dataset)
                              if segmentation_loader is not None else None),
+            labels=getattr(self, "_labels_text", "all"),
             backbone=backbone, pretrained=pretrained,
             device=str(self.device), epochs=self.num_epochs,
             batch=self.batch_size,
@@ -1580,6 +1682,7 @@ class MLPredictor(Base):
                 classes.append({"cls": c, "name": "Background",
                                 "color": None})
         images, pixels = {}, {}
+        ignored = 0
         if seg_train:
             status("Counting the annotated pixels…")
             lut = np.full(256, -1, dtype=np.int64)
@@ -1591,13 +1694,16 @@ class MLPredictor(Base):
                 for orig in np.nonzero(counts)[0]:
                     c = int(lut[orig])
                     if c < 0:
+                        if orig == IGNORED_LABEL:
+                            ignored += int(counts[orig])
                         continue
                     images[c] = images.get(c, 0) + 1
                     pixels[c] = pixels.get(c, 0) + int(counts[orig])
         return {"classes": classes,
                 "train_images": len(seg_train) + len(det_train),
                 "val_images": len(seg_val) + len(det_val),
-                "images_per_class": images, "pixels_per_class": pixels}
+                "images_per_class": images, "pixels_per_class": pixels,
+                "ignored_pixels": ignored}
 
     def _input_description(self):
         """How the network sees the images, in words."""
@@ -1668,7 +1774,8 @@ class MLPredictor(Base):
     def _tile_loaders(self, cache, seg_train, seg_val, log, status):
         """Decode the annotated images into `cache`. Returns (training
         DataLoader of random tiles, validation TileSources)."""
-        lut = np.zeros(256, dtype=np.uint8)
+        # a value with no class (IGNORED_LABEL) is left out of the loss
+        lut = np.full(256, Tiling.IGNORE_INDEX, dtype=np.uint8)
         for orig_id, class_id in self.label_id_to_class.items():
             lut[int(orig_id)] = class_id
         background = self.label_id_to_class.get(255)
@@ -1946,6 +2053,8 @@ class MLPredictor(Base):
         self.use_pretrained       = ml.get("pretrained",           True)
         seg = ml.get("seg_backbone", "resnet")
         self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
+        self.other_labels_as_background = bool(
+            ml.get("other_labels_background", True))
         # "on" = tiles; anything else (also "auto", an early value of this
         # setting) = whole images, the default
         self.tiling_mode  = ("on" if str(ml.get("tiling", "off")).lower()

@@ -360,6 +360,7 @@ class TrainingDialog(QDialog):
         self.val_images = s.get("val_images")
         pretrained = "pretrained" if s.get("pretrained") else "not pretrained"
         lines = [
+            f"<b>Labels:</b> {s.get('labels') or 'all'}",
             f"<b>Input:</b> {s.get('input', '?')}",
             f"<b>Backbone:</b> {s.get('backbone', '?')} ({pretrained}) · "
             f"{s.get('device', '?')}",
@@ -382,6 +383,13 @@ class TrainingDialog(QDialog):
         images = s.get("images_per_class") or {}
         pixels = s.get("pixels_per_class") or {}
         total = sum(pixels.values())
+        ignored = s.get("ignored_pixels") or 0
+        if ignored and total:
+            self.settings_label.setText(
+                self.settings_label.text()
+                + f"<br>Pixels of the other labels, ignored: "
+                  f"{100 * ignored / (total + ignored):.1f} % of the "
+                  f"training images")
         for row, cls in enumerate(self.classes):
             c = cls["cls"]
             self.rows[c] = row
