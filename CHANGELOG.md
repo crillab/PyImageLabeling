@@ -111,6 +111,10 @@ version: the Release workflow refuses to publish a version without one.
   On an 8192×4400 slide with 5 labels, about 60 % less RAM per loaded image.
 
 ### Fixed
+- ML *Accept* painted a prediction that was no longer shown: after *Clear*,
+  after a prediction that found nothing, or on another image (changing image
+  cleared the scene, not the prediction, which was then painted on the new
+  image). *Accept* now takes the prediction made on the image shown only.
 - The ML *Statistics* panel counts every image of the project: it only
   counted the images loaded in memory, so it showed 0 right after opening a
   project or after a training. An annotation is a shape, or a label painted

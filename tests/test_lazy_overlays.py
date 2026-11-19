@@ -145,6 +145,7 @@ def test_accepting_a_segmentation_keeps_every_label(project):
     mask1 = np.zeros((h, w), np.uint8)
     mask1[60:90, 60:90] = 1
     model.ml_segmentation_predictions = {0: mask0, 1: mask1}
+    model.ml_predictions_image = paths[0]
 
     item.update_scene()  # as the app does after selecting the image
     assert model.ml_accept_segmentation()

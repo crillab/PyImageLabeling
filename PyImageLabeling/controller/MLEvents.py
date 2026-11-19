@@ -140,11 +140,13 @@ class MLEvents(Events):
         if not current_image_path:
             return
         
-        # clear old predictions FIRST
-        self.model.ml_clear_predictions_visual()
+        # clear old predictions FIRST (a prediction that finds nothing must
+        # not leave the previous one to Accept)
+        self.model.ml_forget_predictions()
         self.ml_predictions_current = []
         if hasattr(self.model, 'ml_segmentation_pixmap'):
             self.model.ml_segmentation_pixmap = None
+        self.model.ml_predictions_image = current_image_path
         
         confidence = self.view.ml_confidence_slider.value() / 100.0
         self.view.statusBar().showMessage(
@@ -228,6 +230,12 @@ class MLEvents(Events):
         """
         accepted_boxes        = 0
         accepted_segmentation = False
+
+        # predictions made on another image (or cleared) are not accepted:
+        # changing image clears the scene, not the predictions
+        if not self.model.ml_predictions_are_current():
+            self.ml_predictions_current = []
+            self.model.ml_forget_predictions()
         
         # Accept bounding boxes
         if self.ml_predictions_current:
@@ -266,7 +274,7 @@ class MLEvents(Events):
         self.ml_predictions_current = []
         if hasattr(self.model, 'ml_segmentation_pixmap'):
             self.model.ml_segmentation_pixmap = None
-        self.model.ml_clear_predictions_visual()
+        self.model.ml_forget_predictions()
         self.view.statusBar().showMessage("Predictions cleared")
     
     def ml_toggle_predictions(self, state):

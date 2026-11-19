@@ -1105,6 +1105,9 @@ class MLPredictor(Base):
         self.ml_predictions_current    = []
         self.ml_prediction_items       = []
         self.ml_segmentation_predictions = None
+        # the image the predictions on screen were made on: Accept paints
+        # them on that image only
+        self.ml_predictions_image = None
 
         self.label_id_to_class = {}
         self.class_to_label_id = {}
@@ -2881,6 +2884,21 @@ class MLPredictor(Base):
                 pass
         self.ml_prediction_items.clear()
 
+    def ml_forget_predictions(self):
+        """Drop the segmentation predicted last, not only its picture:
+        Accept painted it afterwards, after Clear or on another image."""
+        self.ml_segmentation_predictions = None
+        self.ml_predictions_image = None
+        self.ml_clear_predictions_visual()
+
+    def ml_predictions_are_current(self):
+        """True when the predictions in memory were made on the image
+        shown now."""
+        current = self.current_image_item
+        return (current is not None
+                and self.ml_predictions_image is not None
+                and current.path_image == self.ml_predictions_image)
+
     # ------------------------------------------------------------------
     # Accept predictions
     # ------------------------------------------------------------------
@@ -2949,6 +2967,11 @@ class MLPredictor(Base):
         if current_image is None:
             ml_log("No current image", force=True)
             return False
+        if not self.ml_predictions_are_current():
+            # predicted on another image (the scene was cleared since)
+            ml_log("Segmentation predicted on another image: not accepted")
+            self.ml_forget_predictions()
+            return False
 
         ml_log(f"Accepting segmentation for {len(preds)} label(s)")
 
@@ -2998,8 +3021,7 @@ class MLPredictor(Base):
             self.ml_invalidate_caches(current_image.path_image)
         except AttributeError:
             pass
-        self.ml_segmentation_predictions = None
-        self.ml_clear_predictions_visual()
+        self.ml_forget_predictions()
         return True
 
     # ------------------------------------------------------------------
