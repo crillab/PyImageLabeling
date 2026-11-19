@@ -3,7 +3,7 @@
 Each `## <version>` section becomes the text of the GitHub release of that
 version: the Release workflow refuses to publish a version without one.
 
-## Unreleased
+## 1.0.15 (2026-11-19)
 
 ### Added
 - Segmentation models on large images, by tiles. A segmentation model used to
@@ -64,6 +64,8 @@ version: the Release workflow refuses to publish a version without one.
   unstable connection) no longer leaves a half-written checkpoint in the cache —
   it is purged so the next attempt restarts clean, and the error message now
   points to the connection instead of a generic crash.
+- `load.memory_keep_images` parameter in `default_parameters.json` (default 8),
+  controlling how many images stay loaded while browsing (see Fixed below).
 
 ### Internal / refactor
 - `Model` god-object decomposition: `CompactUndoEntry`, `LabelingOverlay`,
@@ -175,10 +177,6 @@ version: the Release workflow refuses to publish a version without one.
 - Masks loaded from a file take the color of their label. The color was read
   back from the `labels.json` next to the mask, red when the label was not in
   it yet: masks just imported for a new label showed in red.
-
-### Added
-- `load.memory_keep_images` parameter in `default_parameters.json` (default 8),
-  controlling how many images stay loaded while browsing (see Fixed below).
 
 ## 1.0.14 (2026-10-24)
 
