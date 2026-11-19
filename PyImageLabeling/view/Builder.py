@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QScrollArea,
     QGridLayout,
-    QProgressBar,
     QSlider,
     QCheckBox,
     QVBoxLayout,
@@ -272,8 +271,6 @@ class Builder:
 
     def build_status_bar(self):
         self.view.statusBar().showMessage('Ready')
-        self.view.progressBar = QProgressBar()
-        self.view.statusBar().addPermanentWidget(self.view.progressBar) 
         
         # Add ML status indicator
         self.view.ml_status_label = QLabel("ML: Not trained")

@@ -117,6 +117,8 @@ version: the Release workflow refuses to publish a version without one.
   image). *Accept* now takes the prediction made on the image shown only.
 - After a training stopped by *Patience*, the training window still said how
   much time was left.
+- The status bar held an empty progress bar that nothing ever filled: it
+  took a third of the width and cut the messages next to the ML badge. Removed.
 - The ML *Statistics* panel counts every image of the project: it only
   counted the images loaded in memory, so it showed 0 right after opening a
   project or after a training. An annotation is a shape, or a label painted
