@@ -254,12 +254,8 @@ class LabelEvents(Events):
                         image_item = self.model.image_items[file_path]
                         if image_item is not None and label_id in image_item.labeling_overlays:
                             image_item.labeling_overlays[label_id].reset()
-                            image_item.image_rectangles = [r for r in image_item.image_rectangles if r["label_id"] != label_id]
-                            image_item.image_polygons = [p for p in image_item.image_polygons if p["label"] != label_id]
-                            image_item.image_ellipses = [e for e in image_item.image_ellipses if e["label"] != label_id]
-                            for item in image_item.zoomable_graphics_view.scene.items():
-                                if hasattr(item, "label_id") and item.label_id == label_id:
-                                    image_item.zoomable_graphics_view.scene.removeItem(item)
+                    # its shapes, on every image (not only the loaded ones)
+                    self.model.remove_shapes_of_label(label_id)
 
                     # Put the good labeling buttons according to the mode 
                     self.view.update_labeling_buttons(label_setting.labeling_mode)
@@ -305,6 +301,10 @@ class LabelEvents(Events):
                 if image_item is not None and label_id in image_item.labeling_overlays:
                     image_item.labeling_overlays[label_id].remove()
                     del image_item.labeling_overlays[label_id]
+
+            # Its shapes too: they stayed in the shape files, under a label
+            # that no longer exists
+            self.model.remove_shapes_of_label(label_id)
 
             # Remove from the model's label_items
             if label_id in self.model.get_label_items():

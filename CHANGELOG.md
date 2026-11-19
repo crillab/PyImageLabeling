@@ -3,6 +3,21 @@
 Each `## <version>` section becomes the text of the GitHub release of that
 version: the Release workflow refuses to publish a version without one.
 
+## Unreleased
+
+### Fixed
+- Saving erased the rectangles, ellipses and polygons of every image that was
+  not loaded at that moment: only the loaded images were written to the shape
+  files. An image freed from memory (browsing, training, propagation) did not
+  keep its shapes either. Every image of the project is now written.
+- Drawing, moving, resizing or deleting a shape did not mark the project as
+  modified: no "save?" when closing the window or opening another folder, and
+  no red asterisk on the image. Shapes are now compared with what the project
+  files hold.
+- Removing a label (or changing its labeling mode) left its shapes in the
+  shape files, under a label that no longer existed; they are now removed
+  from every image.
+
 ## 1.0.15 (2026-11-19)
 
 ### Added

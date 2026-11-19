@@ -122,6 +122,7 @@ def reset_app(controller, view, model):
     model.left_rectangles = {}
     model.left_ellipses = {}
     model.left_polygons = {}
+    model.saved_shapes = {}
     model._ml_annotated = {}
     model._ml_disk_annotated = {}
     model._ml_painted_cache = {}
