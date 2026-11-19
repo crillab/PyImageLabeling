@@ -18,6 +18,11 @@ version: the Release workflow refuses to publish a version without one.
   shape files, under a label that no longer existed; they are now removed
   from every image.
 
+### Changed
+- Auto-save only writes when there are unsaved changes. It used to rewrite
+  its snapshot every few minutes even with nothing new, so File > Recover
+  Unsaved Annotations… offered a snapshot that held nothing to recover.
+
 ## 1.0.15 (2026-11-19)
 
 ### Added

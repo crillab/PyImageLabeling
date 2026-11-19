@@ -139,6 +139,12 @@ class Base(GeometryUpdaterMixin):
     def auto_save(self):
         if not self.save_directory:
             return
+        # Nothing unsaved: the project files already hold everything.
+        # Writing anyway rewrote the snapshot every few minutes, and its
+        # fresh date made File > Recover offer to "recover" nothing.
+        if not self.get_edited():
+            log.debug("Auto-save skipped: no unsaved changes")
+            return
 
         auto_save_path = Autosave.autosave_dir(self.save_directory)
 
