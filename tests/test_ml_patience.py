@@ -116,11 +116,14 @@ def test_dialog_shows_the_validation_of_each_epoch(project, monkeypatch):
         assert "mIoU of the labels 0.410" in text
         assert "best 0.450 at epoch 4" in text and "2/3" in text
         assert dialog.table.item(0, dialog.IOU_VAL).text() == "0.410"
+        assert "left" in text
         dialog.on_stats({"kind": "stopped", "epoch": 7, "best_epoch": 4,
                          "total": 20, "patience": 3})
         dialog.finish({"seg_miou": 0.45}, "segmentation", 2)
         text = dialog.epoch_label.text()
         assert "Stopped at epoch 7/20" in text
         assert "weights of epoch <b>4</b> kept" in text
+        # stopped early: no time is left any more
+        assert "left" not in text and "3 s per epoch" in text
     finally:
         dialog.close()

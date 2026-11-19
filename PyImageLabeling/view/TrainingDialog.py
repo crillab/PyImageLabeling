@@ -296,8 +296,11 @@ class TrainingDialog(QDialog):
         else:
             lines.append("No validation: at least 5 annotated images are "
                          "needed to keep some aside.")
-        self.epoch_label.setText(self.epoch_label.text() + "<br><br>"
-                                 + "<br>".join(lines))
+        shown = self.epoch_label.text()
+        if getattr(self, "_time_left", None):
+            # stopped early (patience): nothing is left
+            shown = shown.replace(" · " + self._time_left, "")
+        self.epoch_label.setText(shown + "<br><br>" + "<br>".join(lines))
         for c, iou in (vm.get("seg_iou") or {}).items():
             self._set_cell(c, self.IOU_VAL, f"{iou:.3f}")
         self._stopped()
@@ -490,8 +493,10 @@ class TrainingDialog(QDialog):
                 f"{s['best_epoch']} · {s['waited']}/{s['patience']} "
                 f"epoch(s) without progress")
         timing = [f"{format_duration(s.get('seconds', 0))} per epoch"]
+        self._time_left = None
         if epoch < total:
-            timing.append(f"about {format_duration(s.get('seconds', 0) * (total - epoch))} left")
+            self._time_left = (f"about {format_duration(s.get('seconds', 0) * (total - epoch))} left")
+            timing.append(self._time_left)
         if s.get("gpu_bytes"):
             timing.append(f"GPU {format_bytes(s['gpu_bytes'])}")
         if s.get("batch"):
