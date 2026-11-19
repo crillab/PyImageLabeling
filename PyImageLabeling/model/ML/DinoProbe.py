@@ -20,6 +20,8 @@ from PyImageLabeling.model.SAM.oneshot import (
 
 DINO_KEY = "small"
 GRID = DINO_SIZE // 14
+# target of the pixels left out of the loss (F.cross_entropy's default)
+IGNORE = -100
 
 
 class DinoLinearProbe:
@@ -60,10 +62,11 @@ class DinoLinearProbe:
         return self.encode(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
 
     def mask_to_target(self, mask_orig_ids):
-        """Original-id mask -> class-id target at the patch grid."""
+        """Original-id mask -> class-id target at the patch grid. A value
+        with no class (an ignored label) gets IGNORE: out of the loss."""
         grid = np.array(Image.fromarray(
             mask_orig_ids.astype(np.uint8)).resize((GRID, GRID), Image.NEAREST))
-        mapped = np.zeros_like(grid, dtype=np.int64)
+        mapped = np.full(grid.shape, IGNORE, dtype=np.int64)
         for orig_id, class_id in self.mapping.items():
             mapped[grid == int(orig_id)] = int(class_id)
         return torch.from_numpy(mapped).long()
@@ -75,10 +78,15 @@ class DinoLinearProbe:
             self.head = torch.nn.Conv2d(
                 self.feat_dim, self.num_classes, 1).to(self.device)
 
-    def fit(self, items, epochs, lr, log=None, epoch_callback=None):
-        """items: [(image_path, mask_orig_ids)]. Returns (best_loss, history)."""
-        feats = [(self.encode_path(p), self.mask_to_target(m))
-                 for p, m in items]
+    def fit(self, items, epochs, lr, log=None, epoch_callback=None,
+            cancel_check=None):
+        """items: [(image_path, mask_orig_ids)]. Returns (best_loss, history).
+        `cancel_check`, called before each image, raises to stop."""
+        check = cancel_check or (lambda: None)
+        feats = []
+        for p, m in items:
+            check()
+            feats.append((self.encode_path(p), self.mask_to_target(m)))
         self._ensure_head()
         opt = torch.optim.AdamW(self.head.parameters(), lr=lr)
         self.head.train()
@@ -86,6 +94,7 @@ class DinoLinearProbe:
         for ep in range(epochs):
             tot = 0.0
             for f, m in feats:
+                check()
                 opt.zero_grad()
                 loss = F.cross_entropy(
                     self.head(f.unsqueeze(0).to(self.device)),
@@ -121,7 +130,7 @@ class DinoLinearProbe:
         return cls.cpu().numpy().astype(np.uint8), conf.cpu().numpy()
 
     @torch.no_grad()
-    def evaluate(self, items):
+    def evaluate(self, items, cancel_check=None):
         """Same inter/union mIoU shape as MLPredictor.evaluate_model."""
         self._ensure_head()
         out = {}
@@ -129,6 +138,8 @@ class DinoLinearProbe:
         inter = torch.zeros(self.num_classes)
         union = torch.zeros(self.num_classes)
         for p, m in items:
+            if cancel_check is not None:
+                cancel_check()
             logits = self.head(
                 self.encode_path(p).unsqueeze(0).to(self.device))
             tgt = self.mask_to_target(m).unsqueeze(0).to(self.device)
@@ -138,17 +149,18 @@ class DinoLinearProbe:
             n += 1
             pred = up.argmax(dim=1)[0].cpu()
             t = tgt[0].cpu()
+            valid = t != IGNORE
             for c in range(self.num_classes):
-                pc = (pred == c)
+                pc = (pred == c) & valid
                 mc = (t == c)
                 inter[c] += (pc & mc).sum()
                 union[c] += (pc | mc).sum()
         if n:
+            from PyImageLabeling.model.ML.LabelStats import iou_scores
             out["seg_loss"] = total / n
             out["n_val_seg"] = n
-            valid = union > 0
-            if valid.any():
-                out["seg_miou"] = float((inter[valid] / union[valid]).mean())
+            out.update(iou_scores(inter.tolist(), union.tolist(),
+                                  self.mapping.get(255)))
         return out
 
     def save_dict(self):

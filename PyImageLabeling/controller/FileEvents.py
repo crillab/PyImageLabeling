@@ -21,12 +21,16 @@ class FileEvents(Events):
         self.all_events(self.load.__name__)
         self.model.load()
         self._enable_project_buttons()
+        # the Statistics panel was only refreshed by the labeling tools: it
+        # kept the counts of the previous project (0 at startup)
+        self.ml_update_stats(immediate=True)
 
     def new_project(self):
         """File > New Project: an empty project in a folder."""
         self.all_events(self.new_project.__name__)
         if self.model.new_project():
             self._enable_project_buttons()
+        self.ml_update_stats(immediate=True)
 
     def _enable_project_buttons(self):
         for button_names in self.view.buttons_image_bar:
@@ -45,6 +49,7 @@ class FileEvents(Events):
         """File > Add Images: copy images into the open project folder."""
         self.all_events(self.add_images.__name__)
         self.model.add_images()
+        self.ml_update_stats(immediate=True)
 
     def save_copy(self):
         self.model.save()

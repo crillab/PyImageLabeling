@@ -1,7 +1,9 @@
 """Real end-to-end DINO: train on painted masks, then draw predictions.
 
-No encoder stub here — this drives the actual DinoLinearProbe so the UI path
+No encoder stub here — this drives the actual DINOv2 encoder so the UI path
 that used to fail (empty screen after a DINO training) is exercised for real.
+The former "DINOv2-linear" setting (seg_backbone = "dinov2") now trains the
+network with a frozen DINOv2 backbone and the linear decoder.
 """
 import numpy as np
 import pytest
@@ -41,9 +43,11 @@ def test_dino_training_then_prediction_draws_masks(project, monkeypatch):
 
     model.train_model_core(selected_paths=list(paths))
 
-    # a DINO model trains a probe and no net: that is the whole point
-    assert model.probe is not None, "no probe was created"
-    assert model.model is None, "a net was built, so this is not the DINO path"
+    # the DINOv2-linear setting is the network with a DINOv2 backbone
+    assert model.probe is None
+    assert model.model is not None
+    assert model.model.backbone_name == "DINOv2-S/14"
+    assert model.model.seg_decoder == "linear"
     assert model.is_trained()
 
     info = model.ml_model_info()

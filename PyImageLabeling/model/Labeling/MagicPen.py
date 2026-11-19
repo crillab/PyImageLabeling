@@ -26,8 +26,6 @@ class MagicPen(Base):
 
 
     def fill_shape(self, scene_pos):
-        # Create progress dialog
-        self.view.progressBar.reset()
 
         self._fill_shape_worker(scene_pos)
         self.get_current_image_item().update_labeling_overlay()
@@ -124,7 +122,6 @@ class MagicPen(Base):
 
     def fill_color_clicked(self, scene_pos):
         """Fill all pixels similar in color to the clicked point"""
-        self.view.progressBar.reset()
         self.color = self.get_current_label_item().get_color()
         # Get initial data
         initial_x, initial_y = int(scene_pos.x()), int(scene_pos.y())

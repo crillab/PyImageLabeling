@@ -84,6 +84,7 @@ class LabelEvents(Events):
             if imported:
                 # the masks are on disk already: their label must be too
                 self.model.save_labels(self.model.save_directory)
+                self.ml_update_stats(immediate=True)
                 self._report_import(label_setting, label_setting.name)
 
     @staticmethod
@@ -334,6 +335,8 @@ class LabelEvents(Events):
             elif self.model.get_current_label_item() is not None and self.model.get_current_label_item().get_label_id() == label_id:
                 first_id = list(self.model.get_label_items().keys())[0]
                 self.select_label(first_id)
+            # its masks are gone: the Statistics panel counted them
+            self.ml_update_stats(immediate=True)
             
    
 

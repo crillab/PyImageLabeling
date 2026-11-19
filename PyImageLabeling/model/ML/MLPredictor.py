@@ -1,9 +1,11 @@
 from PyImageLabeling.model.Base import Base
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsPixmapItem, QProgressDialog, QMessageBox
+from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsPixmapItem, QMessageBox
 from PyQt6.QtGui import QPen, QColor, QBrush, QPixmap, QImage
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyImageLabeling.model.Labeling.RectangleItem import RectangleItem
 import os
+import threading
+import time
 import cv2
 import re
 import numpy as np
@@ -13,7 +15,57 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from PyImageLabeling.logging_setup import get_logger
+from PyImageLabeling.model.ML import DinoBackbone, LabelStats, Tiling
 log = get_logger("ml.predictor")
+
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+IMAGENET_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+# Tiles drawn per unlabeled image to score its uncertainty (active learning):
+# enough to cover a slide, without predicting all of it.
+AL_MAX_TILES = 64
+
+# In the masks collected for a training (label ids, 255 = nothing painted),
+# the pixels of a label that is not learnt and is ignored by the loss
+# (ML > Settings: the other labels are not counted as background).
+IGNORED_LABEL = 254
+
+# A training with no target there (segmentation masks are mapped to classes
+# with it as default): F.cross_entropy's default ignore_index.
+TORCH_IGNORE = -100
+
+# Segmentation losses (ML settings): cross-entropy, or cross-entropy + Dice
+SEG_LOSS_CE = "ce"
+SEG_LOSS_CE_DICE = "ce_dice"
+SEG_LOSSES = (SEG_LOSS_CE, SEG_LOSS_CE_DICE)
+
+
+def dice_loss(logits, target, ignore_index, background=None, smooth=1.0):
+    """1 - soft Dice of the classes other than `background`, over the whole
+    batch (per class: 2 |P.T| / (|P| + |T|), with P the predicted
+    probabilities and T the one-hot targets), averaged over the classes.
+
+    Each class weighs the same, whatever its number of pixels: with
+    labels covering a few percent of the images, the cross-entropy alone
+    is mostly about the background. Pixels at `ignore_index` (or with no
+    class) are left out.
+    """
+    c = logits.shape[1]
+    keep = [k for k in range(c) if k != background]
+    if not keep:
+        return logits.sum() * 0.0
+    probs = torch.softmax(logits.float(), dim=1)
+    valid = (target != ignore_index) & (target >= 0) & (target < c)
+    t = torch.where(valid, target, torch.zeros_like(target))
+    onehot = F.one_hot(t, c).permute(0, 3, 1, 2).to(probs.dtype)
+    v = valid.unsqueeze(1).to(probs.dtype)
+    probs = probs * v
+    onehot = onehot * v
+    dims = (0, 2, 3)
+    inter = (probs * onehot).sum(dims)
+    denom = probs.sum(dims) + onehot.sum(dims)
+    dice = (2 * inter + smooth) / (denom + smooth)
+    return 1.0 - dice[keep].mean()
 
 try:
     import albumentations as A
@@ -107,7 +159,7 @@ BACKBONE_REGISTRY = {
     "MaxViT-Tiny":     ("maxvit_t",           "MaxVit_T_Weights"),
 }
 
-BACKBONE_NAMES = list(BACKBONE_REGISTRY.keys())
+BACKBONE_NAMES = list(BACKBONE_REGISTRY.keys()) + DinoBackbone.DINOV2_NAMES
 DEFAULT_BACKBONE = "ResNet18"
  
  
@@ -155,6 +207,10 @@ def _load_backbone_dynamically(backbone_name: str, pretrained: bool):
         return model_constructor(weights=weights)
  
 def _build_backbone(backbone_name: str, pretrained: bool):
+    if DinoBackbone.is_dinov2(backbone_name):
+        ext = DinoBackbone.DinoV2Extractor(backbone_name, pretrained)
+        return _measured_backbone(backbone_name, ext)
+
     bb = _load_backbone_dynamically(backbone_name, pretrained)
 
     # ── ResNet / Wide-ResNet / ResNeXt ──────────────────────────────────
@@ -182,6 +238,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.layer2(x)
                 x = self.layer3(x)
                 return self.layer4(x)
+            def stages(self):
+                return [self.layer1, self.layer2, self.layer3, self.layer4]
 
         ext = _ResNetExtractor()
 
@@ -195,6 +253,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _MobileNetExtractor()
 
@@ -211,6 +271,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _EfficientNetExtractor()
 
@@ -267,6 +329,12 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 x = self.permute(x)    # [B, C, H, W]
                 return x
 
+            channels_last = True
+            def stages(self):
+                return list(self.features)
+            def finish(self, x):
+                return self.norm(x)
+
         ext = _SwinExtractor(bb)
 
     # ── ConvNeXt ─────────────────────────────────────────────────────────
@@ -280,6 +348,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return self.features(x)
+            def stages(self):
+                return list(self.features)
 
         ext = _ConvNeXtExtractor()
 
@@ -301,6 +371,8 @@ def _build_backbone(backbone_name: str, pretrained: bool):
             def forward(self, x):
                 x = self.stem(x)
                 return self.trunk_output(x)
+            def stages(self):
+                return [self.stem, *self.trunk_output]
 
         ext = _RegNetExtractor()
 
@@ -316,6 +388,10 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 self.features = features
             def forward(self, x):
                 return F.relu(self.features(x), inplace=True)
+            def stages(self):
+                return list(self.features)
+            def finish(self, x):
+                return F.relu(x)
 
         ext = _DenseNetExtractor()
 
@@ -334,48 +410,125 @@ def _build_backbone(backbone_name: str, pretrained: bool):
                 for block in self.blocks:  # iterate instead of calling directly
                     x = block(x)
                 return x
+            def stages(self):
+                return [self.stem, *self.blocks]
 
         ext = _MaxViTExtractor()
 
     else:
         raise ValueError(f"Unhandled backbone: {backbone_name}")
 
-    # ── Measure output channels with a dummy forward ─────────────────────
+    return _measured_backbone(backbone_name, ext)
+
+
+def _measured_backbone(backbone_name, ext):
+    """(ext, channels of its last layer), with the channels of the maps
+    each decoder gets measured by a dummy forward."""
     ext.eval()
     with torch.no_grad():
         dummy  = torch.zeros(1, 3, 224, 224)
         output = ext(dummy)
         feat_ch = output.shape[1]
 
-    log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, output_shape={output.shape}")
+        ext.pyramid_channels = [f.shape[1] for f in backbone_pyramid(ext, dummy)]
+        ext.linear_channels = [f.shape[1]
+                               for f in backbone_linear_inputs(ext, dummy)]
+
+    log.debug(f"[backbone] {backbone_name}: feat_channels={feat_ch}, "
+              f"output_shape={output.shape}, "
+              f"pyramid_channels={ext.pyramid_channels}")
     return ext, feat_ch
+
+
+def backbone_pyramid(ext, x):
+    """Feature maps of the backbone from fine to coarse: the last one of
+    each resolution, from 1/4 of the input down to the last layer (whose
+    map is exactly ext(x)). A backbone without stages (ViT: a single
+    resolution) gives [ext(x)]; DINOv2 builds its own levels."""
+    if hasattr(ext, "pyramid"):
+        return ext.pyramid(x)
+    if not hasattr(ext, "stages"):
+        return [ext(x)]
+    height = x.shape[-2]
+    channels_last = getattr(ext, "channels_last", False)
+    feats, sizes = [], []
+    for stage in ext.stages():
+        x = stage(x)
+        h = x.shape[1] if channels_last else x.shape[2]
+        if sizes and sizes[-1] == h:
+            feats[-1] = x
+        else:
+            feats.append(x)
+            sizes.append(h)
+    if hasattr(ext, "finish"):
+        feats[-1] = ext.finish(feats[-1])
+    if channels_last:
+        feats = [f.permute(0, 3, 1, 2) for f in feats]
+    # 1/2 maps are left out: large, and little use with a 1/4 level
+    keep = [f for f, h in zip(feats, sizes) if height / h >= 3.5]
+    return keep or feats[-1:]
+
+
+def backbone_linear_inputs(ext, x):
+    """Maps the linear decoder concatenates, the last one being the last
+    layer of the backbone: the last 4 layers of DINOv2 (as in its paper),
+    the pyramid of the other backbones."""
+    if hasattr(ext, "last_layers"):
+        return ext.last_layers(x)
+    return backbone_pyramid(ext, x)
 
 # ---------------------------------------------------------------------------
 # Background training thread
 # ---------------------------------------------------------------------------
 
+class TrainingCancelled(BaseException):
+    """Raised in the training thread once the user has cancelled. A
+    BaseException, like asyncio's CancelledError: the `except Exception`
+    around the validation or the stats must not swallow it."""
+
+
 class TrainingWorker(QThread):
     progress   = pyqtSignal(str)            # log messages  → console
+    status     = pyqtSignal(str)            # what is going on → dialog text
     epoch_done = pyqtSignal(int, int, float) # current, total, loss → progress bar
+    stats      = pyqtSignal(object)         # settings, data, epoch figures → dialog
     finished   = pyqtSignal()
+    cancelled  = pyqtSignal()
     error      = pyqtSignal(str)
 
     def __init__(self, predictor, selected_paths=None):
         super().__init__()
         self.predictor      = predictor
         self.selected_paths = selected_paths
+        self.cancel_event   = threading.Event()
+
+    def cancel(self):
+        """Ask the training to stop (it does at its next batch or image).
+        Called from the GUI thread."""
+        self.cancel_event.set()
 
     def run(self):
+        cancelled = False
         try:
             self.predictor.train_model_core(
                 selected_paths  = self.selected_paths,
                 epoch_callback  = self.epoch_done.emit,
                 log_callback    = self.progress.emit,
+                status_callback = self.status.emit,
+                stats_callback  = self.stats.emit,
+                cancel_event    = self.cancel_event,
             )
             self.finished.emit()
+        except TrainingCancelled:
+            cancelled = True
         except Exception as e:
             import traceback
             self.error.emit(f"{e}\n{traceback.format_exc()}")
+        # out of the except block: the traceback, which holds the network
+        # and the batches of the stopped training, is gone before the GUI
+        # thread releases the GPU memory
+        if cancelled:
+            self.cancelled.emit()
 
 
 # ---------------------------------------------------------------------------
@@ -505,11 +658,71 @@ class SegmentationDataset(Dataset):
         image = (image - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
         image = torch.from_numpy(image).permute(2, 0, 1).float()
 
-        mask_mapped = np.zeros_like(mask, dtype=np.uint8)
+        # a value with no class (IGNORED_LABEL) is left out of the loss
+        mask_mapped = np.full(mask.shape, TORCH_IGNORE, dtype=np.int64)
         for orig_id, class_id in self.label_id_to_class.items():
             mask_mapped[mask == orig_id] = class_id
 
-        return image, torch.from_numpy(mask_mapped).long()
+        return image, torch.from_numpy(mask_mapped)
+
+
+class TileDataset(Dataset):
+    """Random training tiles of large images (see Tiling).
+
+    An epoch draws Tiling.tiles_per_image() tiles per source (its area),
+    `labelled_share` of them centred on an annotated pixel, as `sampling`
+    says (Tiling.SAMPLINGS). Masks hold class ids, and Tiling.IGNORE_INDEX
+    where a tile goes past the image.
+    """
+
+    def __init__(self, sources, tile_size, augment=True,
+                 sampling=Tiling.DEFAULT_SAMPLING,
+                 labelled_share=Tiling.LABELLED_SHARE):
+        self.sources   = list(sources)
+        self.tile_size = tile_size
+        self.augment   = augment
+        self.sampling  = Tiling.normalize_sampling(sampling)
+        self.labelled_share = (0.0 if self.sampling == Tiling.SAMPLING_RANDOM
+                               else Tiling.normalize_share(labelled_share))
+        counts = [Tiling.tiles_per_image(*src.shape, tile_size)
+                  for src in self.sources]
+        self.owner = np.repeat(np.arange(len(self.sources)), counts)
+        self.rng   = np.random.default_rng()
+        # balanced: the images holding each class
+        self.class_sources = {}
+        for i, src in enumerate(self.sources):
+            for c in (src.points or {}):
+                self.class_sources.setdefault(c, []).append(i)
+        self.classes = sorted(self.class_sources)
+
+    def __len__(self):
+        return len(self.owner)
+
+    def _draw(self, idx):
+        rng, tile = self.rng, self.tile_size
+        if self.sampling == Tiling.SAMPLING_BALANCED:
+            if self.classes and rng.random() < self.labelled_share:
+                c = self.classes[int(rng.integers(len(self.classes)))]
+                owners = self.class_sources[c]
+                source = self.sources[owners[int(rng.integers(len(owners)))]]
+                return source.sample(tile, rng, cls=c)
+            return self.sources[self.owner[idx]].sample(tile, rng, 0.0)
+        return self.sources[self.owner[idx]].sample(
+            tile, rng, self.labelled_share)
+
+    def __getitem__(self, idx):
+        image, mask = self._draw(idx)
+        if self.augment and self.rng.random() > 0.5:
+            image = image[:, ::-1]
+            mask  = mask[:, ::-1]
+        if self.augment and self.rng.random() > 0.5:
+            alpha = self.rng.uniform(0.8, 1.2)
+            beta  = int(self.rng.integers(-20, 20))
+            image = cv2.convertScaleAbs(np.ascontiguousarray(image),
+                                        alpha=alpha, beta=beta)
+        image = (image.astype(np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
+        return (torch.from_numpy(np.ascontiguousarray(image.transpose(2, 0, 1))),
+                torch.from_numpy(mask.astype(np.int64)))
 
 
 # ---------------------------------------------------------------------------
@@ -538,11 +751,87 @@ class SegmentationHead(nn.Module):
         return F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
 
 
+SEG_DECODER_SIMPLE = "simple"   # upsamples the last layer only (1/32)
+SEG_DECODER_FPN    = "fpn"      # combines the 1/4 … 1/32 layers
+SEG_DECODER_LINEAR = "linear"   # 1x1 conv on the concatenated layers
+SEG_DECODERS       = (SEG_DECODER_SIMPLE, SEG_DECODER_FPN,
+                      SEG_DECODER_LINEAR)
+SEG_DECODER_NAMES  = {SEG_DECODER_SIMPLE: "last layer only",
+                      SEG_DECODER_FPN:    "multi-scale (FPN)",
+                      SEG_DECODER_LINEAR: "linear"}
+DEFAULT_SEG_DECODER = SEG_DECODER_FPN
+
+
+class FPNSegmentationHead(nn.Module):
+    """Feature-pyramid decoder (as in Panoptic FPN / U-Net).
+
+    The last layer of the backbone knows *what* is there but only at 1/32
+    of the resolution: a 32 x 32 px block per value, so the edges of small
+    objects are lost. The earlier layers still have the fine detail. Each
+    level is brought to `channels` by a 1x1 conv, then from the coarsest
+    to the finest: upsample, add the next finer level, 3x3 conv. The
+    classes are predicted on the finest level (1/4) and upsampled to the
+    input size.
+    """
+
+    def __init__(self, in_channels_list, num_classes=2, channels=128):
+        super().__init__()
+        self.lateral = nn.ModuleList(
+            nn.Conv2d(c, channels, 1) for c in in_channels_list)
+        self.smooth = nn.ModuleList(
+            nn.Sequential(nn.Conv2d(channels, channels, 3, padding=1,
+                                    bias=False),
+                          nn.BatchNorm2d(channels), nn.ReLU(inplace=True))
+            for _ in in_channels_list)
+        self.final = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels), nn.ReLU(inplace=True),
+            nn.Conv2d(channels, num_classes, 1))
+
+    def forward(self, feats, out_size):
+        x = self.smooth[-1](self.lateral[-1](feats[-1]))
+        for i in range(len(feats) - 2, -1, -1):
+            x = F.interpolate(x, size=feats[i].shape[-2:], mode="bilinear",
+                              align_corners=False)
+            x = self.smooth[i](x + self.lateral[i](feats[i]))
+        x = self.final(x)
+        return F.interpolate(x, size=out_size, mode="bilinear",
+                             align_corners=False)
+
+
+class LinearSegmentationHead(nn.Module):
+    """Linear decoder (the linear evaluation of the DINOv2 paper): the
+    maps, brought to the size of the finest, are concatenated, then batch
+    norm and a 1x1 convolution give the classes, upsampled to the input
+    size. Nothing is learnt but this projection: it shows what the
+    backbone features already tell apart."""
+
+    def __init__(self, in_channels_list, num_classes=2):
+        super().__init__()
+        channels = sum(in_channels_list)
+        self.bn = nn.BatchNorm2d(channels)
+        self.classifier = nn.Conv2d(channels, num_classes, 1)
+
+    def forward(self, feats, out_size):
+        size = feats[0].shape[-2:]
+        x = torch.cat([f if f.shape[-2:] == size else
+                       F.interpolate(f, size=size, mode="bilinear",
+                                     align_corners=False)
+                       for f in feats], dim=1)
+        x = self.classifier(self.bn(x))
+        return F.interpolate(x, size=out_size, mode="bilinear",
+                             align_corners=False)
+
+
 class FastObjectDetectorWithSegmentation(nn.Module):
     def __init__(self, num_classes=2, pretrained=True, enable_segmentation=True,
-                 enable_detection=True, backbone_name=DEFAULT_BACKBONE):
+                 enable_detection=True, backbone_name=DEFAULT_BACKBONE,
+                 seg_decoder=SEG_DECODER_SIMPLE):
         super().__init__()
         self.backbone_name = backbone_name
+        # SIMPLE by default: what the models saved before the FPN head use
+        self.seg_decoder = (seg_decoder if seg_decoder in SEG_DECODERS
+                            else SEG_DECODER_SIMPLE)
 
         # Build backbone and measure its output channels automatically
         self.backbone, feat_ch = _build_backbone(backbone_name, pretrained)
@@ -559,14 +848,31 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 
         self.enable_segmentation = enable_segmentation
         if enable_segmentation:
-            self.segmentation_head = SegmentationHead(feat_ch, num_classes)
+            if self.seg_decoder == SEG_DECODER_FPN:
+                self.segmentation_head = FPNSegmentationHead(
+                    self.backbone.pyramid_channels, num_classes)
+            elif self.seg_decoder == SEG_DECODER_LINEAR:
+                self.segmentation_head = LinearSegmentationHead(
+                    self.backbone.linear_channels, num_classes)
+            else:
+                self.segmentation_head = SegmentationHead(
+                    feat_ch, num_classes)
 
         self.grid_size   = 13
         self.num_classes = num_classes
         self.enable_detection = enable_detection 
         
     def forward(self, x):
-        x4 = self.backbone(x)
+        multi = (self.enable_segmentation
+                 and self.seg_decoder in (SEG_DECODER_FPN,
+                                          SEG_DECODER_LINEAR))
+        if multi:
+            feats = (backbone_pyramid(self.backbone, x)
+                     if self.seg_decoder == SEG_DECODER_FPN
+                     else backbone_linear_inputs(self.backbone, x))
+            x4 = feats[-1]
+        else:
+            x4 = self.backbone(x)
 
         det = F.relu(self.bn1(self.conv1(x4)))
         det = F.relu(self.bn2(self.conv2(det)))
@@ -581,7 +887,17 @@ class FastObjectDetectorWithSegmentation(nn.Module):
         bbox = bbox.permute(0, 2, 3, 1).contiguous()
         cls  = cls.permute(0, 2, 3, 1).contiguous()
 
-        seg = self.segmentation_head(x4) if self.enable_segmentation else None
+        if not self.enable_segmentation:
+            seg = None
+        elif multi:
+            seg = self.segmentation_head(feats, x.shape[-2:])
+        else:
+            seg = self.segmentation_head(x4)
+            # x32 of the last layer is the input size at 1/32 only (not
+            # with the 1/14 of DINOv2 or the 1/16 of ViT-B/16)
+            if seg.shape[-2:] != x.shape[-2:]:
+                seg = F.interpolate(seg, size=x.shape[-2:], mode="bilinear",
+                                    align_corners=False)
         return obj, bbox, cls, seg
 
     def predict_boxes(self, objectness, bbox_pred, class_pred,
@@ -632,6 +948,85 @@ class FastObjectDetectorWithSegmentation(nn.Module):
 # Main predictor
 # ---------------------------------------------------------------------------
 
+class _EarlyStopping:
+    """Stops a training when the validation has not improved for
+    `patience` epochs, and keeps the weights of its best epoch. Watched:
+    the mIoU of the labels (background left out), or the detection loss
+    of a detection-only training."""
+
+    MIN_GAIN = 1e-4
+
+    def __init__(self, patience):
+        self.patience = patience
+        self.best_score = None
+        self.best_epoch = None
+        self.best_metrics = None
+        self.best_state = None
+        self.metrics = None
+        self.last_epoch = None
+        self.waited = 0
+
+    @staticmethod
+    def score(metrics):
+        if "seg_miou" in metrics:
+            return metrics["seg_miou"]
+        if "det_loss" in metrics:
+            return -metrics["det_loss"]
+        return None
+
+    def update(self, epoch, metrics, model):
+        self.metrics, self.last_epoch = metrics or {}, epoch
+        score = self.score(self.metrics)
+        if score is None:
+            return
+        if self.best_score is None or score > self.best_score + self.MIN_GAIN:
+            self.best_score, self.best_epoch = score, epoch
+            self.best_metrics = dict(self.metrics)
+            # on the CPU: the GPU memory is the training's
+            self.best_state = {k: v.detach().to("cpu", copy=True)
+                               for k, v in model.state_dict().items()}
+            self.waited = 0
+        else:
+            self.waited += 1
+
+    def should_stop(self):
+        return bool(self.patience) and self.waited >= self.patience
+
+    def restore(self, model):
+        """Put the best weights back, if they are not the last ones."""
+        if self.best_state is None or self.best_epoch == self.last_epoch:
+            return False
+        model.load_state_dict(self.best_state)
+        return True
+
+    def describe(self, best=False):
+        metrics = self.best_metrics if best else self.metrics
+        if "seg_miou" in metrics:
+            text = f"mIoU (labels) {metrics['seg_miou']:.3f}"
+        elif "det_loss" in metrics:
+            text = f"detection loss {metrics['det_loss']:.4f}"
+        else:
+            return "n/a"
+        if not best and self.best_epoch is not None:
+            text += (f" | best epoch {self.best_epoch} | "
+                     f"{self.waited}/{self.patience} without progress")
+        return text
+
+    def stats(self):
+        """For the training window."""
+        if not self.patience or self.metrics is None:
+            return {}
+        out = {"patience": self.patience, "waited": self.waited,
+               "best_epoch": self.best_epoch,
+               "val_score": self.score(self.metrics),
+               "best_score": self.best_score,
+               "val_metric": ("miou" if "seg_miou" in self.metrics
+                              else "det_loss")}
+        if self.metrics.get("seg_iou"):
+            out["val_iou"] = dict(self.metrics["seg_iou"])
+        return out
+
+
 class MLPredictor(Base):
     def __init__(self):
         super().__init__()
@@ -667,17 +1062,52 @@ class MLPredictor(Base):
 
         # FIX: training_mode must survive save/load
         self.training_mode       = None
-        self.enable_segmentation = False
+        # heads the next training may use (ML settings); each one is
+        # trained only if the annotations it learns from exist
+        self.enable_segmentation = True
+        self.enable_detection    = True
         self.batch_size          = 8
         self.num_epochs          = 50
         self.learning_rate       = 0.001
         self.backbone_name       = DEFAULT_BACKBONE
         self.use_pretrained      = True
         self.seg_backbone        = "resnet"
+        # labels the next training learns (ML settings): None = all of
+        # them. The pixels of the others count as background, or are
+        # ignored by the loss.
+        self.train_label_ids            = None
+        self.other_labels_as_background = True
+        # label statistics of the mask files (LabelStats), by file and date
+        self._ml_label_stats_cache = {}
+
+        # Tiles (segmentation on large images), as set for the next
+        # training: "auto" uses them when an image is more than twice the
+        # tile size (after scaling), "on" always, "off" never.
+        self.tiling_mode  = "off"
+        self.tile_size    = Tiling.DEFAULT_TILE_SIZE
+        self.tile_overlap = Tiling.DEFAULT_OVERLAP
+        self.tile_scale   = 1.0
+        # how the training tiles are drawn (Tiling.SAMPLINGS), and the loss
+        self.tile_sampling  = Tiling.DEFAULT_SAMPLING
+        self.labelled_share = Tiling.LABELLED_SHARE
+        self.seg_loss       = SEG_LOSS_CE
+        self.seg_decoder    = DEFAULT_SEG_DECODER
+        # DINOv2 backbone: number of its last blocks trained (0 = frozen)
+        self.finetune_blocks = 0
+        # epochs without progress on the validation before stopping (0 =
+        # off: all the epochs, validation at the end only)
+        self.patience = 0
+        # ... and as used by the live model: None (whole image resized to
+        # image_size) or {"tile_size", "overlap", "scale"}. Saved with it.
+        self.tiling = None
+        self._seg_val_sources = None
 
         self.ml_predictions_current    = []
         self.ml_prediction_items       = []
         self.ml_segmentation_predictions = None
+        # the image the predictions on screen were made on: Accept paints
+        # them on that image only
+        self.ml_predictions_image = None
 
         self.label_id_to_class = {}
         self.class_to_label_id = {}
@@ -776,7 +1206,8 @@ class MLPredictor(Base):
         if probe is not None and getattr(self, "model", None) is None:
             try:
                 return probe.evaluate(
-                    list(getattr(self, "_probe_val_items", None) or []))
+                    list(getattr(self, "_probe_val_items", None) or []),
+                    cancel_check=self._check_cancel)
             except Exception as e:
                 ml_log(f"[eval] probe validation failed: {e}", force=True)
                 return {}
@@ -789,6 +1220,7 @@ class MLPredictor(Base):
         if det_val is not None:
             total, n = 0.0, 0
             for images, targets in det_val:
+                self._check_cancel()
                 images = images.to(self.device)
                 loss, _ = self._detection_batch_loss(
                     images, targets, num_classes)
@@ -797,12 +1229,16 @@ class MLPredictor(Base):
             if n:
                 out["det_loss"] = total / n
                 out["n_val_det"] = n
+        seg_sources = getattr(self, "_seg_val_sources", None)
         seg_val = getattr(self, "_seg_val_loader", None)
-        if seg_val is not None:
+        if seg_sources and getattr(self, "tiling", None) is not None:
+            out.update(self._evaluate_tiles(seg_sources, num_classes))
+        elif seg_val is not None:
             total, n = 0.0, 0
             inter = torch.zeros(num_classes)
             union = torch.zeros(num_classes)
             for images, masks in seg_val:
+                self._check_cancel()
                 images = images.to(self.device)
                 masks  = masks.to(self.device)
                 _, _, _, seg_pred = self.model(images)
@@ -811,18 +1247,18 @@ class MLPredictor(Base):
                 total += F.cross_entropy(seg_pred, masks).item()
                 n += 1
                 pred = seg_pred.argmax(dim=1)
+                valid = masks != TORCH_IGNORE
                 for c in range(num_classes):
-                    pc = (pred == c)
+                    pc = (pred == c) & valid
                     mc = (masks == c)
                     inter[c] += (pc & mc).sum().cpu()
                     union[c] += (pc | mc).sum().cpu()
             if n:
                 out["seg_loss"] = total / n
                 out["n_val_seg"] = n
-                valid = union > 0
-                if valid.any():
-                    out["seg_miou"] = float(
-                        (inter[valid] / union[valid]).mean())
+                out.update(LabelStats.iou_scores(
+                    inter.tolist(), union.tolist(),
+                    self.label_id_to_class.get(255)))
         if was_training:
             self.model.train()
         return out
@@ -848,24 +1284,45 @@ class MLPredictor(Base):
     # Data collection
     # ------------------------------------------------------------------
 
-    def collect_training_data(self, selected_paths=None):
+    def _image_shapes(self, file_path):
+        """(rectangles, ellipses, polygons) of an image, loaded or not.
+
+        An image that is not loaded keeps the shapes read from the project
+        files in left_* (moved into its ImageItem when it is loaded).
+        """
+        image_item = self.image_items.get(file_path)
+        if image_item is not None:
+            return (image_item.image_rectangles or [],
+                    image_item.image_ellipses or [],
+                    image_item.image_polygons or [])
+        base = os.path.basename(file_path)
+        return tuple(getattr(self, store, {}).get(base) or []
+                     for store in ("left_rectangles", "left_ellipses",
+                                   "left_polygons"))
+
+    @staticmethod
+    def _shape_label(shape):
+        """Label id of a shape (ellipses keep it under "label")."""
+        return shape.get('label_id', shape.get('label', 0))
+
+    def collect_training_data(self, selected_paths=None, label_ids=None):
+        """[(image path, [(x, y, w, h, label id)])]; with `label_ids`, only
+        the shapes of those labels (and the images holding one)."""
         training_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
 
         for file_path in paths:
-            image_item = self.image_items.get(file_path)
-            if image_item is None:
-                continue
+            rectangles, ellipses, polygons = self._image_shapes(file_path)
             annotations = []
-            for r in image_item.image_rectangles:
+            for r in rectangles:
                 annotations.append((r.get('x',0), r.get('y',0),
                                      r.get('width',0), r.get('height',0),
                                      r.get('label_id',0)))
-            for e in image_item.image_ellipses:
+            for e in ellipses:
                 annotations.append((e.get('x',0), e.get('y',0),
                                      e.get('width',0), e.get('height',0),
                                      e.get('label',0)))
-            for p in image_item.image_polygons:
+            for p in polygons:
                 pts = p.get('points', [])
                 lid = p.get('label_id', 0)
                 if pts:
@@ -873,52 +1330,270 @@ class MLPredictor(Base):
                     ys = [pt['y'] for pt in pts]
                     annotations.append((min(xs), min(ys),
                                          max(xs)-min(xs), max(ys)-min(ys), lid))
+            if label_ids is not None:
+                annotations = [a for a in annotations if a[-1] in label_ids]
             if annotations:
                 training_data.append((file_path, annotations))
 
         return training_data
 
-    def collect_segmentation_data(self, selected_paths=None):
+    def _mask_files(self, file_path):
+        """{label_id: mask path} of an image that is not loaded."""
+        from PyImageLabeling.model.Masks import indexed_mask_key
+        was_loaded = self.labeling_overview_was_loaded
+        paths = self.labeling_overview_file_paths
+        found = {}
+        for label_id in self.label_items:
+            key = indexed_mask_key(file_path, label_id, was_loaded, paths)
+            if key is not None and key in paths:
+                found[label_id] = paths[key]
+        return found
+
+    @staticmethod
+    def _overlay_painted(overlay):
+        """Painted pixels of a loaded overlay (boolean array), or None."""
+        pix = overlay.labeling_overlay_pixmap
+        if pix is None or pix.isNull():
+            return None
+        qimg = pix.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+        ptr  = qimg.bits()
+        ptr.setsize(qimg.sizeInBytes())
+        arr  = np.frombuffer(ptr, dtype=np.uint8).reshape(
+                   (qimg.height(), qimg.width(), 4))
+        return arr[:, :, 3] > 30
+
+    def _painted_masks(self, file_path, label_ids=None):
+        """[(label_id, painted boolean array)] of one image (with
+        `label_ids`, of those labels only: the others are not read).
+
+        A loaded image is read from its overlays (they hold the strokes
+        that are not saved yet); any other image from its mask files, so
+        that training does not have to load every image (and build a
+        full-size ARGB overlay per label) just to read its masks.
+        """
+        image_item = self.image_items.get(file_path)
+        if image_item is not None:
+            if not hasattr(image_item, 'labeling_overlays'):
+                return []
+            return [(label_id, self._overlay_painted(overlay))
+                    for label_id, overlay
+                    in image_item.labeling_overlays.items()
+                    if label_ids is None or label_id in label_ids]
+        from PyImageLabeling.model.Masks import read_painted_mask
+        return [(label_id, read_painted_mask(path))
+                for label_id, path in self._mask_files(file_path).items()
+                if label_ids is None or label_id in label_ids]
+
+    def collect_segmentation_data(self, selected_paths=None, label_ids=None,
+                                  ignored_ids=None):
+        """[(image path, mask)]: per pixel, the label id painted there, or
+        255 where nothing is painted.
+
+        With `label_ids` (the labels learnt), only the images where one of
+        them is painted are kept. The labels of `ignored_ids` are read too,
+        their pixels set to IGNORED_LABEL (the loss leaves them out); any
+        other label is not read: its pixels are background. Where a learnt
+        label is painted over an ignored one, the learnt one wins.
+        """
         segmentation_data = []
         paths = selected_paths if selected_paths is not None else self.file_paths
+        ignored_ids = set(ignored_ids or ()) if label_ids is not None else set()
+        wanted = (None if label_ids is None
+                  else set(label_ids) | ignored_ids)
         ml_log("Collecting segmentation data")
 
         for file_path in paths:
-            image_item = self.image_items.get(file_path)
-            if image_item is None or not hasattr(image_item, 'labeling_overlays'):
-                continue
-            img = cv2.imread(file_path)
-            if img is None:
-                continue
-            height, width   = img.shape[:2]
-            combined_mask   = np.full((height, width), 255, dtype=np.uint8)
-            colors_found    = {}
-
-            for label_id, overlay in image_item.labeling_overlays.items():
-                pix = overlay.labeling_overlay_pixmap
-                if pix is None or pix.isNull():
+            self._check_cancel()
+            combined_mask = None
+            learnt = False
+            # ignored labels first: a learnt label painted over them wins
+            masks = sorted(self._painted_masks(file_path, wanted),
+                           key=lambda lp: lp[0] not in ignored_ids)
+            for label_id, painted in masks:
+                if painted is None:
                     continue
-                qimg = pix.toImage().convertToFormat(QImage.Format.Format_ARGB32)
-                ptr  = qimg.bits()
-                ptr.setsize(qimg.sizeInBytes())
-                arr  = np.frombuffer(ptr, dtype=np.uint8).reshape(
-                           (qimg.height(), qimg.width(), 4))
-                painted = arr[:, :, 3] > 30
-                if painted.shape != (height, width):
+                if combined_mask is None:
+                    combined_mask = np.full(painted.shape, 255, dtype=np.uint8)
+                elif painted.shape != combined_mask.shape:
+                    h, w = combined_mask.shape
                     painted = cv2.resize(
                         painted.astype(np.uint8) * 255,
-                        (width, height), interpolation=cv2.INTER_NEAREST) > 0
+                        (w, h), interpolation=cv2.INTER_NEAREST) > 0
                 cnt = np.count_nonzero(painted)
                 if cnt > 0:
-                    combined_mask[painted] = label_id
-                    colors_found[label_id] = cnt
+                    if label_id in ignored_ids:
+                        combined_mask[painted] = IGNORED_LABEL
+                    else:
+                        combined_mask[painted] = label_id
+                        learnt = True
                     ml_log(f"  Label {label_id}: {cnt} painted pixels")
-
-            if colors_found:
+            if combined_mask is not None and learnt:
                 segmentation_data.append((file_path, combined_mask))
 
         ml_log(f"Segmentation data: {len(segmentation_data)} images")
         return segmentation_data
+
+    def ml_annotation_counts(self):
+        """(annotated images, annotations) of the whole project.
+
+        An annotation is a shape, or a label painted on an image. Loaded
+        images are asked directly (unsaved strokes included); the others
+        are counted from what the project files gave at load time (shapes,
+        mask index), without decoding any mask: an image that is not loaded
+        is not an unannotated one.
+        """
+        from PyImageLabeling.model.Masks import (
+            IMAGE_EXTENSIONS, KEYWORD_SAVE_LABEL, image_base_from_mask_name)
+        by_name, by_stem = {}, {}
+        for key, loaded in self.labeling_overview_was_loaded.items():
+            if loaded is not False or KEYWORD_SAVE_LABEL not in key:
+                continue   # loaded masks are counted from their overlays
+            left, _, right = key.rpartition(KEYWORD_SAVE_LABEL)
+            try:
+                label_id = int(right.split(".")[0])
+            except ValueError:
+                continue
+            if label_id not in self.label_items:
+                continue
+            if left.lower().endswith(IMAGE_EXTENSIONS):
+                by_name.setdefault(left, set()).add(label_id)
+            else:
+                by_stem.setdefault(image_base_from_mask_name(key),
+                                   set()).add(label_id)
+
+        images = total = 0
+        for file_path in self.file_paths:
+            count = sum(len(shapes) for shapes in self._image_shapes(file_path))
+            image_item = self.image_items.get(file_path)
+            if image_item is not None:
+                count += self._painted_label_count(image_item)
+            else:
+                name = os.path.basename(file_path)
+                stem = name.rsplit(".", 1)[0] if "." in name else name
+                count += len(by_name.get(name) or by_stem.get(stem) or ())
+            if count:
+                images += 1
+                total  += count
+        return images, total
+
+    def _painted_label_count(self, image_item):
+        """Labels painted on a loaded image. A full pass over each overlay,
+        so cached until the overlays of that image change."""
+        stamp = tuple(
+            (label_id, id(overlay.labeling_overlay_pixmap),
+             overlay.get_is_edited(), overlay.get_is_undo_none())
+            for label_id, overlay in image_item.labeling_overlays.items())
+        cache = self.__dict__.setdefault("_ml_label_count_cache", {})
+        hit = cache.get(image_item.path_image)
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        count = 0
+        for overlay in image_item.labeling_overlays.values():
+            painted = self._overlay_painted(overlay)
+            if painted is not None and painted.any():
+                count += 1
+        cache[image_item.path_image] = (stamp, count)
+        return count
+
+    def ml_training_image_counts(self, selected_paths=None):
+        """(images with shapes, images with painted pixels), cheaply: no
+        mask is decoded (a mask file counts as painted). Only the labels
+        the next training learns count (ML settings)."""
+        paths = selected_paths if selected_paths is not None else self.file_paths
+        chosen = self.ml_chosen_label_ids()
+        n_det = n_seg = 0
+        for file_path in paths:
+            if any(chosen is None or self._shape_label(shape) in chosen
+                   for shapes in self._image_shapes(file_path)
+                   for shape in shapes):
+                n_det += 1
+            image_item = self.image_items.get(file_path)
+            if image_item is None:
+                files = self._mask_files(file_path)
+                if chosen is not None:
+                    files = set(files) & chosen
+                if files:
+                    n_seg += 1
+                continue
+            has_paint = getattr(self, "_has_painted_pixels", None)
+            if has_paint is not None and chosen is None:
+                painted = has_paint(image_item)
+            else:
+                painted = any(p is not None and p.any()
+                              for _, p in self._painted_masks(file_path,
+                                                              chosen))
+            if painted:
+                n_seg += 1
+        return n_det, n_seg
+
+    def ml_label_stat_sources(self, paths):
+        """What the label statistics of `paths` are read from:
+        ({path: {label id: mask file}}, {path: {label id: overlay}}).
+
+        The overlays are those of loaded images holding strokes that are
+        not saved (they must be read on the GUI thread); everything else
+        comes from the mask files, which a thread can read.
+        """
+        files, overlays = {}, {}
+        for path in paths:
+            item = self.image_items.get(path)
+            if item is None:
+                found = self._mask_files(path)
+                if found:
+                    files[path] = found
+                continue
+            read_from = getattr(item, "mask_keys_read", {}) or {}
+            for label_id, overlay in getattr(
+                    item, "labeling_overlays", {}).items():
+                key = read_from.get(label_id)
+                mask_path = (self.labeling_overview_file_paths.get(key)
+                             if key else None)
+                if (not overlay.get_is_edited() and mask_path
+                        and os.path.exists(mask_path)):
+                    files.setdefault(path, {})[label_id] = mask_path
+                elif overlay.get_is_edited() or not overlay.get_is_undo_none():
+                    overlays.setdefault(path, {})[label_id] = overlay
+        return files, overlays
+
+    def ml_overlay_stats(self, overlay):
+        """LabelStats.MaskStats of a loaded overlay (GUI thread), or None."""
+        painted = self._overlay_painted(overlay)
+        return None if painted is None else LabelStats.painted_stats(painted)
+
+    def ml_chosen_label_ids(self):
+        """Labels the next training learns, as chosen in the ML settings
+        (those that still exist), or None: all of them."""
+        chosen = getattr(self, "train_label_ids", None)
+        if chosen is None:
+            return None
+        return {int(i) for i in chosen if int(i) in self.label_items}
+
+    def _label_choice(self):
+        """(learnt label ids or None, ignored label ids) of the next
+        training, and its description for the log and the dialog."""
+        chosen = self.ml_chosen_label_ids()
+        if chosen is None:
+            return None, set(), "all"
+        if not chosen:
+            raise RuntimeError(
+                "No label is chosen in ML > Settings (Labels to Learn).")
+        names = ", ".join(self._get_label_name(i) for i in sorted(chosen))
+        others = set(self.label_items) - chosen
+        ignored = set()
+        if others and not getattr(self, "other_labels_as_background", True):
+            if IGNORED_LABEL in self.label_items:
+                raise RuntimeError(
+                    f"Label id {IGNORED_LABEL} is reserved when the other "
+                    f"labels are ignored: count them as background.")
+            ignored = others
+        if len(chosen) == 1:
+            text = f"{names} against the background (binary)"
+        else:
+            text = names
+        if others:
+            text += (" · other labels: "
+                     + ("ignored" if ignored else "background"))
+        return chosen, ignored, text
 
     # ------------------------------------------------------------------
     # Label helpers
@@ -942,7 +1617,39 @@ class MLPredictor(Base):
     # ------------------------------------------------------------------
 
     def train_model_core(self, selected_paths=None,
-                         epoch_callback=None, log_callback=None):
+                         epoch_callback=None, log_callback=None,
+                         status_callback=None, stats_callback=None,
+                         cancel_event=None):
+        """Train a model on the annotated images.
+
+        `stats_callback`, when given, receives dicts for the training dialog:
+        {"kind": "setup", ...} once the network is built (settings, classes,
+        what the train images hold) and {"kind": "epoch", ...} after each
+        epoch (losses, reference loss, accuracy and IoU on the training
+        batches, tiles holding each class, time, GPU memory).
+
+        Once `cancel_event` (a threading.Event) is set, the training stops
+        at its next batch or image by raising TrainingCancelled; the caller
+        then drops what was trained (ml_clear_trained_state).
+        """
+        self._cancel_event = cancel_event
+        try:
+            self._train(selected_paths, epoch_callback, log_callback,
+                        status_callback, stats_callback)
+        finally:
+            # evaluate_model() and the data readers also run outside a
+            # training: they must not see this one's cancellation
+            self._cancel_event = None
+
+    def _check_cancel(self):
+        """Stop the training here if the user has cancelled it."""
+        event = getattr(self, "_cancel_event", None)
+        if event is not None and event.is_set():
+            raise TrainingCancelled()
+
+    def _train(self, selected_paths, epoch_callback, log_callback,
+               status_callback, stats_callback):
+        self._stats_callback = stats_callback
 
         def log(msg):
             # console echo goes through logging (DEBUG); the progress
@@ -951,9 +1658,31 @@ class MLPredictor(Base):
             if log_callback:
                 log_callback(msg)
 
-        # FIX: collect once, with the same selected_paths throughout
-        detection_data    = self.collect_training_data(selected_paths)
-        segmentation_data = self.collect_segmentation_data(selected_paths)
+        def status(msg):
+            # what the progress dialog shows before the first epoch
+            if status_callback:
+                status_callback(msg)
+
+        self.tiling = None
+        status("Reading the annotations…")
+        # FIX: collect once, with the same selected_paths throughout. A head
+        # disabled in the ML settings gets no data, so it is not trained.
+        use_detection    = getattr(self, "enable_detection", True)
+        use_segmentation = getattr(self, "enable_segmentation", True)
+        label_ids, ignored_ids, self._labels_text = self._label_choice()
+        if label_ids is not None:
+            log(f"Labels learnt: {self._labels_text}")
+        detection_data    = (self.collect_training_data(selected_paths,
+                                                        label_ids)
+                             if use_detection else [])
+        segmentation_data = (self.collect_segmentation_data(
+                                 selected_paths, label_ids, ignored_ids)
+                             if use_segmentation else [])
+        if not use_detection:
+            log("Detection head disabled in the settings: shapes ignored")
+        if not use_segmentation:
+            log("Segmentation head disabled in the settings: painted "
+                "pixels ignored")
 
         has_detection    = len(detection_data)    > 0
         has_segmentation = len(segmentation_data) > 0
@@ -967,6 +1696,10 @@ class MLPredictor(Base):
             self.training_mode = "detection"
         elif has_segmentation:
             self.training_mode = "segmentation"
+        elif label_ids is not None:
+            raise RuntimeError(
+                "No training data available: none of the labels chosen in "
+                "ML > Settings is annotated on the selected images.")
         else:
             raise RuntimeError(
                 "No training data available. Please annotate at least 1 image.")
@@ -980,6 +1713,8 @@ class MLPredictor(Base):
                 all_label_ids.add(label_id)
         for _, mask in segmentation_data:
             for lid in np.unique(mask).tolist():
+                if ignored_ids and lid == IGNORED_LABEL:
+                    continue        # no class: left out of the loss
                 all_label_ids.add(int(lid))
 
         if not all_label_ids:
@@ -1013,50 +1748,10 @@ class MLPredictor(Base):
         seg_train, seg_val = self._split_train_val(segmentation_data)
         log(f"Train: {len(det_train)} det + {len(seg_train)} seg | "
             f"Val: {len(det_val)} det + {len(seg_val)} seg")
+        self._train_summary = self._data_summary(
+            num_classes, det_train, det_val, seg_train, seg_val, status)
 
-        seg_backbone = getattr(self, "seg_backbone", "resnet")
-        use_probe = (seg_backbone == "dinov2" and has_segmentation
-                     and not has_detection)
-        if seg_backbone == "dinov2" and has_detection:
-            log("DINOv2 probe is segmentation-only: geometric shapes "
-                "present, falling back to the ResNet head")
-        if use_probe:
-            from PyImageLabeling.model.ML.DinoProbe import DinoLinearProbe
-            log("Segmentation backbone: DINOv2-linear "
-                "(frozen encoder, 1x1 head)")
-            self.probe = DinoLinearProbe(
-                num_classes, self.label_id_to_class, device=self.device)
-            self._probe_val_items = list(seg_val)
-            best, _ = self.probe.fit(
-                list(seg_train), self.num_epochs,
-                getattr(self, "learning_rate", 0.001),
-                log=log, epoch_callback=epoch_callback)
-            self.model = None
-            self.trained = True
-            # trained in this session, so it exists in memory only
-            self._model_origin = "trained"
-            self._model_saved  = False
-            self._model_path   = None
-            log(f"TRAINING COMPLETE! Best loss: {best:.4f}")
-
-            # ---- held-out evaluation ----------------------------------
-            try:
-                self.val_metrics = self.evaluate_model()
-            except Exception as e:
-                ml_log(f"[eval] validation failed: {e}", force=True)
-                self.val_metrics = {}
-            if self.val_metrics:
-                parts = []
-                if "seg_loss" in self.val_metrics:
-                    parts.append(
-                        f"seg loss={self.val_metrics['seg_loss']:.4f}")
-                if "seg_miou" in self.val_metrics:
-                    parts.append(
-                        f"mIoU={self.val_metrics['seg_miou']:.3f}")
-                log("VAL: " + (" | ".join(parts) if parts else "n/a"))
-            else:
-                log("VAL: skipped (need ≥5 annotated images for a val split)")
-            return
+        self._old_dinov2_setting(log)
 
         detection_loader = None
         if det_train:
@@ -1081,46 +1776,103 @@ class MLPredictor(Base):
                 ds, batch_size=self.batch_size, shuffle=False,
                 num_workers=0, collate_fn=MLPredictor.detection_collate_fn)
 
-        segmentation_loader = None
-        if seg_train:
-            ds = SegmentationDataset(
-                [p for p, _ in seg_train],
-                [m for _, m in seg_train],
-                self.label_id_to_class,
-                self.image_size, augment=True)
-            segmentation_loader = DataLoader(
-                ds, batch_size=self.batch_size, shuffle=True, num_workers=0)
-            log(f"Segmentation dataloader: {len(segmentation_loader)} batches")
+        # ---- segmentation: whole images resized, or tiles of them -------
+        self.tiling = (self._resolve_tiling(segmentation_data, log)
+                       if has_segmentation else None)
+        segmentation_loader   = None
+        seg_ignore            = -100      # F.cross_entropy's default
+        tile_cache            = None
+        self._seg_val_loader  = None
+        self._seg_val_sources = None
+        try:
+            if self.tiling is not None:
+                tile_cache = Tiling.TileCache(self.tiling["scale"])
+                segmentation_loader, self._seg_val_sources = \
+                    self._tile_loaders(tile_cache, seg_train, seg_val,
+                                       log, status)
+                seg_ignore = Tiling.IGNORE_INDEX
+                # the masks are in the cache now: do not keep them in RAM
+                # (about 50 MB per 8192 px image) for the whole training
+                segmentation_data = seg_train = seg_val = None
+            else:
+                if seg_train:
+                    ds = SegmentationDataset(
+                        [p for p, _ in seg_train],
+                        [m for _, m in seg_train],
+                        self.label_id_to_class,
+                        self.image_size, augment=True)
+                    segmentation_loader = DataLoader(
+                        ds, batch_size=self.batch_size, shuffle=True,
+                        num_workers=0)
+                    log(f"Segmentation dataloader: "
+                        f"{len(segmentation_loader)} batches")
+                if seg_val:
+                    ds = SegmentationDataset(
+                        [p for p, _ in seg_val],
+                        [m for _, m in seg_val],
+                        self.label_id_to_class,
+                        self.image_size, augment=False)
+                    self._seg_val_loader = DataLoader(
+                        ds, batch_size=self.batch_size, shuffle=False,
+                        num_workers=0)
 
-        self._seg_val_loader = None
-        if seg_val:
-            ds = SegmentationDataset(
-                [p for p, _ in seg_val],
-                [m for _, m in seg_val],
-                self.label_id_to_class,
-                self.image_size, augment=False)
-            self._seg_val_loader = DataLoader(
-                ds, batch_size=self.batch_size, shuffle=False, num_workers=0)
+            self._train_network(
+                num_classes, has_segmentation, detection_loader,
+                segmentation_loader, seg_ignore, log, status,
+                epoch_callback)
+        finally:
+            self._seg_val_sources = None
+            if tile_cache is not None:
+                tile_cache.close()
 
+    def _train_network(self, num_classes, has_segmentation, detection_loader,
+                       segmentation_loader, seg_ignore, log, status,
+                       epoch_callback):
+        """Build the network, train it, evaluate it on the val split."""
         # ---- model ------------------------------------------------------
         backbone   = getattr(self, 'backbone_name',  DEFAULT_BACKBONE)
         pretrained = getattr(self, 'use_pretrained', True)
-        log(f"Backbone: {backbone} | Pretrained: {pretrained}")
+        decoder    = getattr(self, 'seg_decoder', DEFAULT_SEG_DECODER)
+        finetune   = getattr(self, 'finetune_blocks', 0)
+        log(f"Backbone: {backbone} | Pretrained: {pretrained}"
+            + (f" | Decoder: {SEG_DECODER_NAMES[decoder]}"
+               if has_segmentation else ""))
         self.model = FastObjectDetectorWithSegmentation(
             num_classes=num_classes,
             pretrained=pretrained,
             enable_segmentation=has_segmentation,
-            backbone_name=backbone)
+            backbone_name=backbone,
+            seg_decoder=decoder)
         self.model = self.model.to(self.device)
+        self._check_cancel()        # loading the weights takes a moment
+        if self.tiling is not None:
+            self._check_tile_size(self.tiling["tile_size"])
 
         optimizer = torch.optim.AdamW(
-            self.model.parameters(),
+            self._param_groups(finetune, pretrained, log),
             lr=getattr(self, 'learning_rate', 0.001))
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=self.num_epochs)
 
         log(f"Device: {self.device} | Epochs: {self.num_epochs} | "
             f"Batch: {self.batch_size} | LR: {optimizer.param_groups[0]['lr']}")
+        stopper = _EarlyStopping(self._patience(log))
+        status(f"Training…\nepoch 1/{self.num_epochs}")
+        self._emit_stats(dict(
+            getattr(self, "_train_summary", None) or {},
+            kind="setup",
+            input=self._input_description(),
+            unit="tiles" if self.tiling is not None else "images",
+            tiles_per_epoch=(len(segmentation_loader.dataset)
+                             if segmentation_loader is not None else None),
+            labels=getattr(self, "_labels_text", "all"),
+            loss=self._loss_description(),
+            backbone=self._network_description(),
+            pretrained=pretrained,
+            device=str(self.device), epochs=self.num_epochs,
+            patience=stopper.patience,
+            batch=self.batch_size,
+            lr=optimizer.param_groups[0]['lr']))
 
         self.model.train()
         best_loss = float('inf')
@@ -1128,11 +1880,17 @@ class MLPredictor(Base):
         for epoch in range(self.num_epochs):
             total_loss = num_batches = 0
             avg_obj = avg_bbox = avg_cls = 0.0
+            started = time.monotonic()
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
+            det_loss = seg_loss = None
+            seg_acc = None
 
             # -- detection batches --
             if detection_loader:
                 total_obj = total_bbox = total_cls = 0.0
                 for images, targets in detection_loader:
+                    self._check_cancel()
                     images = images.to(self.device)
                     optimizer.zero_grad()
 
@@ -1152,21 +1910,23 @@ class MLPredictor(Base):
                 avg_obj  = total_obj  / n
                 avg_bbox = total_bbox / n
                 avg_cls  = total_cls  / n
+                det_loss = (total_loss / num_batches) if num_batches else None
 
             # -- segmentation batches --
             if segmentation_loader:
-                for images, masks in segmentation_loader:
-                    images = images.to(self.device)
-                    masks  = masks.to(self.device)
-                    optimizer.zero_grad()
-                    _, _, _, seg_pred = self.model(images)
-                    if seg_pred is not None:
-                        loss = F.cross_entropy(seg_pred, masks)
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
-                        optimizer.step()
-                        total_loss  += loss.item()
-                        num_batches += 1
+                seg_acc = {}
+                loss_sum, steps, fitted = self._seg_epoch(
+                    segmentation_loader, optimizer, seg_ignore, seg_acc)
+                total_loss  += loss_sum
+                num_batches += steps
+                seg_loss = loss_sum / steps if steps else None
+                if fitted is not None:
+                    log(f"GPU out of memory with batches of "
+                        f"{segmentation_loader.batch_size}: going on with "
+                        f"batches of {fitted}")
+                    segmentation_loader = DataLoader(
+                        segmentation_loader.dataset, batch_size=fitted,
+                        shuffle=True, num_workers=0)
 
             scheduler.step()
 
@@ -1174,13 +1934,40 @@ class MLPredictor(Base):
             if avg_loss < best_loss:
                 best_loss = avg_loss
 
+            if stopper.patience:
+                status(f"Epoch {epoch + 1}/{self.num_epochs}: "
+                       f"validation…")
+                stopper.update(epoch + 1, self.evaluate_model(), self.model)
+
             if epoch_callback:
                 epoch_callback(epoch + 1, self.num_epochs, avg_loss)
+            stats = self._epoch_stats(
+                epoch + 1, avg_loss, det_loss, seg_loss, seg_acc,
+                time.monotonic() - started,
+                segmentation_loader.batch_size if segmentation_loader
+                else None)
+            stats.update(stopper.stats())
+            self._emit_stats(stats)
 
             if (epoch + 1) % 10 == 0 or epoch == 0:
                 log(f"Epoch [{epoch+1}/{self.num_epochs}] "
                     f"Loss: {avg_loss:.4f} | Obj: {avg_obj:.4f} | "
                     f"BBox: {avg_bbox:.4f} | Cls: {avg_cls:.4f}")
+            if stopper.patience and stopper.metrics is not None:
+                log(f"  validation {stopper.describe()}")
+            if stopper.should_stop():
+                log(f"Early stop at epoch {epoch + 1}: no progress on the "
+                    f"validation for {stopper.patience} epochs")
+                break
+
+        if stopper.restore(self.model):
+            log(f"Weights of epoch {stopper.best_epoch} kept (best "
+                f"validation: {stopper.describe(best=True)})")
+            self._emit_stats({"kind": "stopped",
+                              "epoch": stopper.last_epoch,
+                              "best_epoch": stopper.best_epoch,
+                              "total": self.num_epochs,
+                              "patience": stopper.patience})
 
         self.trained = True
         # trained in this session, so it exists in memory only
@@ -1190,8 +1977,12 @@ class MLPredictor(Base):
         log(f"TRAINING COMPLETE! Best loss: {best_loss:.4f}")
 
         # ---- held-out evaluation --------------------------------------
+        status("Evaluating on the validation images…")
         try:
-            self.val_metrics = self.evaluate_model()
+            # with a patience, the kept weights are already evaluated
+            self.val_metrics = (dict(stopper.best_metrics)
+                                if stopper.best_metrics is not None
+                                else self.evaluate_model())
         except Exception as e:
             ml_log(f"[eval] validation failed: {e}", force=True)
             self.val_metrics = {}
@@ -1205,10 +1996,497 @@ class MLPredictor(Base):
                     f"seg loss={self.val_metrics['seg_loss']:.4f}")
             if "seg_miou" in self.val_metrics:
                 parts.append(
-                    f"mIoU={self.val_metrics['seg_miou']:.3f}")
+                    f"mIoU (labels)={self.val_metrics['seg_miou']:.3f}")
+            if "seg_miou_all" in self.val_metrics:
+                parts.append(f"mIoU (with background)="
+                             f"{self.val_metrics['seg_miou_all']:.3f}")
             log("VAL: " + (" | ".join(parts) if parts else "n/a"))
         else:
             log("VAL: skipped (need ≥5 annotated images for a val split)")
+
+    def _patience(self, log):
+        """Patience of this training: 0 when off, or when there is no
+        validation to watch."""
+        try:
+            patience = max(0, int(getattr(self, "patience", 0) or 0))
+        except (TypeError, ValueError):
+            patience = 0
+        if not patience:
+            return 0
+        if not (getattr(self, "_seg_val_sources", None)
+                or getattr(self, "_seg_val_loader", None) is not None
+                or getattr(self, "_det_val_loader", None) is not None):
+            log("Patience ignored: no validation images (at least 5 "
+                "annotated images are needed to keep some aside)")
+            return 0
+        log(f"Patience: {patience} epochs (validation at every epoch)")
+        return patience
+
+    def _old_dinov2_setting(self, log=None):
+        """The former "DINOv2-linear" segmentation head (seg_backbone =
+        "dinov2": frozen DINOv2-S, 1x1 conv on the whole image squeezed to
+        448 px) is now a case of the network: a DINOv2 backbone, frozen,
+        with the linear decoder."""
+        if getattr(self, "seg_backbone", "resnet") != "dinov2":
+            return
+        if not DinoBackbone.is_dinov2(getattr(self, "backbone_name", "")):
+            self.backbone_name = DinoBackbone.DEFAULT_DINOV2
+        self.seg_decoder = SEG_DECODER_LINEAR
+        self.finetune_blocks = 0
+        self.seg_backbone = "resnet"
+        if log:
+            log(f"DINOv2-linear setting: {self.backbone_name} backbone, "
+                f"frozen, linear decoder")
+
+    def _param_groups(self, finetune, pretrained, log):
+        """Parameters of the optimizer. A DINOv2 encoder is frozen but its
+        last `finetune` blocks, trained at a lower rate (all of them,
+        without the pretrained weights: random features are no use)."""
+        ext = self.model.backbone
+        if not hasattr(ext, "set_trainable_blocks"):
+            return self.model.parameters()
+        if not pretrained:
+            finetune = len(ext.dino.encoder.layer)
+            log("DINOv2 without its pretrained weights: the whole encoder "
+                "is trained")
+        n = ext.set_trainable_blocks(finetune)
+        encoder = ext.encoder_parameters()
+        ids = {id(p) for p in encoder}
+        rest = [p for p in self.model.parameters()
+                if p.requires_grad and id(p) not in ids]
+        lr = getattr(self, 'learning_rate', 0.001)
+        log("DINOv2 encoder: frozen" if n == 0 else
+            f"DINOv2 encoder: last {n} block(s) fine-tuned at "
+            f"lr {lr * DinoBackbone.FINETUNE_LR_FACTOR:g}")
+        groups = [{"params": rest}]
+        if encoder:
+            groups.append({"params": encoder,
+                           "lr": lr * DinoBackbone.FINETUNE_LR_FACTOR})
+        return groups
+
+    def _network_description(self):
+        """Backbone and decoder of the live network, in words."""
+        net = self.model
+        text = getattr(net, "backbone_name", DEFAULT_BACKBONE)
+        blocks = getattr(net.backbone, "trainable_blocks", None)
+        if blocks is not None:
+            text += (", frozen" if blocks == 0
+                     else f", last {blocks} block(s) fine-tuned")
+        if net.enable_segmentation:
+            text += f", {SEG_DECODER_NAMES[net.seg_decoder]} decoder"
+        return text
+
+    # ------------------------------------------------------------------
+    # Figures for the training dialog
+    # ------------------------------------------------------------------
+
+    def _emit_stats(self, stats):
+        callback = getattr(self, "_stats_callback", None)
+        if callback is None or not stats:
+            return
+        try:
+            callback(stats)
+        except Exception as e:
+            ml_log(f"[train] stats callback failed: {e}")
+
+    def _data_summary(self, num_classes, det_train, det_val, seg_train,
+                      seg_val, status):
+        """Classes of the training (name, colour) and what the training
+        images hold: number of images and of pixels of each class."""
+        classes = []
+        for c in range(num_classes):
+            orig = self.class_to_label_id.get(c)
+            item = self.label_items.get(orig) if orig is not None else None
+            if item is not None:
+                color = item.get_color()
+                classes.append({"cls": c, "name": item.get_name(),
+                                "color": (color.red(), color.green(),
+                                          color.blue())})
+            else:
+                classes.append({"cls": c, "name": "Background",
+                                "color": None})
+        images, pixels = {}, {}
+        ignored = 0
+        if seg_train:
+            status("Counting the annotated pixels…")
+            lut = np.full(256, -1, dtype=np.int64)
+            for orig, c in self.label_id_to_class.items():
+                lut[int(orig)] = c
+            for _, mask in seg_train:
+                self._check_cancel()
+                counts = np.bincount(np.asarray(mask).ravel(), minlength=256)
+                for orig in np.nonzero(counts)[0]:
+                    c = int(lut[orig])
+                    if c < 0:
+                        if orig == IGNORED_LABEL:
+                            ignored += int(counts[orig])
+                        continue
+                    images[c] = images.get(c, 0) + 1
+                    pixels[c] = pixels.get(c, 0) + int(counts[orig])
+        return {"classes": classes,
+                "train_images": len(seg_train) + len(det_train),
+                "val_images": len(seg_val) + len(det_val),
+                "images_per_class": images, "pixels_per_class": pixels,
+                "ignored_pixels": ignored}
+
+    def _input_description(self):
+        """How the network sees the images, in words."""
+        t = getattr(self, "tiling", None)
+        if t is not None:
+            scale = {1.0: "full resolution", 0.5: "half resolution",
+                     0.25: "quarter resolution"}.get(
+                         t["scale"], f"scale {t['scale']:g}")
+            text = (f"tiles of {t['tile_size']} px, overlap "
+                    f"{t['overlap']} px, {scale}; "
+                    f"{self._sampling_description()}")
+        else:
+            text = f"whole images resized to {self.image_size} px"
+        if getattr(self, "training_mode", "") == "both" and t is not None:
+            text += (f" (detection: whole images resized to "
+                     f"{self.image_size} px)")
+        return text
+
+    def _sampling_description(self):
+        sampling = Tiling.normalize_sampling(
+            getattr(self, "tile_sampling", Tiling.DEFAULT_SAMPLING))
+        if sampling == Tiling.SAMPLING_RANDOM:
+            return "tiles drawn anywhere"
+        share = Tiling.normalize_share(
+            getattr(self, "labelled_share", Tiling.LABELLED_SHARE))
+        text = f"{100 * share:.0f} % of them centred on a label"
+        if sampling == Tiling.SAMPLING_BALANCED:
+            text += ", labels balanced"
+        return text
+
+    def _loss_description(self):
+        if getattr(self, "seg_loss", SEG_LOSS_CE) == SEG_LOSS_CE_DICE:
+            return "cross-entropy + Dice"
+        return "cross-entropy"
+
+    def _epoch_stats(self, epoch, loss, det_loss, seg_loss, acc, seconds,
+                     batch):
+        """Figures of an epoch. The reference loss is the cross-entropy of a
+        model that answers the class proportions of the epoch's pixels for
+        every pixel, without looking at the image (their entropy)."""
+        out = {"kind": "epoch", "epoch": epoch, "total": self.num_epochs,
+               "loss": loss, "det_loss": det_loss, "seg_loss": seg_loss,
+               "seconds": seconds, "batch": batch}
+        if torch.cuda.is_available():
+            out["gpu_bytes"] = int(torch.cuda.max_memory_allocated())
+        if acc and "conf" in acc:
+            conf = acc["conf"].double().cpu().numpy()
+            per_class = conf.sum(axis=1)
+            total = per_class.sum()
+            if total > 0:
+                p = per_class[per_class > 0] / total
+                out["reference"] = float(-(p * np.log(p)).sum())
+                diag = np.diag(conf)
+                out["pixel_accuracy"] = float(diag.sum() / total)
+                union = conf.sum(axis=0) + per_class - diag
+                out["train_iou"] = {c: float(diag[c] / union[c])
+                                    for c in range(len(diag)) if union[c] > 0}
+                # what the network learnt from (after the tile sampling)
+                out["seen"] = {c: float(per_class[c] / total)
+                               for c in range(len(per_class))}
+            out["present"] = [int(n) for n in acc["present"].cpu().tolist()]
+            out["inputs"] = int(acc["inputs"])
+        if acc and acc.get("loss_steps") and "dice_sum" in acc:
+            # the reference is a cross-entropy: compare it with that part
+            out["ce"] = acc["ce_sum"] / acc["loss_steps"]
+            out["dice"] = acc["dice_sum"] / acc["loss_steps"]
+        return out
+
+    # ------------------------------------------------------------------
+    # Tiles (segmentation on large images)
+    # ------------------------------------------------------------------
+
+    def _resolve_tiling(self, segmentation_data, log):
+        """Tiling of the coming training, as chosen in the settings: None
+        (whole images resized) or {"tile_size", "overlap", "scale"}."""
+        if not segmentation_data:
+            return None
+        if str(getattr(self, "tiling_mode", "off")).lower() != "on":
+            log(f"Segmentation input: whole images resized to "
+                f"{self.image_size} px")
+            return None
+        tile = Tiling.normalize_tile_size(
+            getattr(self, "tile_size", Tiling.DEFAULT_TILE_SIZE))
+        backbone = getattr(self, "backbone_name", DEFAULT_BACKBONE)
+        if backbone.startswith("ViT") and tile != 224:
+            log(f"{backbone} only takes 224 px inputs: tiles of 224 px")
+            tile = 224
+        overlap = Tiling.normalize_overlap(
+            getattr(self, "tile_overlap", Tiling.DEFAULT_OVERLAP), tile)
+        scale = Tiling.normalize_scale(getattr(self, "tile_scale", 1.0))
+        return {"tile_size": tile, "overlap": overlap, "scale": scale}
+
+    def _tile_loaders(self, cache, seg_train, seg_val, log, status):
+        """Decode the annotated images into `cache`. Returns (training
+        DataLoader of random tiles, validation TileSources)."""
+        # a value with no class (IGNORED_LABEL) is left out of the loss
+        lut = np.full(256, Tiling.IGNORE_INDEX, dtype=np.uint8)
+        for orig_id, class_id in self.label_id_to_class.items():
+            lut[int(orig_id)] = class_id
+        background = self.label_id_to_class.get(255)
+        point_classes = sorted(c for c in set(self.label_id_to_class.values())
+                               if c != background)
+
+        items = list(seg_train) + list(seg_val)
+        sources = []
+        for i, (path, mask) in enumerate(items):
+            self._check_cancel()
+            status(f"Preparing the tiles…\nimage {i + 1}/{len(items)}")
+            source = cache.add(path, lut[mask], point_classes)
+            if source is None:
+                log(f"  cannot read {os.path.basename(path)}: skipped")
+            sources.append(source)
+        train = [s for s in sources[:len(seg_train)] if s is not None]
+        val   = [s for s in sources[len(seg_train):] if s is not None]
+        if not train:
+            raise RuntimeError("None of the annotated images could be read.")
+
+        t = self.tiling
+        ds = TileDataset(train, t["tile_size"], augment=True,
+                         sampling=getattr(self, "tile_sampling",
+                                          Tiling.DEFAULT_SAMPLING),
+                         labelled_share=getattr(self, "labelled_share",
+                                                Tiling.LABELLED_SHARE))
+        log(f"Tiles: {t['tile_size']} px, overlap {t['overlap']} px, "
+            f"scale {t['scale']:g} | {len(ds)} tiles per epoch | "
+            f"{self._sampling_description()}")
+        loader = DataLoader(ds, batch_size=self.batch_size, shuffle=True,
+                            num_workers=0)
+        return loader, val
+
+    def _check_tile_size(self, tile):
+        """Fail early, and clearly, when the backbone refuses the tiles."""
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            with torch.no_grad():
+                self.model(torch.zeros(1, 3, tile, tile, device=self.device))
+        except torch.cuda.OutOfMemoryError:
+            raise
+        except Exception as e:
+            raise RuntimeError(
+                f"The {self.model.backbone_name} backbone does not take "
+                f"tiles of {tile} px ({e}). Choose another tile size in the "
+                f"ML settings.") from e
+        finally:
+            self.model.train(was_training)
+
+    def _seg_train_step(self, images, masks, optimizer, ignore_index,
+                        acc=None):
+        optimizer.zero_grad()
+        _, _, _, seg_pred = self.model(images)
+        if seg_pred is None:
+            return None
+        ce = F.cross_entropy(seg_pred, masks, ignore_index=ignore_index)
+        loss, dice = ce, None
+        if getattr(self, "seg_loss", SEG_LOSS_CE) == SEG_LOSS_CE_DICE:
+            dice = dice_loss(seg_pred, masks, ignore_index,
+                             self.label_id_to_class.get(255))
+            loss = ce + dice
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10.0)
+        optimizer.step()
+        if acc is not None:
+            self._accumulate_seg_stats(acc, seg_pred.detach(), masks,
+                                       ignore_index)
+            acc["ce_sum"] = acc.get("ce_sum", 0.0) + ce.item()
+            acc["loss_steps"] = acc.get("loss_steps", 0) + 1
+            if dice is not None:
+                acc["dice_sum"] = acc.get("dice_sum", 0.0) + dice.item()
+        return loss.item()
+
+    @staticmethod
+    @torch.no_grad()
+    def _accumulate_seg_stats(acc, logits, masks, ignore_index):
+        """Add a training batch to `acc`: confusion matrix (target × pred,
+        pixels), number of inputs holding each class, number of inputs."""
+        c = logits.shape[1]
+        pred = logits.argmax(dim=1)
+        valid = (masks != ignore_index) & (masks >= 0) & (masks < c)
+        conf = torch.bincount(masks[valid] * c + pred[valid],
+                              minlength=c * c).reshape(c, c)
+        present = torch.stack([((masks == k) & valid).flatten(1).any(1).sum()
+                               for k in range(c)])
+        if "conf" in acc:
+            acc["conf"] += conf
+            acc["present"] += present
+        else:
+            acc["conf"], acc["present"] = conf, present
+        acc["inputs"] = acc.get("inputs", 0) + masks.size(0)
+
+    def _seg_steps(self, images, masks, optimizer, ignore_index, acc=None):
+        """Train on one batch; when the GPU runs out of memory, on its two
+        halves instead (recursively).
+
+        Returns (sum of the losses, number of steps, size of the largest
+        part that fitted).
+        """
+        try:
+            loss = self._seg_train_step(images, masks, optimizer,
+                                        ignore_index, acc)
+            return (0.0, 0, images.size(0)) if loss is None \
+                else (loss, 1, images.size(0))
+        except torch.cuda.OutOfMemoryError:
+            if images.size(0) <= 1:
+                raise
+        # out of the except block: its traceback, which holds the graph of
+        # the failed step, is gone before the retry
+        optimizer.zero_grad(set_to_none=True)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        half = images.size(0) // 2
+        l1, n1, f1 = self._seg_steps(images[:half], masks[:half],
+                                     optimizer, ignore_index, acc)
+        l2, n2, f2 = self._seg_steps(images[half:], masks[half:],
+                                     optimizer, ignore_index, acc)
+        return l1 + l2, n1 + n2, min(f1, f2)
+
+    def _seg_epoch(self, loader, optimizer, ignore_index, acc=None):
+        """One pass over the segmentation batches.
+
+        Returns (sum of the losses, number of steps, batch size to use from
+        now on, or None when every batch fitted in GPU memory).
+        """
+        total, steps, fitted = 0.0, 0, None
+        for images, masks in loader:
+            self._check_cancel()
+            images = images.to(self.device)
+            masks  = masks.to(self.device)
+            loss, n, fit = self._seg_steps(images, masks, optimizer,
+                                           ignore_index, acc)
+            total += loss
+            steps += n
+            if fit < images.size(0):
+                fitted = fit if fitted is None else min(fitted, fit)
+        return total, steps, fitted
+
+    def _seg_logits(self, tiles):
+        """Segmentation logits [B, C, t, t] of uint8 RGB tiles [B, t, t, 3],
+        split in halves when the GPU runs out of memory."""
+        try:
+            x = torch.from_numpy(np.ascontiguousarray(tiles)).to(self.device)
+            x = x.permute(0, 3, 1, 2).float().div_(255.0)
+            mean = torch.from_numpy(IMAGENET_MEAN).to(self.device)
+            std  = torch.from_numpy(IMAGENET_STD).to(self.device)
+            x = (x - mean.view(1, 3, 1, 1)) / std.view(1, 3, 1, 1)
+            _, _, _, seg = self.model(x)
+            return seg
+        except torch.cuda.OutOfMemoryError:
+            if len(tiles) <= 1:
+                raise
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        half = len(tiles) // 2
+        return torch.cat([self._seg_logits(tiles[:half]),
+                          self._seg_logits(tiles[half:])])
+
+    def _tile_batches(self, image, grid, fill=0):
+        """(tiles of the grid as a uint8 batch, their grid entries)."""
+        tile = self.tiling["tile_size"]
+        size = max(1, int(self.batch_size))
+        for i in range(0, len(grid), size):
+            batch = grid[i:i + size]
+            yield (np.stack([Tiling.crop(image, y0, x0, tile, fill)
+                             for y0, x0, _, _ in batch]), batch)
+
+    @torch.no_grad()
+    def _predict_seg_tiled(self, image_rgb):
+        """(classes, confidences) of a whole image, at its size, by a
+        sliding window of overlapping tiles."""
+        t = self.tiling
+        h0, w0 = image_rgb.shape[:2]
+        image = Tiling.rescale(image_rgb, t["scale"])
+        h, w = image.shape[:2]
+        seg_cls  = np.zeros((h, w), dtype=np.uint8)
+        seg_conf = np.zeros((h, w), dtype=np.float32)
+        grid = Tiling.tile_grid(h, w, t["tile_size"], t["overlap"])
+        for tiles, batch in self._tile_batches(image, grid):
+            probs = torch.softmax(self._seg_logits(tiles), dim=1)
+            conf, cls = torch.max(probs, dim=1)
+            conf = conf.cpu().numpy()
+            cls  = cls.to(torch.uint8).cpu().numpy()
+            for j, (y0, x0, (ky0, ky1), (kx0, kx1)) in enumerate(batch):
+                part = (j, slice(ky0 - y0, ky1 - y0), slice(kx0 - x0, kx1 - x0))
+                seg_cls[ky0:ky1, kx0:kx1]  = cls[part]
+                seg_conf[ky0:ky1, kx0:kx1] = conf[part]
+        if (h, w) != (h0, w0):
+            seg_cls  = cv2.resize(seg_cls, (w0, h0),
+                                  interpolation=cv2.INTER_NEAREST)
+            seg_conf = cv2.resize(seg_conf, (w0, h0),
+                                  interpolation=cv2.INTER_LINEAR)
+        return seg_cls, seg_conf
+
+    @torch.no_grad()
+    def _evaluate_tiles(self, sources, num_classes):
+        """Validation through the same sliding window as the prediction:
+        seg_loss (per pixel) and mIoU on the whole val images."""
+        t = self.tiling
+        ignore = Tiling.IGNORE_INDEX
+        inter = torch.zeros(num_classes, dtype=torch.float64)
+        union = torch.zeros(num_classes, dtype=torch.float64)
+        total, pixels = 0.0, 0
+        for source in sources:
+            h, w = source.shape
+            grid = Tiling.tile_grid(h, w, t["tile_size"], t["overlap"])
+            for tiles, batch in self._tile_batches(source.image, grid):
+                self._check_cancel()
+                logits = self._seg_logits(tiles)
+                target = np.stack([
+                    Tiling.crop(source.mask, y0, x0, t["tile_size"], ignore)
+                    for y0, x0, _, _ in batch]).astype(np.int64)
+                kept = np.zeros(target.shape, dtype=bool)
+                for j, (y0, x0, (ky0, ky1), (kx0, kx1)) in enumerate(batch):
+                    kept[j, ky0 - y0:ky1 - y0, kx0 - x0:kx1 - x0] = True
+                target[~kept] = ignore
+                target = torch.from_numpy(target).to(self.device)
+                valid = target != ignore
+                total += F.cross_entropy(logits, target, ignore_index=ignore,
+                                         reduction="sum").item()
+                pixels += int(valid.sum().item())
+                pred = logits.argmax(dim=1)
+                for c in range(num_classes):
+                    pc = (pred == c) & valid
+                    mc = target == c
+                    inter[c] += (pc & mc).sum().item()
+                    union[c] += (pc | mc).sum().item()
+        out = {}
+        if pixels:
+            out["seg_loss"] = total / pixels
+            out["n_val_seg"] = len(sources)
+            out.update(LabelStats.iou_scores(
+                inter.tolist(), union.tolist(),
+                self.label_id_to_class.get(255)))
+        return out
+
+    @torch.no_grad()
+    def _al_tiled_entropy(self, image_path):
+        """Normalized mean entropy of the segmentation over (at most
+        AL_MAX_TILES) tiles spread over the image, or None."""
+        import math
+        bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if bgr is None:
+            return None
+        t = self.tiling
+        image = Tiling.rescale(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB),
+                               t["scale"])
+        h, w = image.shape[:2]
+        grid = Tiling.evenly_spaced(
+            Tiling.tile_grid(h, w, t["tile_size"], t["overlap"]),
+            AL_MAX_TILES)
+        total, count, n_cls = 0.0, 0, 2
+        for tiles, batch in self._tile_batches(image, grid):
+            probs = torch.softmax(self._seg_logits(tiles), dim=1)
+            ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1)
+            total += ent.mean().item() * len(batch)
+            count += len(batch)
+            n_cls = max(probs.shape[1], 2)
+        if not count:
+            return None
+        return (total / count) / math.log(n_cls)
 
     # ------------------------------------------------------------------
     # Training — public entry point (shows modal progress dialog)
@@ -1229,53 +2507,84 @@ class MLPredictor(Base):
         self.learning_rate       = ml.get("learning_rate",        self.learning_rate)
         self.image_size          = ml.get("image_size",           self.image_size)
         self.enable_segmentation = ml.get("enable_segmentation",  self.enable_segmentation)
+        self.enable_detection    = ml.get("enable_detection",     self.enable_detection)
         self.confidence_threshold = ml.get("confidence_threshold", self.confidence_threshold)
         self.nms_threshold        = ml.get("nms_threshold",        self.nms_threshold)
         self.use_pretrained       = ml.get("pretrained",           True)
         seg = ml.get("seg_backbone", "resnet")
         self.seg_backbone = seg if seg in ("resnet", "dinov2") else "resnet"
+        self.other_labels_as_background = bool(
+            ml.get("other_labels_background", True))
+        # "on" = tiles; anything else (also "auto", an early value of this
+        # setting) = whole images, the default
+        self.tiling_mode  = ("on" if str(ml.get("tiling", "off")).lower()
+                             == "on" else "off")
+        self.tile_size    = Tiling.normalize_tile_size(
+            ml.get("tile_size", Tiling.DEFAULT_TILE_SIZE))
+        self.tile_overlap = Tiling.normalize_overlap(
+            ml.get("tile_overlap", Tiling.DEFAULT_OVERLAP), self.tile_size)
+        self.tile_scale   = Tiling.normalize_scale(ml.get("tile_scale", 1.0))
+        self.tile_sampling  = Tiling.normalize_sampling(
+            ml.get("tile_sampling", Tiling.DEFAULT_SAMPLING))
+        self.labelled_share = Tiling.normalize_share(
+            ml.get("labelled_share", Tiling.LABELLED_SHARE))
+        decoder = ml.get("seg_decoder", DEFAULT_SEG_DECODER)
+        self.seg_decoder = (decoder if decoder in SEG_DECODERS
+                            else DEFAULT_SEG_DECODER)
+        try:
+            self.finetune_blocks = max(0, int(ml.get("finetune_blocks", 0)))
+        except (TypeError, ValueError):
+            self.finetune_blocks = 0
+        try:
+            self.patience = max(0, int(ml.get("patience", 0)))
+        except (TypeError, ValueError):
+            self.patience = 0
+        seg_loss = ml.get("seg_loss", SEG_LOSS_CE)
+        self.seg_loss = seg_loss if seg_loss in SEG_LOSSES else SEG_LOSS_CE
         backbone = ml.get("backbone_name", DEFAULT_BACKBONE)
         if backbone not in BACKBONE_NAMES:
             log.warning(f"[MLPredictor] Unknown backbone '{backbone}', using {DEFAULT_BACKBONE}")
             backbone = DEFAULT_BACKBONE
         self.backbone_name = backbone
+        self._old_dinov2_setting()
         log.info(f"[MLPredictor] Params applied — backbone={self.backbone_name}, "
                f"seg_backbone={self.seg_backbone}, "
                f"epochs={self.num_epochs}, lr={self.learning_rate}, "
-               f"img_size={self.image_size}, pretrained={self.use_pretrained}")
+               f"img_size={self.image_size}, pretrained={self.use_pretrained}, "
+               f"tiles={self.tiling_mode} {self.tile_size}px "
+               f"overlap={self.tile_overlap}px scale={self.tile_scale:g}")
 
     def train_model(self, selected_paths=None):
         self._apply_ml_params()
         n_images = len(selected_paths) if selected_paths else len(self.file_paths)
-        self._progress_dialog = QProgressDialog(
-            f"Initializing training…\n{n_images} image(s) selected",
-            None, 0, self.num_epochs)
-        self._progress_dialog.setWindowTitle("Training Model")
+        from PyImageLabeling.view.TrainingDialog import TrainingDialog
+        self._progress_dialog = TrainingDialog(n_images)
         self._progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self._progress_dialog.setMinimumDuration(0)
-        self._progress_dialog.setAutoClose(False)
-        self._progress_dialog.setAutoReset(False)
-        self._progress_dialog.setCancelButton(None)
-        self._progress_dialog.resize(420, 120)
         self._progress_dialog.show()
 
         self._training_worker = TrainingWorker(self, selected_paths)
         self._training_worker.epoch_done.connect(self._on_epoch_done)
+        self._training_worker.stats.connect(self._progress_dialog.on_stats)
         self._training_worker.progress.connect(self._on_training_log)
+        self._training_worker.status.connect(self._on_training_status)
         self._training_worker.finished.connect(self._on_training_finished)
+        self._training_worker.cancelled.connect(self._on_training_cancelled)
         self._training_worker.error.connect(self._on_training_error)
+        self._progress_dialog.cancel_requested.connect(
+            self._training_worker.cancel)
         self._training_worker.start()
 
     def _on_epoch_done(self, current, total, loss):
-        self._progress_dialog.setValue(current)
-        self._progress_dialog.setLabelText(
-            f"Epoch {current}/{total}  —  Loss: {loss:.4f}")
+        self._progress_dialog.on_epoch(current, total, loss)
 
     def _on_training_log(self, message):
         log.info(message)
+        self._progress_dialog.add_log(message)
+
+    def _on_training_status(self, message):
+        self._progress_dialog.set_status(message)
 
     def _on_training_finished(self):
-        self._progress_dialog.close()
         # The model just replaced whatever was loaded/trained before, and it
         # only exists in memory: say so, so nobody mistakes it for the file
         # they loaded at startup.
@@ -1286,33 +2595,12 @@ class MLPredictor(Base):
             self.controller.ml_update_status()
         except Exception:
             pass
-        # training loaded every image to build the dataset: release those
-        # ImageItems so the pixel tools stay light right after
-        try:
-            dropped = self.controller.ml_unload_image_items()
-            if dropped:
-                ml_log(f"[MLPredictor] released {dropped} image item(s)")
-        except Exception:
-            pass
-        val_txt = ""
-        try:
-            vm = getattr(self, "val_metrics", {}) or {}
-            bits = []
-            if "det_loss" in vm:
-                bits.append(f"Val det loss: {vm['det_loss']:.4f}")
-            if "seg_loss" in vm:
-                bits.append(f"Val seg loss: {vm['seg_loss']:.4f}")
-            if "seg_miou" in vm:
-                bits.append(f"Val mIoU: {vm['seg_miou']:.3f}")
-            if bits:
-                val_txt = "\n" + "\n".join(bits)
-        except Exception:
-            pass
-        QMessageBox.information(
-            None, "Training Complete",
-            f"Model trained successfully!\n"
-            f"Mode: {self.training_mode}\n"
-            f"Classes: {self._display_num_classes()}{val_txt}")
+        # (training reads the masks of the images that are not loaded from
+        # their files: there are no ImageItems to release afterwards)
+        # the dialog stays open with the results, until the user closes it
+        self._progress_dialog.finish(getattr(self, "val_metrics", {}) or {},
+                                     self.training_mode,
+                                     self._display_num_classes())
 
     def _display_num_classes(self):
         if getattr(self, "model", None) is not None:
@@ -1322,8 +2610,23 @@ class MLPredictor(Base):
             return probe.num_classes
         return "?"
 
+    def _on_training_cancelled(self):
+        # nothing of a cancelled training is kept (the previous model was
+        # already dropped when it started); frees its GPU memory too
+        self.ml_clear_trained_state()
+        try:
+            self.controller.ml_update_status()
+        except Exception:
+            pass
+        self._progress_dialog.cancelled()
+        try:
+            self.controller.view.statusBar().showMessage(
+                "Training cancelled", 5000)
+        except Exception:
+            pass
+
     def _on_training_error(self, error_msg):
-        self._progress_dialog.close()
+        self._progress_dialog.fail()
         # the previous model was already dropped when training started
         try:
             self.controller.ml_update_status()
@@ -1407,19 +2710,31 @@ class MLPredictor(Base):
         if image is None:
             return None
 
-        original_h, original_w = image.shape[:2]
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        del image
+        self.model.eval()
+        if getattr(self, "tiling", None) is not None:
+            seg_cls, seg_conf = self._predict_seg_tiled(image_rgb)
+        else:
+            seg_cls, seg_conf = self._predict_seg_resized(image_rgb)
+            if seg_cls is None:
+                return None
+        return self._seg_predictions(seg_cls, seg_conf, confidence_threshold)
 
+    @torch.no_grad()
+    def _predict_seg_resized(self, image_rgb):
+        """(classes, confidences) of the whole image resized to image_size,
+        brought back to the image size; (None, None) without a seg head."""
+        original_h, original_w = image_rgb.shape[:2]
         img_r = cv2.resize(image_rgb, (self.image_size, self.image_size))
         img_n = (img_r.astype(np.float32)/255.0
                  - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
         tensor = (torch.from_numpy(img_n)
                   .permute(2,0,1).float().unsqueeze(0).to(self.device))
 
-        self.model.eval()
         _, _, _, seg_pred = self.model(tensor)
         if seg_pred is None:
-            return None
+            return None, None
 
         seg_probs  = torch.softmax(seg_pred, dim=1)
         seg_cls    = torch.argmax(seg_probs, dim=1).squeeze(0).cpu().numpy()
@@ -1431,11 +2746,19 @@ class MLPredictor(Base):
         seg_conf = cv2.resize(seg_conf,
                               (original_w, original_h),
                               interpolation=cv2.INTER_LINEAR)
+        return seg_cls, seg_conf
 
+    def _seg_predictions(self, seg_cls, seg_conf, confidence_threshold):
+        """{label id: binary mask (0/255)} of the pixels predicted with at
+        least `confidence_threshold`. The background (255) is left out:
+        nothing can be drawn or accepted with it."""
         high_conf = seg_conf >= confidence_threshold
+        original_h, original_w = seg_cls.shape
         predictions_by_label = {}
 
         for class_id, orig_lid in self.class_to_label_id.items():
+            if orig_lid == 255:
+                continue
             class_mask  = (seg_cls == class_id) & high_conf
             pixel_count = np.count_nonzero(class_mask)
             if pixel_count > 0:
@@ -1561,6 +2884,21 @@ class MLPredictor(Base):
                 pass
         self.ml_prediction_items.clear()
 
+    def ml_forget_predictions(self):
+        """Drop the segmentation predicted last, not only its picture:
+        Accept painted it afterwards, after Clear or on another image."""
+        self.ml_segmentation_predictions = None
+        self.ml_predictions_image = None
+        self.ml_clear_predictions_visual()
+
+    def ml_predictions_are_current(self):
+        """True when the predictions in memory were made on the image
+        shown now."""
+        current = self.current_image_item
+        return (current is not None
+                and self.ml_predictions_image is not None
+                and current.path_image == self.ml_predictions_image)
+
     # ------------------------------------------------------------------
     # Accept predictions
     # ------------------------------------------------------------------
@@ -1629,6 +2967,11 @@ class MLPredictor(Base):
         if current_image is None:
             ml_log("No current image", force=True)
             return False
+        if not self.ml_predictions_are_current():
+            # predicted on another image (the scene was cleared since)
+            ml_log("Segmentation predicted on another image: not accepted")
+            self.ml_forget_predictions()
+            return False
 
         ml_log(f"Accepting segmentation for {len(preds)} label(s)")
 
@@ -1665,12 +3008,20 @@ class MLPredictor(Base):
 
             painter = overlay.get_painter()
             painter.drawPixmap(0, 0, pixmap)
+            # refresh THIS overlay (display, "edited" flag, undo): the
+            # image's update_labeling_overlay() only refreshes the overlay
+            # of the selected label, so the other labels were drawn in
+            # their pixmap but never shown nor saved
+            overlay.update()
             ml_log(f"  Painted {pix_count} pixels → label {label_id} "
                   f"('{self._get_label_name(label_id)}')")
 
-        current_image.update_labeling_overlay()
-        self.ml_segmentation_predictions = None
-        self.ml_clear_predictions_visual()
+        current_image.update_icon_file()
+        try:
+            self.ml_invalidate_caches(current_image.path_image)
+        except AttributeError:
+            pass
+        self.ml_forget_predictions()
         return True
 
     # ------------------------------------------------------------------
@@ -1705,24 +3056,34 @@ class MLPredictor(Base):
         """
         if not self.trained or self.model is None:
             return 0.0
-        tensor = self._al_preprocess(image_path)
-        if tensor is None:
-            return 0.0
+        segmenting = self.training_mode in ("segmentation", "both")
+        detecting  = self.training_mode in ("detection", "both")
+        # with tiles, the segmentation is scored on tiles of the image
+        tiled = segmenting and getattr(self, "tiling", None) is not None
+        tensor = None
+        if detecting or not tiled:
+            tensor = self._al_preprocess(image_path)
+            if tensor is None:
+                return 0.0
         was_training = self.model.training
         self.model.eval()
         try:
             import math
-            objectness, _, _, seg_pred = self.model(tensor)
             scores = []
-            if self.training_mode in ("detection", "both"):
-                ent = self._binary_entropy(objectness).mean().item()
-                scores.append(ent / math.log(2))
-            if (self.training_mode in ("segmentation", "both")
-                    and seg_pred is not None):
-                probs = torch.softmax(seg_pred, dim=1)
-                ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean()
-                n_cls = max(seg_pred.shape[1], 2)
-                scores.append(ent.item() / math.log(n_cls))
+            if tensor is not None:
+                objectness, _, _, seg_pred = self.model(tensor)
+                if detecting:
+                    ent = self._binary_entropy(objectness).mean().item()
+                    scores.append(ent / math.log(2))
+                if segmenting and not tiled and seg_pred is not None:
+                    probs = torch.softmax(seg_pred, dim=1)
+                    ent = -(probs * torch.log(probs + 1e-6)).sum(dim=1).mean()
+                    n_cls = max(seg_pred.shape[1], 2)
+                    scores.append(ent.item() / math.log(n_cls))
+            if tiled:
+                score = self._al_tiled_entropy(image_path)
+                if score is not None:
+                    scores.append(score)
             if not scores:
                 return 0.0
             return float(max(0.0, min(1.0, sum(scores) / len(scores))))
@@ -1776,12 +3137,15 @@ class MLPredictor(Base):
             backbone_name = getattr(self.model, "backbone_name", "resnet18")
             enable_seg = self.model.enable_segmentation
             enable_det = getattr(self.model, "enable_detection", True)
+            seg_decoder = getattr(self.model, "seg_decoder",
+                                  SEG_DECODER_SIMPLE)
             state = self.model.state_dict()
         elif probe is not None:
             num_classes = probe.num_classes
             backbone_name = "dinov2-linear"
             enable_seg = True
             enable_det = False
+            seg_decoder = None
             state = None
         else:
             raise RuntimeError("nothing trained to save")
@@ -1793,6 +3157,7 @@ class MLPredictor(Base):
             'backbone_name': backbone_name,
             'enable_segmentation': enable_seg,
             'enable_detection': enable_det,
+            'seg_decoder': seg_decoder,
             'seg_backbone': getattr(self, "seg_backbone", "resnet"),
             'probe': probe.save_dict() if probe is not None else None,
 
@@ -1801,6 +3166,7 @@ class MLPredictor(Base):
 
             'training_mode': self.training_mode,
             'image_size': self.image_size,
+            'tiling': getattr(self, "tiling", None),
             'confidence_threshold': self.confidence_threshold,
             'nms_threshold': self.nms_threshold,
             'segmentation_threshold': self.segmentation_threshold,
@@ -1852,7 +3218,9 @@ class MLPredictor(Base):
                     pretrained=False,
                     enable_segmentation=enable_seg,
                     enable_detection=enable_det,
-                    backbone_name=backbone
+                    backbone_name=backbone,
+                    # saved before the FPN head: the last-layer head
+                    seg_decoder=ck.get('seg_decoder') or SEG_DECODER_SIMPLE,
                 )
 
                 # Charger les poids
@@ -1867,6 +3235,8 @@ class MLPredictor(Base):
             self.class_to_label_id = ck.get('class_to_label_id', {})
 
             self.image_size = ck.get('image_size', 416)
+            # models saved before tiles: whole image, as they were trained
+            self.tiling = self._checked_tiling(ck.get('tiling'))
             self.confidence_threshold = ck.get('confidence_threshold', 0.3)
             self.nms_threshold = ck.get('nms_threshold', 0.4)
             self.segmentation_threshold = ck.get('segmentation_threshold', 0.5)
@@ -1889,6 +3259,20 @@ class MLPredictor(Base):
             import traceback
             traceback.print_exc()
             return False
+
+    @staticmethod
+    def _checked_tiling(tiling):
+        """Tiling read from a model file, or None (whole image)."""
+        if not isinstance(tiling, dict):
+            return None
+        try:
+            tile = Tiling.normalize_tile_size(tiling["tile_size"])
+            return {"tile_size": tile,
+                    "overlap": Tiling.normalize_overlap(
+                        tiling.get("overlap", 0), tile),
+                    "scale": Tiling.normalize_scale(tiling.get("scale", 1.0))}
+        except (KeyError, TypeError, ValueError):
+            return None
 
     def load_image_for_training(self, path_image):
         if self.image_items.get(path_image) is not None:
@@ -1949,6 +3333,12 @@ class MLPredictor(Base):
         elif net is not None:
             backbone = getattr(net, "backbone_name", DEFAULT_BACKBONE)
             kind     = f"ResNet head ({backbone})"
+            if getattr(net, "enable_segmentation", False):
+                decoder = getattr(net, "seg_decoder", SEG_DECODER_SIMPLE)
+                kind = (f"ResNet head ({backbone}, "
+                        f"{SEG_DECODER_NAMES[decoder]} decoder)")
+            if DinoBackbone.is_dinov2(backbone):
+                kind = kind.replace("ResNet head", "Network", 1)
             can_segment = (bool(getattr(net, "enable_segmentation", False))
                            and mode in ("segmentation", "both"))
             can_detect  = (bool(getattr(net, "enable_detection", False))
@@ -1986,6 +3376,7 @@ class MLPredictor(Base):
         self.label_id_to_class = {}
         self.class_to_label_id = {}
         self.val_metrics       = {}
+        self.tiling            = None
         try:
             import gc
             gc.collect()

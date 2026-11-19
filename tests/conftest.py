@@ -140,13 +140,27 @@ def reset_app(controller, view, model):
         if hasattr(model, attr):
             setattr(model, attr, value)
     model.seg_backbone = "resnet"
+    from PyImageLabeling.model.ML.MLPredictor import (
+        DEFAULT_BACKBONE, DEFAULT_SEG_DECODER)
+    model.backbone_name = DEFAULT_BACKBONE
+    model.seg_decoder = DEFAULT_SEG_DECODER
+    model.finetune_blocks = 0
+    model.patience = 0
     model.training_mode = None
     model.val_metrics = {}
     model._det_val_loader = None
     model._seg_val_loader = None
     model.label_id_to_class = {}
     model.class_to_label_id = {}
-    controller._ml_paint_cache = {}
+    model.tiling = None
+    model._seg_val_sources = None
+    model.tiling_mode = "off"
+    model.tile_size = 512
+    model.tile_overlap = 128
+    model.tile_scale = 1.0
+    model._ml_label_count_cache = {}
+    model.train_label_ids = None
+    model.other_labels_as_background = True
     controller._al_ranking = None
     controller._al_pos = -1
     try:

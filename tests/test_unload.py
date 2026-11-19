@@ -58,3 +58,21 @@ def test_switching_label_after_unload(project):
     model.update_labeling_overlays(label2.get_label_id())
     assert label2.get_label_id() in \
         model.get_current_image_item().labeling_overlays
+
+
+def test_unload_keeps_unsaved_strokes(project):
+    """Releasing images (after a propagation) used to drop the ImageItems
+    with unsaved strokes too: the strokes were lost, and the project no
+    longer looked modified."""
+    controller, _, model, paths = project
+    _paint(model, paths[0])        # not saved
+    model.select_image(paths[1])
+    for p in paths[2:6]:
+        model.load_image_for_training(p)
+
+    dropped = controller.ml_unload_image_items()
+
+    assert dropped == 4
+    assert model.image_items[paths[0]] is not None
+    assert model.image_items[paths[0]].get_edited()
+    assert model.get_edited()

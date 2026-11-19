@@ -73,7 +73,6 @@ class ChangeLabel(Base):
                 log.debug("Relabeling geometric shape: %s", shape)
                 self._relabel_shape(shape, image_item)
         else:
-            self.view.progressBar.reset()
             self._change_label_worker(scene_pos)
             image_item.update_labeling_overlay()
 

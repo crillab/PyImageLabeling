@@ -276,3 +276,22 @@ def test_real_checkpoint_round_trip_reports_its_source(tmp_path):
     info = p.ml_model_info()
     assert info["trained"] is True
     assert info["can_segment"] or info["can_detect"]
+
+
+def test_status_update_rewrites_the_stats_panel(app_stack):
+    """A training or a model load refreshed the status badge only: the panel
+    kept saying there was no model."""
+    controller, view, model = app_stack
+    model.ml_clear_trained_state()
+    controller.ml_update_status()
+    assert "Model Status: no model" in view.ml_stats_label.text()
+
+    model.trained = True
+    model.probe = make_probe()
+    model._model_origin = "trained"
+    controller.ml_update_status()   # what the end of a training calls
+    assert "DINO" in view.ml_stats_label.text()
+
+    model.ml_clear_trained_state()
+    controller.ml_update_status()
+    assert "Model Status: no model" in view.ml_stats_label.text()

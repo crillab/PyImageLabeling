@@ -20,7 +20,7 @@ def _save_label_file(folder, index):
     img.save(os.path.join(str(folder), f"img{index:03d}.label.0.png"), "PNG")
 
 
-def test_painted_then_released_stays_annotated(project):
+def test_painted_then_released_stays_annotated(project, workspace):
     controller, view, model, paths = project
     for p in paths[:6]:
         model.load_image_for_training(p)
@@ -31,6 +31,9 @@ def test_painted_then_released_stays_annotated(project):
 
     assert len(model.ml_get_unlabeled_images()) == 6
 
+    # saved first: images with unsaved strokes are never released
+    model.save_directory = str(workspace)
+    model.save()
     dropped = controller.ml_unload_image_items()
     assert dropped > 0
 

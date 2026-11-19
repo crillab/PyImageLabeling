@@ -19,17 +19,58 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QInputDialog,
     QLineEdit,
+    QRadioButton,
+    QButtonGroup,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QScreen
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QIcon, QImageReader, QPixmap, QScreen
 
 
 from PyImageLabeling.model.Utils import Utils
 from PyImageLabeling.model.ML.MLPredictor import (
     BACKBONE_NAMES,
     DEFAULT_BACKBONE,
+    DEFAULT_SEG_DECODER,
+    SEG_DECODER_FPN,
+    SEG_DECODER_LINEAR,
+    SEG_DECODER_SIMPLE,
+    SEG_DECODERS,
+    SEG_LOSS_CE,
+    SEG_LOSS_CE_DICE,
+    SEG_LOSSES,
 )
+from PyImageLabeling.model.ML import DinoBackbone, LabelStats, Tiling
 import os
+
+
+class LabelStatsWorker(QThread):
+    """Reads mask files for the label statistics, off the GUI thread:
+    a large mask takes a fraction of a second to decode."""
+
+    mask_done = pyqtSignal(str, int, object)   # image, label id, MaskStats
+
+    def __init__(self, jobs, cache, parent=None):
+        super().__init__(parent)
+        self.jobs = list(jobs)       # [(image path, label id, mask file)]
+        self.cache = cache
+        self._stop = False
+
+    def stop(self):
+        self._stop = True
+
+    def run(self):
+        for path, label_id, mask_path in self.jobs:
+            if self._stop:
+                return
+            try:
+                stats = LabelStats.file_stats(mask_path, self.cache)
+            except Exception:
+                stats = None
+            self.mask_done.emit(path, label_id, stats)
+
 
 class MLSetting(QDialog):
     def __init__(self, zoomable_graphic_view, model):
@@ -97,6 +138,8 @@ class MLSetting(QDialog):
         img_group.setLayout(img_group_layout)
         main_layout.addWidget(img_group)
 
+        self._build_labels_group(main_layout, ml_params)
+
         train_group = QGroupBox("Training Parameters")
         train_layout = QVBoxLayout()
 
@@ -110,6 +153,33 @@ class MLSetting(QDialog):
         epochs_row.addWidget(self.epochs_spinbox)
         epochs_row.addStretch()
         train_layout.addLayout(epochs_row)
+
+        # Patience (early stopping)
+        patience_row = QHBoxLayout()
+        patience_lbl = QLabel("Patience:")
+        self.patience_spinbox = QSpinBox()
+        self.patience_spinbox.setRange(0, 500)
+        self.patience_spinbox.setSpecialValueText("0 (off)")
+        try:
+            self.patience_spinbox.setValue(int(ml_params.get("patience", 0)))
+        except (TypeError, ValueError):
+            self.patience_spinbox.setValue(0)
+        tip = (
+            "Stop the training when the validation has not improved for\n"
+            "this many epochs, and keep the weights of its best epoch.\n\n"
+            "Watched: the mIoU of the labels on the validation images\n"
+            "(background left out); the detection loss for a detection-only\n"
+            "model.\n\n"
+            "• 0 (off, default): all the epochs, validation at the end only.\n"
+            "• N > 0: validation at every epoch (each epoch takes longer).\n"
+            "  Needs at least 5 annotated images (validation split),\n"
+            "  ignored otherwise.")
+        patience_lbl.setToolTip(tip)
+        self.patience_spinbox.setToolTip(tip)
+        patience_row.addWidget(patience_lbl)
+        patience_row.addWidget(self.patience_spinbox)
+        patience_row.addStretch()
+        train_layout.addLayout(patience_row)
 
         # Batch size
         batch_row = QHBoxLayout()
@@ -145,7 +215,10 @@ class MLSetting(QDialog):
         idx = self.imgsize_combo.findData(current_size)
         if idx >= 0:
             self.imgsize_combo.setCurrentIndex(idx)
-        self.imgsize_combo.setToolTip("Resolution images are resized to for training. Larger = slower but more detail.")
+        self.imgsize_combo.setToolTip(
+            "Square size the whole image is resized to: segmentation with\n"
+            "the Whole image input, and detection. Larger = slower but more\n"
+            "detail.")
         imgsize_row.addWidget(self.imgsize_combo)
         imgsize_row.addStretch()
         train_layout.addLayout(imgsize_row)
@@ -156,25 +229,12 @@ class MLSetting(QDialog):
         model_group = QGroupBox("Model Options")
         model_layout = QVBoxLayout()
 
-        self.enable_seg_checkbox = QCheckBox("Enable Segmentation Head (paintbrush labels)")
-        self.enable_seg_checkbox.setChecked(ml_params.get("enable_segmentation", True))
-        self.enable_seg_checkbox.setToolTip(
-            "Train a segmentation head using painted pixel annotations.\n"
-            "Disable if you only have geometric shapes (rectangles, ellipses, polygons)."
-        )
-        model_layout.addWidget(self.enable_seg_checkbox)
-
-        self.enable_det_checkbox = QCheckBox("Enable Detection Head (geometric shape labels)")
-        self.enable_det_checkbox.setChecked(ml_params.get("enable_detection", True))
-        self.enable_det_checkbox.setToolTip(
-            "Train an object detection head using rectangle/ellipse/polygon annotations."
-        )
-        model_layout.addWidget(self.enable_det_checkbox)
-
         self.pretrained_checkbox = QCheckBox("Use Pretrained Backbone (ImageNet weights)")
         self.pretrained_checkbox.setChecked(ml_params.get("pretrained", True))
         self.pretrained_checkbox.setToolTip(
-            "Start from ImageNet pretrained weights. Strongly recommended unless your images are very unusual."
+            "Start from ImageNet pretrained weights. Strongly recommended unless your images are very unusual.\n"
+            "DINOv2: its own self-supervised weights. Without them, the whole\n"
+            "DINOv2 encoder is trained from scratch (needs many annotations)."
         )
         model_layout.addWidget(self.pretrained_checkbox)
 
@@ -220,6 +280,12 @@ class MLSetting(QDialog):
         "=== Hybrid ===\n"
         "• MaxViT — CNN + Transformer, very powerful.\n\n"
 
+        "=== DINOv2 (self-supervised Vision Transformers) ===\n"
+        "• DINOv2-S/14, B/14 — features learnt without labels on 142M\n"
+        "  images, one per 14 x 14 px patch. Frozen by default: only the\n"
+        "  decoder learns (see Fine-tune Last Blocks). Any tile size.\n"
+        "  Downloaded on first use (S: ~90 MB, B: ~350 MB).\n\n"
+
         "⚠ Changing backbone invalidates any previously saved model.\n"
         "⚠ Large models require GPU and more memory."
     )
@@ -235,29 +301,142 @@ class MLSetting(QDialog):
         backbone_row.addStretch()
         model_layout.addLayout(backbone_row)
 
-        # Segmentation head: ResNet (default) or frozen DINOv2 + linear probe
-        seg_row = QHBoxLayout()
-        seg_lbl = QLabel("Segmentation Head:")
-        seg_lbl.setToolTip(
-            "Head used for painted pixel annotations.\n\n"
-            "• ResNet head — the default, trains detection + "
-            "segmentation jointly.\n"
-            "• DINOv2-linear — frozen DINOv2 features + a 1x1 head: "
-            "much faster to train and stronger on photos, "
-            "but segmentation-only (falls back to ResNet when "
-            "geometric shapes are present)."
+        # DINOv2 only: how many of its last blocks are trained
+        self.finetune_row = QWidget()
+        self.finetune_row.setObjectName("ml_finetune_row")
+        self.finetune_row.setStyleSheet(
+            "#ml_finetune_row { background-color: transparent; }")
+        finetune_layout = QHBoxLayout(self.finetune_row)
+        finetune_layout.setContentsMargins(24, 0, 0, 0)
+        finetune_lbl = QLabel("Fine-tune Last Blocks:")
+        self.finetune_spinbox = QSpinBox()
+        self.finetune_spinbox.setRange(0, 12)
+        try:
+            self.finetune_spinbox.setValue(
+                int(ml_params.get("finetune_blocks", 0)))
+        except (TypeError, ValueError):
+            self.finetune_spinbox.setValue(0)
+        self.finetune_spinbox.setSpecialValueText("0 (frozen)")
+        tip = (
+            "Number of the last transformer blocks of DINOv2 trained with\n"
+            "the decoder (out of 12), at a tenth of the learning rate.\n\n"
+            "• 0 (frozen, default): only the decoder learns. Fast, little\n"
+            "  GPU memory, and the features stay those of DINOv2.\n"
+            "• 2 to 4: adapts the features to images unlike photos.\n"
+            "  Slower, more GPU memory, needs more annotations.")
+        finetune_lbl.setToolTip(tip)
+        self.finetune_spinbox.setToolTip(tip)
+        finetune_layout.addWidget(finetune_lbl)
+        finetune_layout.addWidget(self.finetune_spinbox)
+        finetune_layout.addStretch()
+        model_layout.addWidget(self.finetune_row)
+        self.backbone_combo.currentIndexChanged.connect(
+            self._update_finetune_row)
+        self._update_finetune_row()
+
+        self.enable_det_checkbox = QCheckBox("Enable Detection Head (geometric shape labels)")
+        self.enable_det_checkbox.setChecked(ml_params.get("enable_detection", True))
+        self.enable_det_checkbox.setToolTip(
+            "Train an object detection head using rectangle/ellipse/polygon annotations.\n"
+            "Unchecked: the shapes are ignored by the training."
         )
-        self.seg_combo = QComboBox()
-        self.seg_combo.addItem("ResNet head", "resnet")
-        self.seg_combo.addItem("DINOv2-linear (fast, seg-only)", "dinov2")
-        current_seg = ml_params.get("seg_backbone", "resnet")
-        idx = self.seg_combo.findData(current_seg)
-        if idx >= 0:
-            self.seg_combo.setCurrentIndex(idx)
-        seg_row.addWidget(seg_lbl)
-        seg_row.addWidget(self.seg_combo)
-        seg_row.addStretch()
-        model_layout.addLayout(seg_row)
+        model_layout.addWidget(self.enable_det_checkbox)
+
+        self.enable_seg_checkbox = QCheckBox("Enable Segmentation Head (paintbrush labels)")
+        self.enable_seg_checkbox.setChecked(ml_params.get("enable_segmentation", True))
+        self.enable_seg_checkbox.setToolTip(
+            "Train a segmentation head using painted pixel annotations.\n"
+            "Unchecked: the painted pixels are ignored by the training.\n"
+            "Its settings are shown below it when it is checked."
+        )
+        model_layout.addWidget(self.enable_seg_checkbox)
+
+        # the settings of the segmentation, under its box, only when checked
+        self.seg_options = QWidget()
+        self.seg_options.setObjectName("ml_seg_options")
+        # plain containers: the group's colour, not the dark one style.css
+        # gives every QWidget
+        self.seg_options.setStyleSheet(
+            "#ml_seg_options, #ml_tiles_box "
+            "{ background-color: transparent; }")
+        seg_layout = QVBoxLayout(self.seg_options)
+        seg_layout.setContentsMargins(24, 0, 0, 0)
+
+        # Decoder of the segmentation head
+        self.decoder_row = QWidget()
+        self.decoder_row.setObjectName("ml_decoder_row")
+        self.decoder_row.setStyleSheet(
+            "#ml_decoder_row { background-color: transparent; }")
+        decoder_layout = QHBoxLayout(self.decoder_row)
+        decoder_layout.setContentsMargins(0, 0, 0, 0)
+        decoder_lbl = QLabel("Decoder:")
+        self.decoder_combo = QComboBox()
+        self.decoder_combo.addItem("Multi-scale (FPN)", SEG_DECODER_FPN)
+        self.decoder_combo.addItem("Linear", SEG_DECODER_LINEAR)
+        self.decoder_combo.addItem("Last layer only", SEG_DECODER_SIMPLE)
+        current_decoder = ml_params.get("seg_decoder", DEFAULT_SEG_DECODER)
+        self.decoder_combo.setCurrentIndex(max(0, self.decoder_combo.findData(
+            current_decoder if current_decoder in SEG_DECODERS
+            else DEFAULT_SEG_DECODER)))
+        tip = (
+            "How the mask is rebuilt from the backbone.\n\n"
+            "• Multi-scale (FPN): combines the layers at 1/4, 1/8, 1/16\n"
+            "  and 1/32 of the resolution: the last layer tells what is\n"
+            "  there, the earlier ones where its edges are. Sharper edges,\n"
+            "  better on small objects; a little slower.\n"
+            "  With DINOv2 (one resolution, 1/14), the levels are made from\n"
+            "  layers at 1/4, 1/2, 3/4 and the end of its depth.\n"
+            "• Linear: a single 1x1 convolution on the concatenated layers\n"
+            "  (with DINOv2, its last 4 layers, as in its paper): shows what\n"
+            "  the backbone features already tell apart. Fastest to train;\n"
+            "  coarse edges (one value per 14 x 14 px patch with DINOv2).\n"
+            "• Last layer only: upsamples the last layer (1/32 of the\n"
+            "  resolution, one value per 32 x 32 px block): blurred edges.\n"
+            "  The head of the models trained before the FPN one.\n\n"
+            "A loaded model keeps the decoder it was trained with.")
+        decoder_lbl.setToolTip(tip)
+        self.decoder_combo.setToolTip(tip)
+        decoder_layout.addWidget(decoder_lbl)
+        decoder_layout.addWidget(self.decoder_combo)
+        decoder_layout.addStretch()
+        seg_layout.addWidget(self.decoder_row)
+        if ml_params.get("seg_backbone") == "dinov2":
+            # the former "DINOv2-linear" segmentation head: a frozen DINOv2
+            # backbone with the linear decoder
+            if not DinoBackbone.is_dinov2(self.backbone_combo.currentText()):
+                self.backbone_combo.setCurrentIndex(self.backbone_combo.findText(
+                    DinoBackbone.DEFAULT_DINOV2))
+            self.finetune_spinbox.setValue(0)
+            self.decoder_combo.setCurrentIndex(
+                self.decoder_combo.findData(SEG_DECODER_LINEAR))
+
+        loss_row = QHBoxLayout()
+        loss_lbl = QLabel("Loss:")
+        self.loss_combo = QComboBox()
+        self.loss_combo.addItem("Cross-entropy", SEG_LOSS_CE)
+        self.loss_combo.addItem("Cross-entropy + Dice", SEG_LOSS_CE_DICE)
+        current_loss = ml_params.get("seg_loss", SEG_LOSS_CE)
+        self.loss_combo.setCurrentIndex(max(0, self.loss_combo.findData(
+            current_loss if current_loss in SEG_LOSSES else SEG_LOSS_CE)))
+        tip = (
+            "What the training minimizes.\n\n"
+            "• Cross-entropy: every pixel counts the same. When the labels\n"
+            "  cover a few percent of the images, it is mostly about the\n"
+            "  background, and a small label can be missed.\n"
+            "• Cross-entropy + Dice: adds the overlap of each label with its\n"
+            "  annotation (Dice), whatever its size, the background left\n"
+            "  out: a small label weighs as much as a large one. Common in\n"
+            "  medical image segmentation.")
+        loss_lbl.setToolTip(tip)
+        self.loss_combo.setToolTip(tip)
+        loss_row.addWidget(loss_lbl)
+        loss_row.addWidget(self.loss_combo)
+        loss_row.addStretch()
+        seg_layout.addLayout(loss_row)
+
+        self._build_tiles_options(seg_layout, ml_params)
+        model_layout.addWidget(self.seg_options)
+        self.enable_seg_checkbox.toggled.connect(self._update_seg_options)
 
         model_group.setLayout(model_layout)
         main_layout.addWidget(model_group)
@@ -294,8 +473,7 @@ class MLSetting(QDialog):
         self.save_model_btn = QPushButton("Save Trained Model")
         self.load_model_btn = QPushButton("Load Existing Model")
 
-        if self.loaded_model_name:
-            self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+        self._refresh_load_button()
 
         self.save_model_btn.clicked.connect(self._save_model)
         self.load_model_btn.clicked.connect(self._load_model)
@@ -333,6 +511,353 @@ class MLSetting(QDialog):
         dialog_layout.setContentsMargins(0, 0, 0, 0)
         dialog_layout.addWidget(scroll_area)
         self.setLayout(dialog_layout)
+
+        # only now that every widget has a parent: showing one without
+        # would open it as a window of its own
+        self._update_seg_options()
+        self._update_tiles_box()
+        self._update_label_choice()
+        # the figures follow the images, the labels and the tiles chosen
+        self.image_list.itemChanged.connect(self._schedule_stats_refresh)
+        self.other_labels_checkbox.toggled.connect(
+            self._schedule_stats_refresh)
+        self.tiles_radio.toggled.connect(self._schedule_stats_refresh)
+        self.tile_spinbox.valueChanged.connect(self._schedule_stats_refresh)
+        self.scale_combo.currentIndexChanged.connect(
+            self._schedule_stats_refresh)
+        self._start_label_stats()
+
+    # ------------------------------------------------------------------
+    # Labels to learn
+    # ------------------------------------------------------------------
+
+    def _build_labels_group(self, main_layout, ml_params):
+        """The labels the next training learns. One label = a binary model
+        (the label against the background)."""
+        group = QGroupBox("Labels to Learn")
+        layout = QVBoxLayout(group)
+
+        self.labels_table = QTableWidget(0, len(self.LABEL_COLUMNS))
+        self.labels_table.setHorizontalHeaderLabels(self.LABEL_COLUMNS)
+        self.labels_table.verticalHeader().setVisible(False)
+        self.labels_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.labels_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.NoSelection)
+        self.labels_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.labels_table.verticalHeader().setDefaultSectionSize(
+            self.labels_table.fontMetrics().height() + 8)
+        header = self.labels_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in range(1, len(self.LABEL_COLUMNS)):
+            header.setSectionResizeMode(
+                col, QHeaderView.ResizeMode.ResizeToContents)
+        for col, tip in enumerate(self.LABEL_TOOLTIPS):
+            self.labels_table.horizontalHeaderItem(col).setToolTip(tip)
+
+        chosen = (self.model.ml_chosen_label_ids()
+                  if hasattr(self.model, "ml_chosen_label_ids") else None)
+        self._label_row_ids = []
+        for label_id in sorted(self.model.label_items):
+            label = self.model.label_items[label_id]
+            cell = QTableWidgetItem(label.get_name())
+            cell.setFlags(Qt.ItemFlag.ItemIsEnabled
+                          | Qt.ItemFlag.ItemIsUserCheckable)
+            cell.setCheckState(
+                Qt.CheckState.Checked if chosen is None or label_id in chosen
+                else Qt.CheckState.Unchecked)
+            swatch = QPixmap(12, 12)
+            swatch.fill(label.get_color())
+            cell.setIcon(QIcon(swatch))
+            row = self.labels_table.rowCount()
+            self.labels_table.insertRow(row)
+            self.labels_table.setItem(row, 0, cell)
+            self._label_row_ids.append(label_id)
+        # the classes that are not labels: background, ignored pixels
+        italic = QFont(self.labels_table.font())
+        italic.setItalic(True)
+        for key, text, tip in (
+                (LabelStats.BACKGROUND, "Background",
+                 "Pixels of no checked label: those painted with nothing,\n"
+                 "and those of the other labels when they count as\n"
+                 "background."),
+                (LabelStats.IGNORED, "Other labels (ignored)",
+                 "Pixels of the unchecked labels on the training images,\n"
+                 "left out of the training.")):
+            cell = QTableWidgetItem(text)
+            cell.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            cell.setFont(italic)
+            cell.setToolTip(tip)
+            row = self.labels_table.rowCount()
+            self.labels_table.insertRow(row)
+            self.labels_table.setItem(row, 0, cell)
+            self._label_row_ids.append(None)
+            setattr(self, f"_{key}_row", row)
+        self._label_names = {
+            label_id: self.model.label_items[label_id].get_name()
+            for label_id in self._label_row_ids if label_id is not None}
+        self._label_stats = {}       # image path -> {label id: MaskStats}
+        self._stats_pending = 0
+        self._stats_worker = None
+        self._closed = False
+        # one refresh for a burst of changes (Select All, masks read); a
+        # child of the dialog, so that it never fires once it is gone
+        self._stats_timer = QTimer(self)
+        self._stats_timer.setSingleShot(True)
+        self._stats_timer.setInterval(0)
+        self._stats_timer.timeout.connect(self._refresh_label_stats)
+        self._fit_labels_table()
+        self.labels_table.itemChanged.connect(self._update_label_choice)
+        layout.addWidget(self.labels_table)
+
+        self.labels_summary = QLabel()
+        self.labels_summary.setWordWrap(True)
+        layout.addWidget(self.labels_summary)
+
+        self.other_labels_checkbox = QCheckBox(
+            "Count the pixels of the other labels as background")
+        self.other_labels_checkbox.setChecked(
+            bool(ml_params.get("other_labels_background", True)))
+        self.other_labels_checkbox.setToolTip(
+            "On the training images, the pixels painted with a label that\n"
+            "is not checked:\n"
+            "• checked: are background — examples of what the model must\n"
+            "  not mark;\n"
+            "• unchecked: are left out of the training (neither the label\n"
+            "  nor the background).")
+        layout.addWidget(self.other_labels_checkbox)
+        main_layout.addWidget(group)
+
+    LABEL_COLUMNS = ("Label", "Images", "Where painted", "Share", "Tiles")
+    LABEL_TOOLTIPS = (
+        "Check the labels the model learns; every other pixel is the\n"
+        "background. One label checked: a binary model (that label against\n"
+        "the background).",
+        "Checked training images where the label is painted.",
+        "Share of the pixels of those images painted with the label: how\n"
+        "small the label is where it is annotated.",
+        "Share of the pixels of the training images (those holding a\n"
+        "checked label, validation included) of each class the model\n"
+        "learns. A class of a few percent is easily drowned by the\n"
+        "background: see the Tile Sampling and the Loss settings.",
+        "Share of the tiles of the training images (Tile Size, at the\n"
+        "Resolution chosen, on a grid) holding at least one pixel of the\n"
+        "label.")
+
+    def _fit_labels_table(self):
+        """As high as its rows (up to 8 of them), no inner scroll bar
+        before that."""
+        table = self.labels_table
+        rows = min(sum(not table.isRowHidden(r)
+                       for r in range(table.rowCount())), 8)
+        height = (table.horizontalHeader().sizeHint().height()
+                  + rows * table.verticalHeader().defaultSectionSize()
+                  + 2 * table.frameWidth() + 2)
+        table.setFixedHeight(max(height, 40))
+
+    def chosen_label_ids(self):
+        """Label ids checked in Labels to Learn, or None when all of them
+        are (a label created later is then learnt too)."""
+        rows = [(row, label_id)
+                for row, label_id in enumerate(self._label_row_ids)
+                if label_id is not None]
+        ids = [label_id for row, label_id in rows
+               if self.labels_table.item(row, 0).checkState()
+               == Qt.CheckState.Checked]
+        if len(ids) == len(rows):
+            return None
+        return ids
+
+    def _choice_text(self):
+        """What the checked labels make, in words."""
+        names = self._label_names
+        chosen = self.chosen_label_ids()
+        n_all = len(names)
+        ids = list(names) if chosen is None else chosen
+        if not n_all:
+            text = "The project has no label yet."
+        elif not ids:
+            text = ("<span style='color:#e74c3c'>Check at least one "
+                    "label.</span>")
+        elif len(ids) == 1:
+            text = (f"Binary model: <b>{names[ids[0]]}</b> against the "
+                    f"background.")
+        elif chosen is None:
+            text = f"{n_all} labels + the background."
+        else:
+            text = f"{len(ids)} of the {n_all} labels + the background."
+        if chosen is not None and ids:
+            text += (" Images where it is not painted are left out of the "
+                     "training." if len(ids) == 1 else
+                     " Images where none of them is painted are left out "
+                     "of the training.")
+        return text
+
+    def _update_label_choice(self, item=None):
+        """Say what the checked labels make, and refuse none."""
+        if item is not None and item.column() != 0:
+            return                   # a figure, not a check box
+        chosen = self.chosen_label_ids()
+        n_all = sum(i is not None for i in self._label_row_ids)
+        self.other_labels_checkbox.setEnabled(
+            chosen is not None and bool(chosen))
+        if hasattr(self, "buttons"):
+            self.buttons.button(
+                QDialogButtonBox.StandardButton.Ok).setEnabled(
+                    not n_all or chosen is None or bool(chosen))
+        self._refresh_label_stats()
+
+    # ---- figures of the labels -------------------------------------------
+
+    def _checked_image_paths(self):
+        return [self._item_path_map[row]
+                for row in range(self.image_list.count())
+                if self.image_list.item(row).checkState()
+                == Qt.CheckState.Checked and row in self._item_path_map]
+
+    def _start_label_stats(self):
+        """Read what each mask holds: loaded images with unsaved strokes
+        here (their overlays live on the GUI thread), mask files in a
+        thread (cached by file and date, so mostly instant the next
+        time)."""
+        if not self.model.label_items or not hasattr(
+                self.model, "ml_label_stat_sources"):
+            self._refresh_label_stats()
+            return
+        files, overlays = self.model.ml_label_stat_sources(
+            list(self.model.file_paths))
+        for path, per_label in overlays.items():
+            for label_id, overlay in per_label.items():
+                try:
+                    stats = self.model.ml_overlay_stats(overlay)
+                except Exception:
+                    stats = None
+                self._label_stats.setdefault(path, {})[label_id] = stats
+        jobs = [(path, label_id, mask_path)
+                for path, per_label in files.items()
+                for label_id, mask_path in per_label.items()
+                if label_id not in overlays.get(path, {})]
+        self._stats_pending = len(jobs)
+        if jobs:
+            cache = self.model.__dict__.setdefault(
+                "_ml_label_stats_cache", {})
+            self._stats_worker = LabelStatsWorker(jobs, cache, self)
+            self._stats_worker.mask_done.connect(self._on_mask_stats)
+            self._stats_worker.start()
+        self._refresh_label_stats()
+
+    def _on_mask_stats(self, path, label_id, stats):
+        if self._closed:
+            return
+        self._label_stats.setdefault(path, {})[label_id] = stats
+        self._stats_pending = max(0, self._stats_pending - 1)
+        self._schedule_stats_refresh()
+
+    def wait_for_label_stats(self):
+        """Block until every mask is read and shown (tests)."""
+        from PyQt6.QtWidgets import QApplication
+        if self._stats_worker is not None:
+            self._stats_worker.wait()
+        QApplication.processEvents()
+        self._refresh_label_stats()
+
+    def _stop_label_stats(self):
+        worker = self._stats_worker
+        if worker is not None:
+            worker.stop()
+            worker.wait()
+            self._stats_worker = None
+
+    def _schedule_stats_refresh(self, *_):
+        """One refresh for a burst of changes (Select All, masks read)."""
+        if not self._closed:
+            self._stats_timer.start()
+
+    def _tile_px(self):
+        """Side of a tile in image pixels, or None for whole images."""
+        if not hasattr(self, "tiles_radio") or not self.tiles_radio.isChecked():
+            return None
+        return self.tile_spinbox.value() / (self.scale_combo.currentData()
+                                            or 1.0)
+
+    def _refresh_label_stats(self):
+        self._stats_timer.stop()
+        if self._closed or not hasattr(self, "labels_table"):
+            return
+        chosen = self.chosen_label_ids()
+        chosen = None if chosen is None else set(chosen)
+        others = chosen is not None and any(
+            i is not None and i not in chosen for i in self._label_row_ids)
+        ignore = others and not self.other_labels_checkbox.isChecked()
+        tile_px = self._tile_px()
+        checked = set(self._checked_image_paths())
+        images = {path: per_label for path, per_label
+                  in self._label_stats.items() if path in checked}
+        summary = LabelStats.summarize(images, chosen, ignore, tile_px)
+
+        table = self.labels_table
+        was_blocked = table.blockSignals(True)
+        try:
+            for row, label_id in enumerate(self._label_row_ids):
+                if label_id is None:
+                    continue
+                learnt = chosen is None or label_id in chosen
+                figures = summary["labels"].get(label_id)
+                share = summary["share"].get(label_id)
+                tiles = (summary["tiles"] or {}).get(label_id)
+                self._set_stat(row, 1, str(figures["images"])
+                               if figures else "0", not learnt)
+                self._set_stat(row, 2, self._percent(figures["density"])
+                               if figures else "–", not learnt)
+                self._set_stat(row, 3, self._percent(share)
+                               if learnt and share is not None else "–",
+                               not learnt)
+                self._set_stat(row, 4, self._percent(tiles)
+                               if learnt and tiles is not None else "–",
+                               not learnt)
+            for key in (LabelStats.BACKGROUND, LabelStats.IGNORED):
+                row = getattr(self, f"_{key}_row")
+                share = summary["share"].get(key)
+                for col in (1, 2, 4):
+                    self._set_stat(row, col, "")
+                self._set_stat(row, 3, self._percent(share)
+                               if share is not None else "–")
+            table.setRowHidden(self._ignored_row, not ignore)
+            table.setColumnHidden(4, tile_px is None)
+        finally:
+            table.blockSignals(was_blocked)
+        self._fit_labels_table()
+
+        lines = [self._choice_text()]
+        if self._label_names:
+            if self._stats_pending:
+                lines.append(f"<i>Reading the masks… "
+                             f"{self._stats_pending} left</i>")
+            training = (f"Training images: {summary['training_images']} of "
+                        f"the {len(checked)} checked (validation included)")
+            if summary["empty_tiles"] is not None:
+                training += (f" · {self._percent(summary['empty_tiles'])} "
+                             f"of their tiles hold none of the checked "
+                             f"labels")
+            lines.append(training + ".")
+        self.labels_summary.setText("<br>".join(lines))
+
+    @staticmethod
+    def _percent(value):
+        if value is None:
+            return "–"
+        if 0 < value < 0.001:
+            return "< 0.1 %"
+        return f"{100 * value:.1f} %"
+
+    def _set_stat(self, row, col, text, dim=False):
+        item = QTableWidgetItem(text)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight
+                              | Qt.AlignmentFlag.AlignVCenter)
+        if dim:
+            item.setForeground(QColor("#7f8c8d"))
+        self.labels_table.setItem(row, col, item)
 
     def _setup_window_size(self):
         """Configure la taille de la fenêtre en fonction de l'écran"""
@@ -452,6 +977,19 @@ class MLSetting(QDialog):
 
         return False
     
+    def _refresh_load_button(self):
+        """"Loaded: <name>" only when a model loaded from a file is the one
+        in memory now. The name saved in parameters.json is only the last
+        file loaded: no model is loaded when the app starts."""
+        info = (self.model.ml_model_info()
+                if hasattr(self.model, "ml_model_info") else None)
+        if info and info["trained"] and info["origin"] == "loaded" \
+                and info["path"]:
+            name = os.path.splitext(os.path.basename(info["path"]))[0]
+            self.load_model_btn.setText(f"Loaded: {name}")
+        else:
+            self.load_model_btn.setText("Load Existing Model")
+
     def _refresh_active_model_label(self):
         """Describe the model that would predict right now."""
         if not hasattr(self, "active_model_label"):
@@ -537,7 +1075,7 @@ class MLSetting(QDialog):
             success = self.model.load_model_file(file_path)
             if success:
                 self.loaded_model_name = os.path.splitext(os.path.basename(file_path))[0]
-                self.load_model_btn.setText(f"Loaded: {self.loaded_model_name}")
+                self._refresh_load_button()
                 # loading replaces whatever was live, and predictions now come
                 # from this file: say so on screen right away
                 self._refresh_active_model_label()
@@ -567,9 +1105,231 @@ class MLSetting(QDialog):
             if self._image_has_labels(file_path, image_item, basename):
                 item.setCheckState(Qt.CheckState.Checked)
 
+    def _build_tiles_options(self, seg_layout, ml_params):
+        """How a segmentation model sees the images: the whole image resized
+        to the Image Size, or tiles of it. The user chooses. Added to
+        `seg_layout`, under the segmentation box."""
+        tiles = str(ml_params.get("tiling", "off")).lower() == "on"
+        self.whole_radio = QRadioButton(
+            "Whole image, resized to the Image Size")
+        self.whole_radio.setToolTip(
+            "The whole image is resized to the Image Size (a square) for\n"
+            "training and prediction. Fast, and fine for small images; a\n"
+            "large image loses its fine details and its aspect ratio.")
+        self.tiles_radio = QRadioButton("Tiles")
+        self.tiles_radio.setToolTip(
+            "Training and prediction work on square crops of the image at\n"
+            "(or near) its own resolution, put back together. For large\n"
+            "images: slower, but the details are kept.")
+        (self.tiles_radio if tiles else self.whole_radio).setChecked(True)
+        self.tiling_group = QButtonGroup(self)
+        self.tiling_group.addButton(self.whole_radio)
+        self.tiling_group.addButton(self.tiles_radio)
+
+        # the settings of the tiles, under their button, only for tiles
+        self.tiles_box = QWidget()
+        self.tiles_box.setObjectName("ml_tiles_box")
+        layout = QVBoxLayout(self.tiles_box)
+        layout.setContentsMargins(24, 0, 0, 0)
+
+        tile_row = QHBoxLayout()
+        tile_row.addWidget(QLabel("Tile Size:"))
+        self.tile_spinbox = QSpinBox()
+        self.tile_spinbox.setRange(Tiling.MIN_TILE_SIZE, 2048)
+        self.tile_spinbox.setSingleStep(Tiling.TILE_MULTIPLE)
+        self.tile_spinbox.setSuffix(" px")
+        self.tile_spinbox.setValue(Tiling.normalize_tile_size(
+            ml_params.get("tile_size", Tiling.DEFAULT_TILE_SIZE)))
+        self.tile_spinbox.setToolTip(
+            f"Side of the square tiles (a multiple of {Tiling.TILE_MULTIPLE}).\n"
+            "Larger tiles give more context around each pixel, but need more\n"
+            "GPU memory (if it runs out, the batches are made smaller).\n"
+            "Each epoch sees about a third of every image, whatever the size.")
+        self.tile_spinbox.editingFinished.connect(self._snap_tile_size)
+        self.tile_spinbox.valueChanged.connect(self._update_overlap_range)
+        tile_row.addWidget(self.tile_spinbox)
+        tile_row.addStretch()
+        layout.addLayout(tile_row)
+
+        overlap_row = QHBoxLayout()
+        overlap_row.addWidget(QLabel("Overlap:"))
+        self.overlap_spinbox = QSpinBox()
+        self.overlap_spinbox.setSingleStep(16)
+        self.overlap_spinbox.setSuffix(" px")
+        self._update_overlap_range()
+        self.overlap_spinbox.setValue(Tiling.normalize_overlap(
+            ml_params.get("tile_overlap", Tiling.DEFAULT_OVERLAP),
+            self.tile_spinbox.value()))
+        self.overlap_spinbox.setToolTip(
+            "Overlap between neighbouring tiles when predicting (at most half\n"
+            "a tile). The network sees less around the pixels near the edge of\n"
+            "a tile; with an overlap each pixel is taken from the tile where it\n"
+            "is the farthest from the edge, so the seams between tiles do not\n"
+            "show. More overlap = more tiles to predict.")
+        overlap_row.addWidget(self.overlap_spinbox)
+        overlap_row.addStretch()
+        layout.addLayout(overlap_row)
+
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("Resolution:"))
+        self.scale_combo = QComboBox()
+        for text, value in (("Full (1:1)", 1.0), ("Half (1:2)", 0.5),
+                            ("Quarter (1:4)", 0.25)):
+            self.scale_combo.addItem(text, value)
+        idx = self.scale_combo.findData(
+            Tiling.normalize_scale(ml_params.get("tile_scale", 1.0)))
+        self.scale_combo.setCurrentIndex(max(0, idx))
+        self.scale_combo.setToolTip(
+            "Images are downscaled by this factor before being cut into tiles.\n"
+            "Half: each tile covers 4 times more of the image (more context,\n"
+            "4 times fewer tiles), with less detail.")
+        scale_row.addWidget(self.scale_combo)
+        scale_row.addStretch()
+        layout.addLayout(scale_row)
+
+        sampling_row = QHBoxLayout()
+        sampling_lbl = QLabel("Tile Sampling:")
+        self.sampling_combo = QComboBox()
+        self.sampling_combo.addItem("Random", Tiling.SAMPLING_RANDOM)
+        self.sampling_combo.addItem("Centred on the labels",
+                                    Tiling.SAMPLING_LABELS)
+        self.sampling_combo.addItem("Centred on the labels, balanced",
+                                    Tiling.SAMPLING_BALANCED)
+        self.sampling_combo.setCurrentIndex(max(0, self.sampling_combo.findData(
+            Tiling.normalize_sampling(ml_params.get(
+                "tile_sampling", Tiling.DEFAULT_SAMPLING)))))
+        tip = (
+            "How the training tiles are drawn from the images.\n\n"
+            "• Random: anywhere. The labels are seen as often as they are\n"
+            "  in the images: a label of a few percent is rarely seen.\n"
+            "• Centred on the labels: a share of the tiles is centred on an\n"
+            "  annotated pixel (of a label drawn among those of the image),\n"
+            "  the others are drawn anywhere.\n"
+            "• Centred on the labels, balanced: the same, but the label of\n"
+            "  each centred tile is drawn evenly among all the labels learnt:\n"
+            "  a label annotated on few images, or on few pixels, is seen as\n"
+            "  often as the others.\n\n"
+            "The prediction always covers the whole image.")
+        sampling_lbl.setToolTip(tip)
+        self.sampling_combo.setToolTip(tip)
+        sampling_row.addWidget(sampling_lbl)
+        sampling_row.addWidget(self.sampling_combo)
+        sampling_row.addStretch()
+        layout.addLayout(sampling_row)
+
+        self.share_row = QWidget()
+        self.share_row.setObjectName("ml_share_row")
+        self.share_row.setStyleSheet(
+            "#ml_share_row { background-color: transparent; }")
+        share_layout = QHBoxLayout(self.share_row)
+        share_layout.setContentsMargins(0, 0, 0, 0)
+        share_layout.addWidget(QLabel("Centred Tiles:"))
+        self.share_spinbox = QSpinBox()
+        self.share_spinbox.setRange(0, 100)
+        self.share_spinbox.setSingleStep(5)
+        self.share_spinbox.setSuffix(" %")
+        self.share_spinbox.setValue(int(round(100 * Tiling.normalize_share(
+            ml_params.get("labelled_share", Tiling.LABELLED_SHARE)))))
+        self.share_spinbox.setToolTip(
+            "Share of the training tiles centred on a label; the others are\n"
+            "drawn anywhere, so that the network sees the background too.\n"
+            "More: the labels are seen more often, but the model learns\n"
+            "that they are more frequent than they are and marks more\n"
+            "pixels (raise the Confidence Threshold). 33 % to 50 % is usual.")
+        share_layout.addWidget(self.share_spinbox)
+        share_layout.addStretch()
+        layout.addWidget(self.share_row)
+        self.sampling_combo.currentIndexChanged.connect(
+            self._update_share_row)
+        self._update_share_row()
+
+        input_lbl = QLabel("Segmentation Input:")
+        input_lbl.setToolTip(
+            "How the segmentation model sees the images, for training and\n"
+            "prediction: the whole image resized, or tiles of it.")
+        seg_layout.addWidget(input_lbl)
+        inputs = QVBoxLayout()
+        inputs.setContentsMargins(16, 0, 0, 0)
+        inputs.addWidget(self.whole_radio)
+        inputs.addWidget(self.tiles_radio)
+        inputs.addWidget(self.tiles_box)
+        self.image_size_hint = QLabel()
+        self.image_size_hint.setWordWrap(True)
+        inputs.addWidget(self.image_size_hint)
+        seg_layout.addLayout(inputs)
+
+        self.tiles_radio.toggled.connect(self._update_tiles_box)
+        self.tile_spinbox.valueChanged.connect(self._update_image_size_hint)
+        self.scale_combo.currentIndexChanged.connect(
+            self._update_image_size_hint)
+        self._largest_image = self._largest_image_size()
+
+    def _update_share_row(self):
+        """The share of centred tiles shows unless they are random."""
+        self.share_row.setVisible(self.sampling_combo.currentData()
+                                  != Tiling.SAMPLING_RANDOM)
+
+    def tiling_mode(self):
+        """"on" (tiles) or "off" (whole image), as saved in the parameters."""
+        return "on" if self.tiles_radio.isChecked() else "off"
+
+    def _largest_image_size(self):
+        """(width, height) of the largest image of the project, read from
+        the file headers (no decode), or None."""
+        largest = None
+        for path in getattr(self.model, "file_paths", None) or []:
+            size = QImageReader(path).size()
+            if size.isValid() and (largest is None or
+                                   size.width() * size.height()
+                                   > largest[0] * largest[1]):
+                largest = (size.width(), size.height())
+        return largest
+
+    def _update_image_size_hint(self):
+        """Information only: the mode is never changed for the user."""
+        if self._largest_image is None:
+            self.image_size_hint.setText("")
+            return
+        w, h = self._largest_image
+        text = f"Largest image of the project: {w} × {h} px."
+        tile = self.tile_spinbox.value() / (self.scale_combo.currentData()
+                                            or 1.0)
+        if max(w, h) > 2 * tile:
+            text += (f" Tiles are recommended for images larger than twice "
+                     f"the tile size ({int(2 * tile)} px at this resolution).")
+        self.image_size_hint.setText(text)
+
+    def _snap_tile_size(self):
+        value = Tiling.normalize_tile_size(self.tile_spinbox.value())
+        if value != self.tile_spinbox.value():
+            self.tile_spinbox.setValue(value)
+
+    def _update_overlap_range(self):
+        self.overlap_spinbox.setRange(0, self.tile_spinbox.value() // 2)
+
+    def _update_finetune_row(self):
+        """Fine-tuning is a setting of the DINOv2 backbones only."""
+        self.finetune_row.setVisible(
+            DinoBackbone.is_dinov2(self.backbone_combo.currentText()))
+
+    def _update_seg_options(self):
+        """The segmentation settings show only when it is enabled."""
+        self.seg_options.setVisible(self.enable_seg_checkbox.isChecked())
+
+    def _update_tiles_box(self):
+        """The tile settings show only when tiles are chosen."""
+        self.tiles_box.setVisible(self.tiles_radio.isChecked())
+        self._update_image_size_hint()
+
     def _deselect_all(self):
         for row in range(self.image_list.count()):
             self.image_list.item(row).setCheckState(Qt.CheckState.Unchecked)
+
+    def done(self, result):
+        self._closed = True
+        self._stats_timer.stop()
+        self._stop_label_stats()
+        super().done(result)
 
     def accept(self):
         # Collect checked image paths
@@ -587,6 +1347,7 @@ class MLSetting(QDialog):
             data["ml"] = {}
 
         data["ml"]["num_epochs"] = self.epochs_spinbox.value()
+        data["ml"]["patience"] = self.patience_spinbox.value()
         data["ml"]["batch_size"] = self.batch_spinbox.value()
         data["ml"]["learning_rate"] = self.lr_spinbox.value()
         data["ml"]["image_size"] = self.imgsize_combo.currentData()
@@ -594,9 +1355,23 @@ class MLSetting(QDialog):
         data["ml"]["enable_detection"] = self.enable_det_checkbox.isChecked()
         data["ml"]["pretrained"] = self.pretrained_checkbox.isChecked()
         data["ml"]["backbone_name"] = self.backbone_combo.currentText()
-        data["ml"]["seg_backbone"] = self.seg_combo.currentData()
+        # the former "Segmentation Head" choice, now backbone + decoder
+        data["ml"].pop("seg_backbone", None)
+        data["ml"]["other_labels_background"] = \
+            self.other_labels_checkbox.isChecked()
         data["ml"]["confidence_threshold"] = self.conf_spinbox.value()
         data["ml"]["nms_threshold"] = self.nms_spinbox.value()
+        tile = Tiling.normalize_tile_size(self.tile_spinbox.value())
+        data["ml"]["tiling"] = self.tiling_mode()
+        data["ml"]["tile_size"] = tile
+        data["ml"]["tile_overlap"] = Tiling.normalize_overlap(
+            self.overlap_spinbox.value(), tile)
+        data["ml"]["tile_scale"] = self.scale_combo.currentData()
+        data["ml"]["tile_sampling"] = self.sampling_combo.currentData()
+        data["ml"]["labelled_share"] = self.share_spinbox.value() / 100
+        data["ml"]["seg_loss"] = self.loss_combo.currentData()
+        data["ml"]["seg_decoder"] = self.decoder_combo.currentData()
+        data["ml"]["finetune_blocks"] = self.finetune_spinbox.value()
 
         Utils.save_parameters(data)
         return super().accept()
