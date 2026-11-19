@@ -64,7 +64,10 @@ def test_bar_tooltips_show_their_shortcut(app_stack):
     controller, view, model = app_stack
     tooltip = view.buttons_file_bar["load"].toolTip()
     assert tooltip.startswith("Open a project folder")
-    assert tooltip.endswith(f"({QKeySequence('Ctrl+O').toString()})")
+    # native text, as the tooltip shows it: "Ctrl+O", "⌘O" on macOS
+    keys = QKeySequence('Ctrl+O').toString(
+        QKeySequence.SequenceFormat.NativeText)
+    assert tooltip.endswith(f"({keys})")
     # no shortcut, no suffix
     assert not view.buttons_file_bar["save_copy"].toolTip().endswith(")")
 
