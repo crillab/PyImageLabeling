@@ -22,6 +22,7 @@ import shutil
 import tempfile
 
 import cv2
+from PyImageLabeling.model.ImageFiles import imread
 import numpy as np
 
 # Class value of the pixels a tile adds around an image smaller than the
@@ -274,7 +275,7 @@ class TileCache:
         """Decode an image and store it with its class mask (same size as
         the image, class ids). Returns the TileSource, or None when the
         image cannot be read."""
-        bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        bgr = imread(image_path, cv2.IMREAD_COLOR)
         if bgr is None:
             return None
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)

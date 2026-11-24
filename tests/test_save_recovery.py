@@ -230,10 +230,46 @@ def test_snapshot_is_offered_after_a_crash(app_stack, workspace, tmp_path):
     model.save()
     assert not Autosave.needs_recovery(str(project))
 
+    # a new stroke after the save, then the crash
+    model.select_image(paths[0])
+    item = model.get_current_image_item()
+    item.get_labeling_overlay().get_painter().fillRect(
+        60, 60, 20, 20, la.get_color())
+    item.update_labeling_overlay()
     model.auto_save()
     time.sleep(0.01)
     # snapshot strictly newer than the project files
     assert Autosave.needs_recovery(str(project))
+
+
+def test_auto_save_skipped_without_changes(app_stack, workspace, tmp_path):
+    """Nothing unsaved: no snapshot, so Recover offers nothing."""
+    _, _, model, _, _, _ = _annotate(app_stack, workspace)
+    project = tmp_path / "project"
+    project.mkdir()
+    model.save_directory = str(project)
+    model.save()
+    before = {n: os.path.getmtime(project / n) for n in os.listdir(project)}
+    model.auto_save()
+    assert not os.path.isdir(Autosave.autosave_dir(str(project)))
+    assert not Autosave.needs_recovery(str(project))
+    after = {n: os.path.getmtime(project / n) for n in os.listdir(project)}
+    assert after == before
+
+
+def test_auto_save_skipped_for_an_untouched_project(app_stack, workspace,
+                                                     tmp_path):
+    controller, view, model = app_stack
+    reset_app(controller, view, model)
+    paths = make_images(workspace, 2, size=64, seed=3)
+    for p in paths:
+        model.file_paths.append(p)
+        model.image_items[p] = None
+    project = tmp_path / "project"
+    project.mkdir()
+    model.save_directory = str(project)
+    model.auto_save()
+    assert not os.path.isdir(Autosave.autosave_dir(str(project)))
 
 
 def test_snapshot_not_offered_when_project_is_newer(app_stack, workspace,

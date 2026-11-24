@@ -59,7 +59,11 @@ class ImageItem():
         for label_id in self.labeling_overlays:
             if self.labeling_overlays[label_id].get_is_edited() is True:
                 return True
-        return False
+        # rectangles, ellipses and polygons not saved yet
+        try:
+            return self.controller.model.shapes_edited(self.path_image)
+        except AttributeError:
+            return False
 
     def get_image_pixmap(self):
         return self.image_pixmap

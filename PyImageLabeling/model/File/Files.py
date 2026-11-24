@@ -389,6 +389,7 @@ class Files(Base):
         self.left_rectangles.clear()
         self.left_ellipses.clear()
         self.left_polygons.clear()
+        self.saved_shapes.clear()
 
         self._clear_label_bar()
         self.label_items.clear()

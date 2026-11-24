@@ -49,6 +49,20 @@ from PyImageLabeling.model.ImageItem import ImageItem
 from PyImageLabeling.model.LabelItem import LabelItem
 from PyImageLabeling.model.ImageCatalog import ImageCatalog
 
+# The three kinds of geometric shapes: (kind, ImageItem attribute, model
+# attribute holding them while the image is not loaded, key of their label).
+SHAPE_KINDS = (
+    ("rectangles", "image_rectangles", "left_rectangles", "label_id"),
+    ("ellipses", "image_ellipses", "left_ellipses", "label"),
+    ("polygons", "image_polygons", "left_polygons", "label"),
+)
+
+
+def _as_saved(shapes):
+    """The shapes as they read back from their JSON file (tuples become
+    lists), to compare them with what is on disk."""
+    return json.loads(json.dumps(shapes or []))
+
 class Base(GeometryUpdaterMixin):
     @property
     def file_paths(self):
@@ -110,6 +124,9 @@ class Base(GeometryUpdaterMixin):
         self.left_rectangles= {}
         self.left_ellipses = {}
         self.left_polygons = {}
+        # The shapes of each image as they are in the project files
+        # (basename -> {kind: list}), to tell whether they were changed.
+        self.saved_shapes = {}
 
         self.autosave_timer = QTimer()
         self.autosave_timer.timeout.connect(self.auto_save)
@@ -121,6 +138,12 @@ class Base(GeometryUpdaterMixin):
 
     def auto_save(self):
         if not self.save_directory:
+            return
+        # Nothing unsaved: the project files already hold everything.
+        # Writing anyway rewrote the snapshot every few minutes, and its
+        # fresh date made File > Recover offer to "recover" nothing.
+        if not self.get_edited():
+            log.debug("Auto-save skipped: no unsaved changes")
             return
 
         auto_save_path = Autosave.autosave_dir(self.save_directory)
@@ -173,7 +196,77 @@ class Base(GeometryUpdaterMixin):
             image_item = self.image_items.get(file)
             if image_item is not None and image_item.get_edited() is True:
                 return True
+            # shapes of an image that is not loaded (a label removed)
+            if image_item is None and self.shapes_edited(file):
+                return True
         return False
+
+    def image_shapes(self, path_image):
+        """{kind: list} of the shapes of an image, loaded or not."""
+        item = self.image_items.get(path_image)
+        name = os.path.basename(path_image)
+        shapes = {}
+        for kind, attr, left, _ in SHAPE_KINDS:
+            if item is not None:
+                shapes[kind] = getattr(item, attr) or []
+            else:
+                shapes[kind] = getattr(self, left).get(name) or []
+        return shapes
+
+    def shapes_edited(self, path_image):
+        """True when the shapes of an image differ from the project files.
+
+        Shapes are drawn, moved, resized and deleted in many places (the
+        tools, the shape items themselves, detection, label removal):
+        comparing with what was read or written is what catches them all.
+        """
+        saved = self.saved_shapes.get(os.path.basename(path_image), {})
+        for kind, shapes in self.image_shapes(path_image).items():
+            if _as_saved(shapes) != saved.get(kind, []):
+                return True
+        return False
+
+    def park_shapes(self, path_image, item):
+        """Keep the shapes of an image that leaves memory.
+
+        They live in the ImageItem while the image is loaded: dropping it
+        without putting them back in left_* lost them, and the next save
+        rewrote the shape files without them.
+        """
+        name = os.path.basename(path_image)
+        for _, attr, left, _ in SHAPE_KINDS:
+            shapes = getattr(item, attr, None)
+            if shapes:
+                getattr(self, left)[name] = shapes
+            else:
+                getattr(self, left).pop(name, None)
+
+    def remove_shapes_of_label(self, label_id):
+        """Remove the shapes of a label from every image, loaded or not,
+        and from the scene."""
+        def keep(shapes, key):
+            return [s for s in shapes if s.get(key) != label_id]
+        for file in self.file_paths:
+            item = self.image_items.get(file)
+            if item is None:
+                continue
+            for _, attr, _, key in SHAPE_KINDS:
+                setattr(item, attr, keep(getattr(item, attr) or [], key))
+        for _, _, left, key in SHAPE_KINDS:
+            store = getattr(self, left)
+            for name in list(store):
+                store[name] = keep(store[name], key)
+                if not store[name]:
+                    del store[name]
+        try:
+            scene = self.zoomable_graphics_view.scene
+            for item in list(scene.items()):
+                if isinstance(item, (RectangleItem, EllipseItem,
+                                     PolygonItem)) \
+                        and getattr(item, "label_id", None) == label_id:
+                    scene.removeItem(item)
+        except AttributeError:
+            pass
 
     def resize_all_undo_deques(self, new_depth):
         """Apply a new undo depth to every overlay of every loaded image.
@@ -291,29 +384,32 @@ class Base(GeometryUpdaterMixin):
                 pass
         return failed
 
-    def save_labels_geometric_shape(self, current_file_path):
+    def save_labels_geometric_shape(self, current_file_path,
+                                    reset_edited=True):
         rectangles_save = {}
         ellipses_save = {}
         polygons_save = {}
 
+        # Every image of the project, loaded or not: only the loaded ones
+        # used to be written, so a save erased the shapes of all the others.
         for file in self.file_paths:
-            image_item = self.image_items.get(file)
+            shapes = self.image_shapes(file)
+            name = os.path.basename(file)
+            if shapes["rectangles"]:
+                rectangles_save[name] = shapes["rectangles"]
+            if shapes["ellipses"]:
+                ellipses_save[name] = shapes["ellipses"]
+            if shapes["polygons"]:
+                polygons_save[name] = shapes["polygons"]
 
-            if image_item is None:
-                continue
-
-            rects = image_item.image_rectangles or []
-            ellipses = image_item.image_ellipses or []
-            polys = image_item.image_polygons or []
-
-            if rects:
-                rectangles_save[os.path.basename(file)] = rects
-
-            if ellipses:
-                ellipses_save[os.path.basename(file)] = ellipses
-
-            if polys:
-                polygons_save[os.path.basename(file)] = polys
+        if reset_edited:
+            # what the project files now hold (the auto-save writes its
+            # own copy elsewhere: the project files are unchanged)
+            self.saved_shapes = {
+                os.path.basename(file): {
+                    kind: _as_saved(shapes)
+                    for kind, shapes in self.image_shapes(file).items()}
+                for file in self.file_paths}
 
         os.makedirs(current_file_path, exist_ok=True)
 
@@ -349,8 +445,13 @@ class Base(GeometryUpdaterMixin):
     def _save_all(self, path, reset_edited):
         self.save_labels(path)
         self.save_overlays(path, reset_edited=reset_edited)
-        self.save_labels_geometric_shape(path)
+        self.save_labels_geometric_shape(path, reset_edited=reset_edited)
         self.save_complete_state(path)
+        if reset_edited:
+            try:
+                self.update_icon_file()   # unsaved-shape asterisks
+            except Exception:
+                pass
 
         if reset_edited and self.save_directory:
             # A real save supersedes the snapshot: leaving it behind would
@@ -477,6 +578,9 @@ class Base(GeometryUpdaterMixin):
         rectangles_dict = self._read_annotation_json(file, "rectangle")
         if rectangles_dict is None:
             return
+        for image_name, shapes in rectangles_dict.items():
+            self.saved_shapes.setdefault(image_name, {})["rectangles"] = \
+                _as_saved(shapes)
         for image_name, rectangles in rectangles_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -516,6 +620,9 @@ class Base(GeometryUpdaterMixin):
         ellipses_dict = self._read_annotation_json(file, "ellipse")
         if ellipses_dict is None:
             return
+        for image_name, shapes in ellipses_dict.items():
+            self.saved_shapes.setdefault(image_name, {})["ellipses"] = \
+                _as_saved(shapes)
         for image_name, ellipses in ellipses_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -554,6 +661,9 @@ class Base(GeometryUpdaterMixin):
         polygons_dict = self._read_annotation_json(file, "polygon")
         if polygons_dict is None:
             return
+        for image_name, shapes in polygons_dict.items():
+            self.saved_shapes.setdefault(image_name, {})["polygons"] = \
+                _as_saved(shapes)
         for image_name, polygons in polygons_dict.items():
             # Find the corresponding image path
             image_path = None
@@ -784,6 +894,7 @@ class Base(GeometryUpdaterMixin):
             item.labeling_overlays[label_id] = None
         item.labeling_overlays.clear()
         item.current_labeling_overlay = None
+        self.park_shapes(path_image, item)
         # scene.clear() already deleted the C++ scene items on the switch
         # away; these are dangling wrappers and only ever get dereferenced
         # if is_displayed_in_scene is (wrongly) True, so just drop them.

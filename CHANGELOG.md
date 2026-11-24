@@ -3,6 +3,31 @@
 Each `## <version>` section becomes the text of the GitHub release of that
 version: the Release workflow refuses to publish a version without one.
 
+## Unreleased
+
+### Fixed
+- Saving erased the rectangles, ellipses and polygons of every image that was
+  not loaded at that moment: only the loaded images were written to the shape
+  files. An image freed from memory (browsing, training, propagation) did not
+  keep its shapes either. Every image of the project is now written.
+- Drawing, moving, resizing or deleting a shape did not mark the project as
+  modified: no "save?" when closing the window or opening another folder, and
+  no red asterisk on the image. Shapes are now compared with what the project
+  files hold.
+- Removing a label (or changing its labeling mode) left its shapes in the
+  shape files, under a label that no longer existed; they are now removed
+  from every image.
+- An image whose file carries an orientation tag (photos, or an image turned
+  in a viewer that only sets the tag) was shown as stored but trained on and
+  predicted turned: OpenCV applied the tag, the view did not. Its masks no
+  longer lined up with it, so training learnt from wrong pixels and the
+  predictions landed in the wrong place. Images are now read as shown.
+
+### Changed
+- Auto-save only writes when there are unsaved changes. It used to rewrite
+  its snapshot every few minutes even with nothing new, so File > Recover
+  Unsaved Annotations… offered a snapshot that held nothing to recover.
+
 ## 1.0.15 (2026-11-19)
 
 ### Added

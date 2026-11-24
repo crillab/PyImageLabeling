@@ -461,6 +461,8 @@ class MLEvents(Events):
             # touching their graphics items from this state kills the
             # process natively (0xC0000409). Their overlays were never added
             # to the scene, so simply forgetting them is enough.
+            # its shapes go back to left_* (else the next save drops them)
+            model.park_shapes(path, item)
             model.image_items[path] = None
             dropped += 1
         if dropped:

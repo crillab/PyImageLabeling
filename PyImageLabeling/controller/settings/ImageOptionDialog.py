@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QPixmap, QImage, QColor, QDesktopServices
 import cv2
+from PyImageLabeling.model.ImageFiles import imread
 import numpy as np
 import json
 import os
@@ -73,7 +74,7 @@ class ImageOptionDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _load_cv2_from_file(self, path, has_alpha):
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        img = imread(path, cv2.IMREAD_UNCHANGED)
         if img is None:
             return self._qpixmap_to_cv2_safe(QPixmap(path))
         if len(img.shape) == 2:
