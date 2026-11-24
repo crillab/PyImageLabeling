@@ -17,6 +17,11 @@ version: the Release workflow refuses to publish a version without one.
 - Removing a label (or changing its labeling mode) left its shapes in the
   shape files, under a label that no longer existed; they are now removed
   from every image.
+- An image whose file carries an orientation tag (photos, or an image turned
+  in a viewer that only sets the tag) was shown as stored but trained on and
+  predicted turned: OpenCV applied the tag, the view did not. Its masks no
+  longer lined up with it, so training learnt from wrong pixels and the
+  predictions landed in the wrong place. Images are now read as shown.
 
 ### Changed
 - Auto-save only writes when there are unsaved changes. It used to rewrite

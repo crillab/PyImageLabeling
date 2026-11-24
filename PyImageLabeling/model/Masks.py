@@ -171,5 +171,6 @@ def read_painted_mask(mask_path):
     except (OSError, ValueError):
         return None
     import cv2
-    bgr = cv2.imread(mask_path, cv2.IMREAD_COLOR)
+    from PyImageLabeling.model.ImageFiles import imread
+    bgr = imread(mask_path, cv2.IMREAD_COLOR)
     return None if bgr is None else bgr.any(axis=2)

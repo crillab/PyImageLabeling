@@ -7,6 +7,7 @@ import os
 import threading
 import time
 import cv2
+from PyImageLabeling.model.ImageFiles import imread
 import re
 import numpy as np
 import torch
@@ -581,7 +582,7 @@ class ObjectDetectionDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        image = cv2.imread(self.image_paths[idx])
+        image = imread(self.image_paths[idx])
         if image is None:
             return (torch.zeros(3, self.image_size, self.image_size),
                     torch.zeros(1, 4),
@@ -634,7 +635,7 @@ class SegmentationDataset(Dataset):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        image = cv2.imread(self.image_paths[idx])
+        image = imread(self.image_paths[idx])
         if image is None:
             return (torch.zeros(3, self.image_size, self.image_size),
                     torch.zeros(self.image_size, self.image_size, dtype=torch.long))
@@ -2467,7 +2468,7 @@ class MLPredictor(Base):
         """Normalized mean entropy of the segmentation over (at most
         AL_MAX_TILES) tiles spread over the image, or None."""
         import math
-        bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        bgr = imread(image_path, cv2.IMREAD_COLOR)
         if bgr is None:
             return None
         t = self.tiling
@@ -2651,7 +2652,7 @@ class MLPredictor(Base):
         if confidence_threshold is None:
             confidence_threshold = self.confidence_threshold
 
-        image = cv2.imread(image_path)
+        image = imread(image_path)
         if image is None:
             return []
 
@@ -2706,7 +2707,7 @@ class MLPredictor(Base):
         if confidence_threshold is None:
             confidence_threshold = self.segmentation_threshold
 
-        image = cv2.imread(image_path)
+        image = imread(image_path)
         if image is None:
             return None
 
@@ -3030,7 +3031,7 @@ class MLPredictor(Base):
 
     def _al_preprocess(self, image_path):
         """Shared preprocessing (same as predict_*). Returns tensor or None."""
-        image = cv2.imread(image_path)
+        image = imread(image_path)
         if image is None:
             return None
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

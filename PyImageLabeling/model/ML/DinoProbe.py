@@ -9,6 +9,7 @@ are encoded once and cached; only a 1x1 convolution is trained.
 """
 
 import cv2
+from PyImageLabeling.model.ImageFiles import imread
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -56,7 +57,7 @@ class DinoLinearProbe:
         return grid[0].cpu()
 
     def encode_path(self, image_path):
-        bgr = cv2.imread(image_path)
+        bgr = imread(image_path)
         if bgr is None:
             raise IOError(f"cannot read {image_path}")
         return self.encode(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
@@ -116,7 +117,7 @@ class DinoLinearProbe:
     def predict(self, image_path):
         """(classes, confidences) at the image's native resolution."""
         self._ensure_head()
-        bgr = cv2.imread(image_path)
+        bgr = imread(image_path)
         if bgr is None:
             raise IOError(f"cannot read {image_path}")
         h, w = bgr.shape[:2]
